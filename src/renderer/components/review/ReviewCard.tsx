@@ -3,7 +3,7 @@ import type { MediaItem } from "../../../shared/types/media"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Check, Trash2, Maximize } from "lucide-react"
+import { Bookmark, Trash2, Maximize } from "lucide-react"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { formatBytes } from "../../lib/format"
 import { VideoPlayer } from "../media/VideoPlayer"
@@ -147,7 +147,7 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
                     <Maximize className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom">Fullscreen Preview</TooltipContent>
+                <TooltipContent side="bottom">Preview Details</TooltipContent>
               </Tooltip>
             </div>
           )}
@@ -161,7 +161,7 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
               <div className="absolute inset-0 bg-linear-to-l from-green-500/40 via-green-500/10 to-transparent" />
               <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col items-center gap-2">
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-500 shadow-lg shadow-green-500/30">
-                  <Check className="h-8 w-8 text-white stroke-[3px]" />
+                  <Bookmark className="h-8 w-8 text-white fill-white" />
                 </div>
                 <span className="font-heading text-xs font-black tracking-widest text-white uppercase drop-shadow-[0_1px_4px_rgba(0,0,0,0.9)]">
                   Keep

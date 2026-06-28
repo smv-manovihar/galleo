@@ -20,8 +20,8 @@ export const ReviewMode: React.FC<ReviewModeProps> = ({
   items,
   onComplete,
 }) => {
-  const { currentIndex, submitDecision, undo, getProgress, undoStack } =
-    useSessionStore()
+  const { submitDecision, undo, undoStack } = useSessionStore()
+  const decisions = useSessionStore(state => state.decisions)
 
   const [swipeClass, setSwipeClass] = useState<
     "slide-left" | "slide-right" | ""
@@ -33,9 +33,23 @@ export const ReviewMode: React.FC<ReviewModeProps> = ({
   const [isVideoPlaying, setIsVideoPlaying] = useState(false)
   const videoPlayerRef = useRef<any>(null)
 
+  const unreviewedItems = useMemo(() => {
+    return items.filter(item => decisions[item.id] === undefined && item.reviewState === 'pending');
+  }, [items, decisions]);
+
+  const initialUnreviewedCount = useRef<number | null>(null)
+  const lastItemsRef = useRef<MediaItem[]>(items)
+
+  if (initialUnreviewedCount.current === null || lastItemsRef.current !== items) {
+    initialUnreviewedCount.current = unreviewedItems.length
+    lastItemsRef.current = items
+  }
+
+  const currentItem = unreviewedItems.length > 0 ? unreviewedItems[0] : null
+
   useEffect(() => {
     setIsVideoPlaying(false)
-  }, [currentIndex])
+  }, [currentItem?.id])
 
   useEffect(() => {
     if (restoringDirection) {
@@ -53,20 +67,10 @@ export const ReviewMode: React.FC<ReviewModeProps> = ({
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
 
-  const activeIndex = currentIndex
-  const currentItem = activeIndex < items.length ? items[activeIndex] : null
-
   // Deck: current + next few for stacked visuals
   const deckItems = useMemo(() => {
-    const deck: MediaItem[] = []
-    for (let i = 0; i < DECK_SIZE; i++) {
-      const idx = activeIndex + i
-      if (idx < items.length) {
-        deck.push(items[idx])
-      }
-    }
-    return deck
-  }, [activeIndex, items])
+    return unreviewedItems.slice(0, DECK_SIZE)
+  }, [unreviewedItems])
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -121,6 +125,7 @@ export const ReviewMode: React.FC<ReviewModeProps> = ({
     setSwipeClass("")
     setDragOffset({ x: 0, y: 0 })
     setRestoringDirection(direction)
+
     await undo()
   }
 
@@ -245,10 +250,10 @@ export const ReviewMode: React.FC<ReviewModeProps> = ({
   }
 
   useEffect(() => {
-    if (items.length > 0 && activeIndex >= items.length) {
+    if (items.length > 0 && unreviewedItems.length === 0) {
       onComplete()
     }
-  }, [activeIndex, items.length, onComplete])
+  }, [unreviewedItems.length, items.length, onComplete])
 
   if (!currentItem) {
     return (
@@ -268,7 +273,13 @@ export const ReviewMode: React.FC<ReviewModeProps> = ({
     )
   }
 
-  const progress = getProgress()
+  const progress = {
+    reviewed: Math.max(0, (initialUnreviewedCount.current ?? unreviewedItems.length) - unreviewedItems.length),
+    total: initialUnreviewedCount.current ?? unreviewedItems.length,
+    percentage: (initialUnreviewedCount.current ?? unreviewedItems.length) > 0 
+      ? Math.round((Math.max(0, (initialUnreviewedCount.current ?? unreviewedItems.length) - unreviewedItems.length) / (initialUnreviewedCount.current ?? unreviewedItems.length)) * 100) 
+      : 0
+  };
 
   // Stamp overlay direction opacity calculations
   const thresholdX = 120

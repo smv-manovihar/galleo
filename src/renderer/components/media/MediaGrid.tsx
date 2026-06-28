@@ -8,6 +8,7 @@ interface MediaGridProps {
   selectedIds: Set<string>;
   onSelectToggle: (id: string, e: React.MouseEvent) => void;
   onPreviewOpen: (item: MediaItem) => void;
+  onInfoOpen: (item: MediaItem) => void;
   onReviewAction: (id: string, state: 'keep' | 'delete' | 'skipped') => void;
   columns?: number;
 }
@@ -17,6 +18,7 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
   selectedIds,
   onSelectToggle,
   onPreviewOpen,
+  onInfoOpen,
   onReviewAction,
   columns = 4
 }) => {
@@ -70,6 +72,7 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
                   isSelected={selectedIds.has(item.id)}
                   onSelectToggle={onSelectToggle}
                   onPreviewOpen={onPreviewOpen}
+                  onInfoOpen={onInfoOpen}
                   onReviewAction={onReviewAction}
                 />
               ))}

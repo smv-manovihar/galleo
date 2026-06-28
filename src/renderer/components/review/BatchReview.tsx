@@ -3,7 +3,7 @@ import type { MediaItem } from '../../../shared/types/media';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Check, Trash2, ShieldAlert, Sparkles, Maximize, History, Undo2 } from 'lucide-react';
+import { Bookmark, Trash2, ShieldAlert, Sparkles, Maximize, History, Undo2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatBytes } from '../../lib/format';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { MediaPreview } from '../media/MediaPreview';
@@ -42,6 +42,7 @@ export const BatchReview: React.FC<BatchReviewProps> = ({ items, onReviewAction 
     mediaId: string;
     name: string;
     previousState: 'keep' | 'delete' | 'pending';
+    batchId?: string;
   }
   const [localUndoStack, setLocalUndoStack] = useState<LocalUndoEntry[]>([]);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -64,7 +65,22 @@ export const BatchReview: React.FC<BatchReviewProps> = ({ items, onReviewAction 
 
   const handleUndo = async () => {
     if (localUndoStack.length === 0) return;
-    const entry = localUndoStack[localUndoStack.length - 1];
+    
+    // Find the last entries to undo (might be a batch)
+    const lastEntry = localUndoStack[localUndoStack.length - 1];
+    const batchId = lastEntry.batchId;
+    
+    let entriesToUndo: LocalUndoEntry[] = [];
+    if (batchId) {
+      // Find all consecutive entries at the end of the stack with the same batchId
+      let idx = localUndoStack.length - 1;
+      while (idx >= 0 && localUndoStack[idx].batchId === batchId) {
+        entriesToUndo.push(localUndoStack[idx]);
+        idx--;
+      }
+    } else {
+      entriesToUndo = [lastEntry];
+    }
 
     // Revert the decision in the session store and DB
     const store = useSessionStore.getState();
@@ -72,36 +88,52 @@ export const BatchReview: React.FC<BatchReviewProps> = ({ items, onReviewAction 
     if (!checkpoint) return;
 
     const updatedDecisions = { ...store.decisions };
-    if (entry.previousState === 'pending') {
-      delete updatedDecisions[entry.mediaId];
-    } else {
-      updatedDecisions[entry.mediaId] = entry.previousState;
+    const reviewsToUpdate: { mediaId: string; state: any }[] = [];
+
+    for (const entry of entriesToUndo) {
+      if (entry.previousState === 'pending') {
+        delete updatedDecisions[entry.mediaId];
+      } else {
+        updatedDecisions[entry.mediaId] = entry.previousState;
+      }
+      reviewsToUpdate.push({ mediaId: entry.mediaId, state: entry.previousState as any });
     }
 
     const updatedCheckpoint = { ...checkpoint, decisions: updatedDecisions, savedAt: new Date().toISOString() };
     useSessionStore.setState({ decisions: updatedDecisions, checkpoint: updatedCheckpoint });
     await window.api.saveSessionCheckpoint(updatedCheckpoint);
-    if (entry.previousState !== 'pending') {
-      await window.api.updateReviews(checkpoint.sessionId, [{ mediaId: entry.mediaId, state: entry.previousState }]);
-    }
+    await window.api.updateReviews(checkpoint.sessionId, reviewsToUpdate);
 
     // Update media store so cards re-render
     const mediaStore = useMediaStore.getState();
     useMediaStore.setState({
-      items: mediaStore.items.map(i =>
-        i.id === entry.mediaId ? { ...i, reviewState: (entry.previousState === 'pending' ? 'pending' : entry.previousState) as any } : i
-      ),
+      items: mediaStore.items.map(i => {
+        const entry = entriesToUndo.find(e => e.mediaId === i.id);
+        if (entry) {
+          return { ...i, reviewState: (entry.previousState === 'pending' ? 'pending' : entry.previousState) as any };
+        }
+        return i;
+      }),
     });
 
-    setLocalUndoStack(prev => prev.slice(0, -1));
+    // Navigate back to the group containing the undone item if necessary
+    const firstUndoneId = entriesToUndo[0].mediaId;
+    const targetGroupIndex = duplicateGroups.findIndex(group => 
+      group.some(item => item.id === firstUndoneId)
+    );
+    if (targetGroupIndex !== -1 && targetGroupIndex !== activeGroupIndex) {
+      setActiveGroupIndex(targetGroupIndex);
+    }
+
+    setLocalUndoStack(prev => prev.slice(0, -entriesToUndo.length));
   };
 
-  const handleReviewAction = async (id: string, state: 'keep' | 'delete' | 'skipped') => {
+  const handleReviewAction = async (id: string, state: 'keep' | 'delete' | 'skipped', batchId?: string) => {
     // Record previous state before the action for local undo
     const store = useSessionStore.getState();
     const currentDecision = (store.decisions[id] ?? 'pending') as 'keep' | 'delete' | 'pending';
     const item = items.find(i => i.id === id);
-    setLocalUndoStack(prev => [...prev, { mediaId: id, name: item?.name ?? id, previousState: currentDecision }]);
+    setLocalUndoStack(prev => [...prev, { mediaId: id, name: item?.name ?? id, previousState: currentDecision, batchId }]);
     await onReviewAction(id, state);
   };
 
@@ -112,12 +144,13 @@ export const BatchReview: React.FC<BatchReviewProps> = ({ items, onReviewAction 
 
     const updatedDecisions = { ...store.decisions };
     const newUndoEntries: LocalUndoEntry[] = [];
+    const batchId = `batch_${Date.now()}`;
 
     for (const mediaId of mediaIds) {
       const item = items.find(i => i.id === mediaId);
       if (item) {
         const currentDecision = (store.decisions[mediaId] ?? 'pending') as 'keep' | 'delete' | 'pending';
-        newUndoEntries.push({ mediaId, name: item.name, previousState: currentDecision });
+        newUndoEntries.push({ mediaId, name: item.name, previousState: currentDecision, batchId });
         updatedDecisions[mediaId] = newDecision;
       }
     }
@@ -128,7 +161,7 @@ export const BatchReview: React.FC<BatchReviewProps> = ({ items, onReviewAction 
     useSessionStore.setState({ decisions: updatedDecisions, checkpoint: updatedCheckpoint });
     await window.api.saveSessionCheckpoint(updatedCheckpoint);
 
-    const reviewsToUpdate = mediaIds.map(mediaId => ({ mediaId, state: newDecision }));
+    const reviewsToUpdate = mediaIds.map(mediaId => ({ mediaId, state: newDecision as any }));
     await window.api.updateReviews(checkpoint.sessionId, reviewsToUpdate);
 
     const mediaStore = useMediaStore.getState();
@@ -140,12 +173,13 @@ export const BatchReview: React.FC<BatchReviewProps> = ({ items, onReviewAction 
 
   const handleKeepBest = async () => {
     if (!currentGroup) return;
+    const batchId = `batch_${Date.now()}`;
 
     for (const item of currentGroup) {
       if (item.isBestInDuplicateGroup) {
-        await handleReviewAction(item.id, 'keep');
+        await handleReviewAction(item.id, 'keep', batchId);
       } else {
-        await handleReviewAction(item.id, 'delete');
+        await handleReviewAction(item.id, 'delete', batchId);
       }
     }
     nextGroup();
@@ -153,9 +187,10 @@ export const BatchReview: React.FC<BatchReviewProps> = ({ items, onReviewAction 
 
   const handleKeepAll = async () => {
     if (!currentGroup) return;
+    const batchId = `batch_${Date.now()}`;
 
     for (const item of currentGroup) {
-      await handleReviewAction(item.id, 'keep');
+      await handleReviewAction(item.id, 'keep', batchId);
     }
     nextGroup();
   };
@@ -180,7 +215,7 @@ export const BatchReview: React.FC<BatchReviewProps> = ({ items, onReviewAction 
   if (!currentGroup) {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-muted-foreground font-sans select-none text-xs gap-3">
-        <Check className="w-8 h-8 text-green-500" />
+        <Bookmark className="w-8 h-8 text-green-500" />
         <span>Completed reviewing all duplicate groups!</span>
       </div>
     );
@@ -289,7 +324,7 @@ export const BatchReview: React.FC<BatchReviewProps> = ({ items, onReviewAction 
                   className="flex-1 gap-1.5 h-8 border-green-500/20 bg-green-500/5 text-green-600 dark:text-green-400 hover:bg-green-500/10 rounded-lg text-2xs cursor-pointer"
                   onClick={() => handleReviewAction(item.id, 'keep')}
                 >
-                  <Check className="w-3.5 h-3.5" />
+                  <Bookmark className="w-3.5 h-3.5" />
                   Keep
                 </Button>
                 <Button
@@ -366,24 +401,35 @@ export const BatchReview: React.FC<BatchReviewProps> = ({ items, onReviewAction 
 
         {/* Right Side: Navigation */}
         <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="h-9 px-4 text-xs font-medium border-border hover:bg-accent cursor-pointer" 
-            onClick={prevGroup} 
-            disabled={activeGroupIndex === 0}
-          >
-            Previous
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="h-9 px-4 text-xs font-medium border-border hover:bg-accent cursor-pointer" 
-            onClick={nextGroup} 
-            disabled={activeGroupIndex >= duplicateGroups.length - 1}
-          >
-            Next Group
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                variant="outline" 
+                size="icon" 
+                className="h-9 w-9 border-border bg-card text-foreground shadow-sm hover:bg-accent cursor-pointer" 
+                onClick={prevGroup} 
+                disabled={activeGroupIndex === 0}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Previous Group</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                variant="outline" 
+                size="icon" 
+                className="h-9 w-9 border-border bg-card text-foreground shadow-sm hover:bg-accent cursor-pointer" 
+                onClick={nextGroup} 
+                disabled={activeGroupIndex >= duplicateGroups.length - 1}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Next Group</TooltipContent>
+          </Tooltip>
         </div>
       </div>
 

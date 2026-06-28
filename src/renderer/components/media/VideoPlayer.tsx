@@ -1,7 +1,8 @@
-import React, { useRef, useState, useEffect, useCallback, useImperativeHandle, forwardRef } from 'react';
-import { Play, Pause, Volume2, VolumeX, Maximize, Minimize } from 'lucide-react';
+import React, { useRef, useState, useEffect, useCallback, useImperativeHandle, forwardRef, useMemo } from 'react';
+import { Play, Pause, Volume2, VolumeX, Maximize, Minimize, RotateCcw, RotateCw, RefreshCw, RefreshCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
 interface VideoPlayerProps {
   src: string;
@@ -39,6 +40,22 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
 }, ref) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [containerElement, setContainerElement] = useState<HTMLDivElement | null>(null);
+  const [isNarrow, setIsNarrow] = useState(false);
+
+  useEffect(() => {
+    if (containerRef.current) {
+      setContainerElement(containerRef.current);
+      
+      const observer = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          setIsNarrow(entry.contentRect.width < 450);
+        }
+      });
+      observer.observe(containerRef.current);
+      return () => observer.disconnect();
+    }
+  }, []);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -47,9 +64,70 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
   const [duration, setDuration] = useState(0);
   const [internalFullscreen, setInternalFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
+  const [rotation, setRotation] = useState<number>(0);
+  const [scale, setScale] = useState(1);
+  const [aspectRatio, setAspectRatio] = useState<number | null>(null);
 
   // Use external fullscreen state if provided, otherwise fall back to internal
   const isFullscreen = externalFullscreen !== undefined ? externalFullscreen : internalFullscreen;
+
+  const isRotated90 = Math.abs((rotation / 90) % 2) === 1;
+
+  const effectiveAspect = useMemo(() => {
+    if (!aspectRatio) return null;
+    return isRotated90 ? (1 / aspectRatio) : aspectRatio;
+  }, [aspectRatio, isRotated90]);
+
+  const containerStyle = useMemo<React.CSSProperties>(() => {
+    if (isFullscreen) return { width: '100%', height: '100%' };
+    if (!effectiveAspect) return { width: '100%' };
+    
+    if (effectiveAspect < 1) {
+      return {
+        maxWidth: `calc(70vh * ${effectiveAspect})`,
+        maxHeight: '70vh',
+        width: '100%',
+        aspectRatio: `${effectiveAspect}`
+      };
+    } else {
+      return {
+        maxWidth: '100%',
+        maxHeight: '70vh',
+        width: '100%',
+        aspectRatio: `${effectiveAspect}`
+      };
+    }
+  }, [effectiveAspect, isFullscreen]);
+
+  const calculateScale = useCallback(() => {
+    if (!videoRef.current || !containerRef.current || !isRotated90) {
+      setScale(1);
+      return;
+    }
+    const vW = videoRef.current.videoWidth;
+    const vH = videoRef.current.videoHeight;
+    const cW = containerRef.current.clientWidth;
+    const cH = containerRef.current.clientHeight;
+    
+    if (vW && vH && cW && cH) {
+      const normalScale = Math.min(cW / vW, cH / vH);
+      const rotatedScale = Math.min(cW / vH, cH / vW);
+      setScale(rotatedScale / normalScale);
+    } else {
+      setScale(1);
+    }
+  }, [isRotated90]);
+
+  // Recalculate scale on rotation, mount, or window resize
+  useEffect(() => {
+    calculateScale();
+  }, [rotation, calculateScale]);
+
+  useEffect(() => {
+    const handleResize = () => calculateScale();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [calculateScale]);
 
   const hideTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -72,6 +150,9 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
     setIsPlaying(false);
     setCurrentTime(0);
     setDuration(0);
+    setRotation(0);
+    setScale(1);
+    setAspectRatio(null);
     if (videoRef.current) {
       videoRef.current.currentTime = 0;
       videoRef.current.pause();
@@ -140,11 +221,9 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
   const handleFullscreenClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (onFullscreenToggle) {
-      // Delegate to parent's fullscreen handler
       onFullscreenToggle();
       return;
     }
-    // Internal fullscreen management
     if (!containerRef.current) return;
     if (!document.fullscreenElement) {
       await containerRef.current.requestFullscreen();
@@ -155,9 +234,52 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
     }
   };
 
+  const rotateLeft = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setRotation(prev => prev - 90);
+  };
+
+  const rotateRight = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setRotation(prev => prev + 90);
+  };
+
+  const seekBackward = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!videoRef.current) return;
+    const newTime = Math.max(0, videoRef.current.currentTime - 10);
+    videoRef.current.currentTime = newTime;
+    setCurrentTime(newTime);
+  };
+
+  const seekForward = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!videoRef.current) return;
+    const newTime = Math.min(duration, videoRef.current.currentTime + 10);
+    videoRef.current.currentTime = newTime;
+    setCurrentTime(newTime);
+  };
+
+  const btnClass = isNarrow 
+    ? "w-7 h-7 rounded-full text-white hover:bg-white/10 cursor-pointer shrink-0" 
+    : "w-8 h-8 rounded-full text-white hover:bg-white/20 cursor-pointer shrink-0";
+    
+  const iconClass = isNarrow ? "w-3.5 h-3.5" : "w-4 h-4";
+  const playIconClass = isNarrow ? "w-3.5 h-3.5 fill-current" : "w-4 h-4 fill-current";
+  const playIconMargin = isNarrow ? "ml-0.5" : "ml-0.5";
+  const rowGapClass = isNarrow ? "gap-1" : "gap-2";
+  const rightGapClass = isNarrow ? "gap-1" : "gap-1.5";
+  const paddingClass = isNarrow ? "px-2.5 pb-2 pt-6 gap-1" : "px-4 pb-3 pt-8 gap-2";
+
+  const videoStyle: React.CSSProperties = {
+    transform: `rotate(${rotation}deg) scale(${scale})`,
+    transition: 'transform 300ms cubic-bezier(0.4, 0, 0.2, 1)',
+  };
+
   return (
     <div
       ref={containerRef}
+      style={containerStyle}
       className={`relative group/video overflow-hidden bg-black flex items-center justify-center ${className}`}
       onMouseMove={resetHideTimer}
       onMouseLeave={() => isPlaying && setShowControls(false)}
@@ -166,11 +288,20 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
         ref={videoRef}
         src={safeSrc}
         poster={safePoster}
-        className={`w-full h-full object-contain cursor-pointer ${isFullscreen ? 'max-h-full' : 'max-h-[70vh]'}`}
+        style={videoStyle}
+        className="w-full h-full object-contain cursor-pointer"
         onClick={togglePlay}
         playsInline
         onTimeUpdate={() => setCurrentTime(videoRef.current?.currentTime ?? 0)}
-        onLoadedMetadata={() => setDuration(videoRef.current?.duration ?? 0)}
+        onLoadedMetadata={() => {
+          setDuration(videoRef.current?.duration ?? 0);
+          const vW = videoRef.current?.videoWidth;
+          const vH = videoRef.current?.videoHeight;
+          if (vW && vH) {
+            setAspectRatio(vW / vH);
+          }
+          calculateScale();
+        }}
         onPlay={() => { setIsPlaying(true); resetHideTimer(); onPlayStateChange?.(true); }}
         onPause={() => { setIsPlaying(false); setShowControls(true); onPlayStateChange?.(false); }}
         onEnded={() => { setIsPlaying(false); setShowControls(true); setCurrentTime(0); onPlayStateChange?.(false); }}
@@ -196,7 +327,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
         {/* Gradient fade */}
         <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/30 to-transparent pointer-events-none" />
 
-        <div className="relative px-4 pb-3 pt-8 flex flex-col gap-2">
+        <div className={`relative flex flex-col ${paddingClass}`}>
           {/* Scrubber */}
           <Slider
             min={0}
@@ -209,65 +340,130 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
 
           {/* Bottom controls row */}
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+            <div className={`flex items-center ${rowGapClass}`}>
+              {/* Seek Backward 10s */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={btnClass}
+                    onClick={seekBackward}
+                  >
+                    <RotateCcw className={iconClass} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" container={containerElement}>Seek Back 10s</TooltipContent>
+              </Tooltip>
+
               {/* Play/Pause */}
               <Button
                 variant="ghost"
                 size="icon"
-                className="w-8 h-8 rounded-full text-white hover:bg-white/20 cursor-pointer"
+                className={btnClass}
                 onClick={togglePlay}
               >
                 {isPlaying
-                  ? <Pause className="w-4 h-4 fill-current" />
-                  : <Play className="w-4 h-4 fill-current ml-0.5" />
+                  ? <Pause className={playIconClass} />
+                  : <Play className={`${playIconClass} ${playIconMargin}`} />
                 }
               </Button>
+
+              {/* Seek Forward 10s */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={btnClass}
+                    onClick={seekForward}
+                  >
+                    <RotateCw className={iconClass} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" container={containerElement}>Seek Forward 10s</TooltipContent>
+              </Tooltip>
 
               {/* Mute */}
               <Button
                 variant="ghost"
                 size="icon"
-                className="w-8 h-8 rounded-full text-white hover:bg-white/20 cursor-pointer"
+                className={btnClass}
                 onClick={toggleMute}
               >
                 {isMuted || volume === 0
-                  ? <VolumeX className="w-4 h-4" />
-                  : <Volume2 className="w-4 h-4" />
+                  ? <VolumeX className={iconClass} />
+                  : <Volume2 className={iconClass} />
                 }
               </Button>
 
               {/* Volume slider */}
-              <div className="w-20 hidden sm:block">
-                <Slider
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  value={[isMuted ? 0 : volume]}
-                  onValueChange={handleVolumeChange}
-                  className="cursor-pointer [&_.slider-thumb]:bg-white [&_.slider-track]:bg-white/20 [&_.slider-range]:bg-white"
-                />
-              </div>
+              {!isNarrow && (
+                <div className="w-20 hidden sm:block">
+                  <Slider
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={[isMuted ? 0 : volume]}
+                    onValueChange={handleVolumeChange}
+                    className="cursor-pointer [&_.slider-thumb]:bg-white [&_.slider-track]:bg-white/20 [&_.slider-range]:bg-white"
+                  />
+                </div>
+              )}
 
               {/* Time */}
-              <span className="text-white/80 text-[0.6875rem] font-mono tabular-nums select-none">
+              <span className={`text-white/80 font-mono tabular-nums select-none ${isNarrow ? 'text-[0.625rem]' : 'text-[0.6875rem]'}`}>
                 {formatTime(currentTime)} / {formatTime(duration)}
               </span>
             </div>
 
-            {/* Fullscreen */}
-            {!hideFullscreen && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="w-8 h-8 rounded-full text-white hover:bg-white/20 cursor-pointer"
-                onClick={handleFullscreenClick}
-              >
-                {isFullscreen
-                  ? <Minimize className="w-4 h-4" />
-                  : <Maximize className="w-4 h-4" />
-                }
-              </Button>
-            )}
+            {/* Right side controls: Rotation + Fullscreen */}
+            <div className={`flex items-center ${rightGapClass}`}>
+              {/* Rotate Left (90 deg Counter-Clockwise) */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={btnClass}
+                    onClick={rotateLeft}
+                  >
+                    <RefreshCcw className={iconClass} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" container={containerElement}>Rotate Left 90°</TooltipContent>
+              </Tooltip>
+
+              {/* Rotate Right (90 deg Clockwise) */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={btnClass}
+                    onClick={rotateRight}
+                  >
+                    <RefreshCw className={iconClass} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" container={containerElement}>Rotate Right 90°</TooltipContent>
+              </Tooltip>
+
+              {/* Fullscreen */}
+              {!hideFullscreen && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={btnClass}
+                  onClick={handleFullscreenClick}
+                >
+                  {isFullscreen
+                    ? <Minimize className={iconClass} />
+                    : <Maximize className={iconClass} />
+                  }
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </div>

@@ -10,6 +10,7 @@ interface MediaTimelineProps {
   selectedIds: Set<string>;
   onSelectToggle: (id: string, e: React.MouseEvent) => void;
   onPreviewOpen: (item: MediaItem) => void;
+  onInfoOpen: (item: MediaItem) => void;
   onReviewAction: (id: string, state: 'keep' | 'delete' | 'skipped') => void;
 }
 
@@ -18,6 +19,7 @@ export const MediaTimeline: React.FC<MediaTimelineProps> = ({
   selectedIds,
   onSelectToggle,
   onPreviewOpen,
+  onInfoOpen,
   onReviewAction
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -164,6 +166,7 @@ export const MediaTimeline: React.FC<MediaTimelineProps> = ({
                     isSelected={selectedIds.has(item.id)}
                     onSelectToggle={onSelectToggle}
                     onPreviewOpen={onPreviewOpen}
+                    onInfoOpen={onInfoOpen}
                     onReviewAction={onReviewAction}
                   />
                 ))}

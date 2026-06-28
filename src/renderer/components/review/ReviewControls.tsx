@@ -2,7 +2,7 @@ import React, { useState, useMemo } from "react"
 import type { MediaItem } from "../../../shared/types/media"
 import type { UndoableAction } from "../../../shared/types/session"
 import { Button } from "@/components/ui/button"
-import { Undo2, History, Check, Trash2 } from "lucide-react"
+import { Undo2, History, Bookmark, Trash2 } from "lucide-react"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { HistoryDialog, type HistoryDialogItem } from "./HistoryDialog"
 
@@ -70,16 +70,20 @@ export const ReviewControls: React.FC<ReviewControlsProps> = ({
 
         {/* History Dialog Trigger — right */}
         <div className="absolute right-4">
-          <Button
-            variant="outline"
-            size="icon"
-            title="Decision history"
-            className="h-10 w-10 cursor-pointer rounded-full border-border bg-card text-muted-foreground shadow-sm hover:bg-accent hover:text-foreground"
-            onClick={() => setIsHistoryOpen(true)}
-            disabled={undoStack.length === 0}
-          >
-            <History className="h-4 w-4" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-10 w-10 cursor-pointer rounded-full border-border bg-card text-foreground shadow-sm hover:bg-accent"
+                onClick={() => setIsHistoryOpen(true)}
+                disabled={undoStack.length === 0}
+              >
+                <History className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Decision History</TooltipContent>
+          </Tooltip>
 
           <HistoryDialog
             isOpen={isHistoryOpen}
@@ -112,7 +116,7 @@ export const ReviewControls: React.FC<ReviewControlsProps> = ({
                 className="flex h-16 w-16 cursor-pointer items-center justify-center rounded-full border border-green-500/20 dark:border-green-500/30 bg-green-500/10 dark:bg-green-950/30 text-green-600 dark:text-green-400 shadow-md hover:bg-green-500/20 dark:hover:bg-green-900/45 transition-colors duration-200"
                 onClick={onKeep}
               >
-                <Check className="h-7 w-7 stroke-[3px]" />
+                <Bookmark className="h-6 w-6 fill-current" />
               </Button>
             </TooltipTrigger>
             <TooltipContent side="top">Keep (K or Right Arrow)</TooltipContent>

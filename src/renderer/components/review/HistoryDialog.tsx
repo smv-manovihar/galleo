@@ -9,7 +9,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Check, Trash2, History, X } from "lucide-react"
+import { Bookmark, Trash2, History, X } from "lucide-react"
 
 export interface HistoryDialogItem {
   id: string // unique entry ID
@@ -105,7 +105,7 @@ export const HistoryDialog: React.FC<HistoryDialogProps> = ({
                 className="h-8 gap-1.5 border-green-500/20 bg-green-500/5 text-green-600 dark:text-green-400 hover:bg-green-500/10 text-2xs font-medium"
                 onClick={() => handleBulkApply("keep")}
               >
-                <Check className="h-3.5 w-3.5" />
+                <Bookmark className="h-3.5 w-3.5" />
                 Keep Selected
               </Button>
               <Button
@@ -214,7 +214,7 @@ export const HistoryDialog: React.FC<HistoryDialogProps> = ({
                               className="h-7 w-7 rounded-full text-green-600 hover:bg-green-500/10 dark:text-green-400"
                               onClick={() => onSingleAction(item.mediaId, "keep")}
                             >
-                              <Check className="h-3.5 w-3.5 stroke-[2.5px]" />
+                              <Bookmark className="h-3.5 w-3.5 fill-current" />
                             </Button>
                           )}
                           {!isDelete && (

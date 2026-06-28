@@ -5,6 +5,7 @@ import { MediaGrid } from '../components/media/MediaGrid';
 import { MediaTimeline } from '../components/media/MediaTimeline';
 import { MediaList } from '../components/media/MediaList';
 import { MediaPreview } from '../components/media/MediaPreview';
+import { MediaInfoDialog } from '../components/media/MediaInfoDialog';
 import type { MediaItem } from '../../shared/types/media';
 import { Button } from '@/components/ui/button';
 import { PageContainer } from '@/components/ui/page-layout';
@@ -44,6 +45,7 @@ export const BrowsePage: React.FC = () => {
   const [groupMode, setGroupMode] = useState<'normal' | 'date'>('normal');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [previewItem, setPreviewItem] = useState<MediaItem | null>(null);
+  const [infoItem, setInfoItem] = useState<MediaItem | null>(null);
 
   // Initialize review session when activeRootPath changes or is loaded
   useEffect(() => {
@@ -220,6 +222,7 @@ export const BrowsePage: React.FC = () => {
             selectedIds={selectedIds}
             onSelectToggle={handleSelectToggle}
             onPreviewOpen={setPreviewItem}
+            onInfoOpen={setInfoItem}
             onReviewAction={handleReviewAction}
             columns={4}
           />
@@ -230,6 +233,7 @@ export const BrowsePage: React.FC = () => {
             selectedIds={selectedIds}
             onSelectToggle={handleSelectToggle}
             onPreviewOpen={setPreviewItem}
+            onInfoOpen={setInfoItem}
             onReviewAction={handleReviewAction}
           />
         )}
@@ -251,6 +255,10 @@ export const BrowsePage: React.FC = () => {
         onClose={() => setPreviewItem(null)}
         items={filteredItems}
         onItemChange={setPreviewItem}
+      />
+      <MediaInfoDialog
+        item={infoItem}
+        onClose={() => setInfoItem(null)}
       />
     </PageContainer>
   );

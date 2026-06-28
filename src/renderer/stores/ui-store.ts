@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-type ViewMode = 'dashboard' | 'browse' | 'review' | 'organize' | 'settings';
+type ViewMode = 'dashboard' | 'browse' | 'review' | 'duplicates' | 'organize' | 'settings';
 
 interface UIState {
   currentView: ViewMode;

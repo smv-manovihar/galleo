@@ -38,23 +38,23 @@ export const SettingsPage: React.FC = () => {
       >
         {/* Settings Navigation Tabs Sidebar */}
         <TabsList className="bg-card/45 border border-border flex flex-row md:flex-col h-auto p-1.5 w-full md:w-48 gap-1.5 shrink-0 select-none overflow-x-auto scrollbar-none md:overflow-x-visible md:sticky md:top-6">
-          <TabsTrigger value="folders" className="flex-1 md:flex-none w-auto md:w-full justify-start h-8 text-[0.6875rem] font-medium gap-2 px-3">
+          <TabsTrigger value="folders" className="flex-1 md:flex-none w-auto md:w-full justify-start h-8 text-sm font-medium gap-2 px-3">
             <FolderSync className="w-4 h-4" />
             Allowed Roots
           </TabsTrigger>
-          <TabsTrigger value="scan" className="flex-1 md:flex-none w-auto md:w-full justify-start h-8 text-[0.6875rem] font-medium gap-2 px-3">
+          <TabsTrigger value="scan" className="flex-1 md:flex-none w-auto md:w-full justify-start h-8 text-sm font-medium gap-2 px-3">
             <Settings2 className="w-4 h-4" />
             Scan Rules
           </TabsTrigger>
-          <TabsTrigger value="quality" className="flex-1 md:flex-none w-auto md:w-full justify-start h-8 text-[0.6875rem] font-medium gap-2 px-3">
+          <TabsTrigger value="quality" className="flex-1 md:flex-none w-auto md:w-full justify-start h-8 text-sm font-medium gap-2 px-3">
             <LineChart className="w-4 h-4" />
             Defect Sensitivity
           </TabsTrigger>
-          <TabsTrigger value="appearance" className="flex-1 md:flex-none w-auto md:w-full justify-start h-8 text-[0.6875rem] font-medium gap-2 px-3">
+          <TabsTrigger value="appearance" className="flex-1 md:flex-none w-auto md:w-full justify-start h-8 text-sm font-medium gap-2 px-3">
             <Eye className="w-4 h-4" />
             Theme & Interface
           </TabsTrigger>
-          <TabsTrigger value="reset" className="flex-1 md:flex-none w-auto md:w-full justify-start h-8 text-[0.6875rem] font-medium gap-2 px-3">
+          <TabsTrigger value="reset" className="flex-1 md:flex-none w-auto md:w-full justify-start h-8 text-sm font-medium gap-2 px-3">
             <RefreshCcw className="w-4 h-4" />
             Reset App Data
           </TabsTrigger>

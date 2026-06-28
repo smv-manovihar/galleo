@@ -12,7 +12,8 @@ import {
   Moon,
   Sun,
   Laptop,
-  ChevronDown
+  ChevronDown,
+  RefreshCw
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -75,7 +76,8 @@ export const TopBar: React.FC = () => {
     switch (currentView) {
       case 'dashboard': return 'Dashboard';
       case 'browse': return 'Browse Media';
-      case 'review': return 'Review & Cleanup';
+      case 'review': return 'Media Culling';
+      case 'duplicates': return 'Duplicate Audit';
       case 'organize': return 'Date Organizer';
       case 'settings': return 'Settings';
       default: return 'MediaPurge';
@@ -212,48 +214,58 @@ export const TopBar: React.FC = () => {
       </div>
 
       <Dialog open={showRescanDialog} onOpenChange={setShowRescanDialog}>
-        <DialogContent className="max-w-md bg-card border-border text-foreground font-sans text-xs">
-          <DialogHeader>
-            <DialogTitle>Force Rescan Folders</DialogTitle>
-            <DialogDescription>
-              Select the folders you want to force rescan. This will bypass the cached metadata and re-analyze all files in the selected folders, which may take longer.
+        <DialogContent className="max-w-md bg-card border border-border text-foreground font-sans outline-none p-6 gap-5">
+          <DialogHeader className="space-y-1.5 border-b border-border pb-4">
+            <DialogTitle className="flex items-center gap-2.5 text-sm font-bold text-foreground">
+              <RefreshCw className="h-4.5 w-4.5 text-primary" />
+              Force Rescan Folders
+            </DialogTitle>
+            <DialogDescription className="text-2xs text-muted-foreground leading-normal">
+              Bypass cached metadata and re-analyze all files. This is useful if files were edited outside the app, but scanning will take longer.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="py-4 space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-border">
-              <span className="font-semibold text-muted-foreground">Configured Folders</span>
+          <div className="space-y-4 min-h-0 flex-1 flex flex-col">
+            <div className="flex items-center justify-between">
+              <span className="text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Select Folders</span>
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 text-2xs px-2 text-primary hover:text-primary/80 hover:bg-primary/5 cursor-pointer font-medium"
+                className="h-7 text-2xs px-2 text-primary hover:text-primary/80 hover:bg-primary/5 cursor-pointer font-semibold"
                 onClick={handleToggleSelectAll}
               >
                 {selectedPaths.length === settings.folders.roots.length ? 'Deselect All' : 'Select All'}
               </Button>
             </div>
 
-            <div className="max-h-60 overflow-y-auto space-y-2.5 pr-1">
+            <div className="max-h-56 overflow-y-auto space-y-2 pr-1 scrollbar-thin">
               {settings.folders.roots.map((root) => {
                 const isChecked = selectedPaths.includes(root.path);
                 return (
                   <div
                     key={root.path}
-                    className="flex items-start gap-3 p-2.5 rounded-lg border border-border bg-background/50 hover:bg-accent/40 transition-colors"
+                    onClick={() => handleToggleFolder(root.path)}
+                    className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer select-none transition-all duration-150 ${
+                      isChecked 
+                        ? 'border-primary/45 bg-primary/5 hover:bg-primary/10' 
+                        : 'border-border bg-background/40 hover:bg-accent/40'
+                    }`}
                   >
                     <Checkbox
                       id={`rescan-folder-${root.path}`}
                       checked={isChecked}
                       onCheckedChange={() => handleToggleFolder(root.path)}
+                      onClick={(e) => e.stopPropagation()}
                     />
-                    <div className="grid gap-1 select-none flex-1 -mt-0.5">
+                    <div className="grid gap-0.5 flex-1 min-w-0">
                       <Label
                         htmlFor={`rescan-folder-${root.path}`}
-                        className="font-medium text-foreground cursor-pointer truncate"
+                        className="text-xs font-semibold text-foreground cursor-pointer truncate"
+                        onClick={(e) => e.stopPropagation()}
                       >
                         {root.label}
                       </Label>
-                      <span className="text-2xs text-muted-foreground break-all leading-normal">
+                      <span className="text-2xs text-muted-foreground truncate leading-normal">
                         {root.path}
                       </span>
                     </div>
@@ -263,15 +275,15 @@ export const TopBar: React.FC = () => {
             </div>
           </div>
 
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="gap-2.5 border-t border-border pt-4 mt-1">
             <DialogClose asChild>
-              <Button variant="outline" className="h-9 font-medium text-xs cursor-pointer">
+              <Button variant="outline" className="h-9 font-semibold text-xs cursor-pointer px-4">
                 Cancel
               </Button>
             </DialogClose>
             <Button
               variant="default"
-              className="h-9 font-medium text-xs cursor-pointer"
+              className="h-9 font-semibold text-xs cursor-pointer px-4 bg-primary hover:bg-primary/95 text-primary-foreground shadow-sm"
               disabled={selectedPaths.length === 0}
               onClick={handleStartForcedRescan}
             >

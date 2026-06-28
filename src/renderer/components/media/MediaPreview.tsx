@@ -415,7 +415,7 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/40 hover:bg-black/60 text-white border border-white/10 z-30 transition-all hover:scale-105 ${(!isFullscreen || showControls) ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                  className={`absolute left-4 top-1/2 w-10 h-10 rounded-full bg-black/40 hover:bg-black/60 text-white border border-white/10 z-30 ${(!isFullscreen || showControls) ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     handlePrevious();
@@ -431,7 +431,7 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/40 hover:bg-black/60 text-white border border-white/10 z-30 transition-all hover:scale-105 ${(!isFullscreen || showControls) ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                  className={`absolute right-4 top-1/2 w-10 h-10 rounded-full bg-black/40 hover:bg-black/60 text-white border border-white/10 z-30 ${(!isFullscreen || showControls) ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     handleNext();

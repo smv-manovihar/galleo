@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   FolderOpen,
   CheckSquare,
+  Copy,
   CalendarDays,
   Settings,
   Folder,
@@ -37,7 +38,8 @@ export const AppSidebar: React.FC = () => {
   const navItems = [
     { view: 'dashboard' as const, label: 'Dashboard', icon: LayoutDashboard },
     { view: 'browse' as const, label: 'Browse Media', icon: FolderOpen },
-    { view: 'review' as const, label: 'Review Queue', icon: CheckSquare },
+    { view: 'review' as const, label: 'Media Culling', icon: CheckSquare },
+    { view: 'duplicates' as const, label: 'Duplicate Audit', icon: Copy },
     { view: 'organize' as const, label: 'Organize Files', icon: CalendarDays },
     { view: 'settings' as const, label: 'Settings', icon: Settings },
   ];

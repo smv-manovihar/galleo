@@ -30,11 +30,16 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const existing = await window.api.getSessionCheckpoint(folderPath);
       
       if (existing) {
+        let checkpoint = existing;
+        if (existing.totalFiles !== totalFilesCount) {
+          checkpoint = { ...existing, totalFiles: totalFilesCount };
+          await window.api.saveSessionCheckpoint(checkpoint);
+        }
         set({
-          checkpoint: existing,
-          currentIndex: existing.currentIndex,
-          decisions: existing.decisions,
-          undoStack: existing.undoStack,
+          checkpoint,
+          currentIndex: checkpoint.currentIndex,
+          decisions: checkpoint.decisions,
+          undoStack: checkpoint.undoStack,
         });
       } else {
         const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -99,6 +104,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       undoStack: updatedUndoStack
     });
 
+    // Update media store review state synchronously
+    const mediaStore = useMediaStore.getState();
+    useMediaStore.setState({
+      items: mediaStore.items.map(i => i.id === mediaId ? { ...i, reviewState: state } : i)
+    });
+
     // Save checkpoint in database
     await window.api.saveSessionCheckpoint(updatedCheckpoint);
     
@@ -131,6 +142,15 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       undoStack: poppedStack,
       savedAt: new Date().toISOString()
     };
+
+    // Update media store review state synchronously before setting state
+    const prevReviewState = lastAction.previousState.reviewState || 'pending';
+    const mediaStore = useMediaStore.getState();
+    useMediaStore.setState({
+      items: mediaStore.items.map(i =>
+        i.id === lastAction.mediaId ? { ...i, reviewState: prevReviewState as any } : i
+      ),
+    });
 
     set({
       checkpoint: updatedCheckpoint,

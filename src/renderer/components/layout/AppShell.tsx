@@ -12,6 +12,7 @@ import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { DashboardPage } from '../../pages/DashboardPage';
 import { BrowsePage } from '../../pages/BrowsePage';
 import { ReviewPage } from '../../pages/ReviewPage';
+import { DuplicatesPage } from '../../pages/DuplicatesPage';
 import { OrganizePage } from '../../pages/OrganizePage';
 import { SettingsPage } from '../../pages/SettingsPage';
 
@@ -73,6 +74,8 @@ export const AppShell: React.FC = () => {
         return <BrowsePage />;
       case 'review':
         return <ReviewPage />;
+      case 'duplicates':
+        return <DuplicatesPage />;
       case 'organize':
         return <OrganizePage />;
       default:

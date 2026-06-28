@@ -246,7 +246,7 @@ export const ResetConfig: React.FC = () => {
                   Perform Complete Factory Reset?
                 </AlertDialogTitle>
                 <AlertDialogDescription className="text-xs text-muted-foreground leading-normal mt-2">
-                  This will wipe all app settings, library database tables, checkpoints, active review session decisions, and disk thumbnail caches. MediaPurge will return to a clean install state. Original media files will remain untouched.
+                  This will wipe all app settings, library database tables, checkpoints, active review session decisions, and disk thumbnail caches. Galleo will return to a clean install state. Original media files will remain untouched.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter className="mt-4">

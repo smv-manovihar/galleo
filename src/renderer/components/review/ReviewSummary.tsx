@@ -136,7 +136,7 @@ export const ReviewSummary: React.FC<ReviewSummaryProps> = ({ onBackToQueue }) =
             <div>
               <AlertTitle className="font-bold text-foreground">Recycle Bin Safety Net</AlertTitle>
               <AlertDescription className="mt-0.5">
-                MediaPurge moves deleted files directly to your OS Recycle Bin/Trash, so you can restore them manually if you make a mistake.
+                Galleo moves deleted files directly to your OS Recycle Bin/Trash, so you can restore them manually if you make a mistake.
               </AlertDescription>
             </div>
           </Alert>

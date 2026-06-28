@@ -1,4 +1,4 @@
-# MediaPurge
+# Galleo
 
 A desktop app for cleaning up and organizing local photo and video libraries. Scan folders on your machine, surface low-quality and duplicate files, review them in a focused workflow, and sort media into date-based folder structures — all offline, with no cloud upload.
 
@@ -82,8 +82,8 @@ Native modules (`better-sqlite3`, `sharp`, `ffmpeg-static`) are compiled during 
 
 ```bash
 # Clone the repository
-git clone https://www.github.com/smv-manovihar/media-purge.git
-cd media-pruge
+git clone https://www.github.com/smv-manovihar/galleo.git
+cd galleo
 
 # Install dependencies (builds native modules)
 pnpm install

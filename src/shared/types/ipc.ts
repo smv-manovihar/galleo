@@ -49,7 +49,7 @@ export interface OrganizePreviewItem {
   conflictReason?: 'already_exists' | 'duplicate_target';
 }
 
-export interface MediaPurgeAPI {
+export interface GalleoAPI {
   getSettings: () => Promise<AppSettings>;
   saveSettings: (settings: AppSettings) => Promise<Result<void>>;
   selectFolder: () => Promise<string | null>;
@@ -82,6 +82,6 @@ export interface MediaPurgeAPI {
 // Global declaration to typed window
 declare global {
   interface Window {
-    api: MediaPurgeAPI;
+    api: GalleoAPI;
   }
 }

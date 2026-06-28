@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { IPC_CHANNELS, type ScanProgressPayload, type OrganizeProgressPayload, type MediaPurgeAPI } from '../shared/types/ipc';
+import { IPC_CHANNELS, type ScanProgressPayload, type OrganizeProgressPayload, type GalleoAPI } from '../shared/types/ipc';
 
-const api: MediaPurgeAPI = {
+const api: GalleoAPI = {
   getSettings: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET),
   saveSettings: (settings) => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_SAVE, settings),
   selectFolder: () => ipcRenderer.invoke(IPC_CHANNELS.FOLDERS_SELECT),
@@ -54,4 +54,4 @@ const api: MediaPurgeAPI = {
 };
 
 contextBridge.exposeInMainWorld('api', api);
-export type { MediaPurgeAPI };
+export type { GalleoAPI };

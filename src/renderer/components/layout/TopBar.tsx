@@ -80,7 +80,7 @@ export const TopBar: React.FC = () => {
       case 'duplicates': return 'Duplicate Audit';
       case 'organize': return 'Date Organizer';
       case 'settings': return 'Settings';
-      default: return 'MediaPurge';
+      default: return 'Galleo';
     }
   };
 

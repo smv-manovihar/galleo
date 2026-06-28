@@ -1,5 +1,5 @@
 {
-  "name": "MediaPurge",
+  "name": "galleo",
   "private": true,
   "main": "dist-electron/main/index.js",
   "version": "0.0.1",

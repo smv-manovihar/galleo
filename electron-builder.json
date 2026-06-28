@@ -1,6 +1,6 @@
 {
-  "appId": "com.mediapurge.app",
-  "productName": "MediaPurge",
+  "appId": "com.galleo.app",
+  "productName": "Galleo",
   "directories": {
     "output": "dist-build"
   },

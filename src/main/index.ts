@@ -36,7 +36,7 @@ function createWindow(): void {
     minWidth: 900,
     minHeight: 600,
     show: false,
-    title: 'MediaPurge',
+    title: 'Galleo',
     backgroundColor: '#0c0d12', // Background color of HSL(230, 25%, 8%)
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),

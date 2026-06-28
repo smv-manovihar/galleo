@@ -14,7 +14,7 @@ export const SetupWizard: React.FC = () => {
     try {
       if (typeof window === 'undefined' || !window.api || !window.api.selectFolder) {
         throw new Error(
-          'MediaPurge requires the Electron wrapper to select local directories. If you are previewing in a web browser, please close this tab and run the app via Electron.'
+          'Galleo requires the Electron wrapper to select local directories. If you are previewing in a web browser, please close this tab and run the app via Electron.'
         );
       }
       const selected = await window.api.selectFolder();
@@ -37,7 +37,7 @@ export const SetupWizard: React.FC = () => {
           <div className="w-12 h-12 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary mx-auto mb-4">
             <Layers className="w-6 h-6" />
           </div>
-          <CardTitle className="font-heading font-bold text-2xl text-foreground">Welcome to MediaPurge</CardTitle>
+          <CardTitle className="font-heading font-bold text-2xl text-foreground">Welcome to Galleo</CardTitle>
           <CardDescription className="text-xs text-muted-foreground mt-1">
             Let's get started by selecting a folder to scan for photos and videos.
           </CardDescription>

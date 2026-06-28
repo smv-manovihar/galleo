@@ -27,7 +27,7 @@ export const FolderConfig: React.FC = () => {
           <div className="space-y-1">
             <CardTitle className="text-sm font-semibold text-foreground">Scanned Roots</CardTitle>
             <CardDescription className="text-xs text-muted-foreground leading-normal">
-              Manage directories that MediaPurge is allowed to scan. Disabled roots are ignored.
+              Manage directories that Galleo is allowed to scan. Disabled roots are ignored.
             </CardDescription>
           </div>
           <Button size="sm" className="w-full sm:w-auto rounded-lg gap-1.5 h-8 text-xs font-medium cursor-pointer shrink-0" onClick={handleAddFolder}>

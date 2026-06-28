@@ -18,7 +18,7 @@ export function getDatabasePath(): string {
     fs.mkdirSync(userDataPath, { recursive: true });
   }
   
-  return path.join(userDataPath, 'mediapurge.db');
+  return path.join(userDataPath, 'galleo.db');
 }
 
 export function initDatabase(): Database.Database {

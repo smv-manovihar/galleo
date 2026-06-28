@@ -67,7 +67,7 @@ export const AppSidebar: React.FC = () => {
           <Aperture className="w-5 h-5" />
         </div>
         <div>
-          <h1 className="font-heading font-bold text-base tracking-wider text-foreground">MediaPurge</h1>
+          <h1 className="font-heading font-bold text-base tracking-wider text-foreground">Galleo</h1>
           <p className="text-xs text-muted-foreground font-sans">Smart Cleanup & Organizer</p>
         </div>
       </SidebarHeader>

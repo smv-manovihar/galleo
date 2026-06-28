@@ -93,7 +93,7 @@ export const AppShell: React.FC = () => {
             <div className="bg-amber-500/10 border-b border-amber-500/20 px-6 py-2.5 flex items-center justify-between text-amber-600 dark:text-amber-400 font-sans text-xs">
               <span className="flex items-center gap-2">
                 <span className="font-semibold">⚠️ Web Browser Preview Mode:</span>
-                MediaPurge requires the Electron app wrapper to access the file system and select folders.
+                Galleo requires the Electron app wrapper to access the file system and select folders.
               </span>
             </div>
           )}

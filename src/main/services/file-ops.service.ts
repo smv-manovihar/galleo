@@ -125,6 +125,20 @@ export class FileOpsService {
           const srcExists = await fileExists(item.sourcePath);
           if (!srcExists) {
             errorMsg = 'Source file missing';
+          } else if (item.conflictReason === 'duplicate_source') {
+            if (preserveOriginals) {
+              // Copy mode: skip copy, keep original in place
+              success = true;
+            } else {
+              // Move mode: trash the duplicate source file
+              const res = await moveToTrash(item.sourcePath);
+              success = res.ok;
+              if (res.ok === false) {
+                errorMsg = 'message' in res.error ? res.error.message : res.error.code;
+              } else {
+                this.mediaRepository.deleteMany([item.sourcePath]);
+              }
+            }
           } else {
             // Check target folder exists or create it
             const destDir = path.dirname(item.targetPath);

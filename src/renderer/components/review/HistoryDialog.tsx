@@ -1,4 +1,4 @@
-import React, { useState } from "react"
+import React, { useState, useCallback } from "react"
 import {
   Dialog,
   DialogContent,
@@ -10,6 +10,9 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Bookmark, Trash2, History, X } from "lucide-react"
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
+import { useVirtualizer } from "@tanstack/react-virtual"
+import { cn } from "@/lib/utils"
 
 export interface HistoryDialogItem {
   id: string // unique entry ID
@@ -19,6 +22,116 @@ export interface HistoryDialogItem {
   path: string
   currentDecision: "keep" | "delete" | "skipped" | "pending"
 }
+
+const HistoryRow = React.memo(({
+  item,
+  isChecked,
+  isKeep,
+  isDelete,
+  onSingleAction,
+  toggleSelect,
+  translateY,
+  measureRef,
+}: {
+  item: HistoryDialogItem
+  isChecked: boolean
+  isKeep: boolean
+  isDelete: boolean
+  onSingleAction: (mediaId: string, action: "keep" | "delete") => Promise<void>
+  toggleSelect: (id: string) => void
+  translateY: number
+  measureRef: (el: HTMLElement | null) => void
+}) => {
+  const rowStyle = React.useMemo(() => ({
+    gridTemplateColumns: "40px 56px 1fr 96px 80px",
+    height: "56px",
+    transform: `translateY(${translateY}px)`,
+  }), [translateY])
+
+  return (
+    <div
+      ref={measureRef}
+      className={cn(
+        "absolute top-0 left-0 w-full grid items-center hover:bg-muted/20 transition-colors border-b border-border/50 text-[0.6875rem]",
+        isChecked ? "bg-accent/25" : ""
+      )}
+      style={rowStyle}
+    >
+      <div className="p-3 flex items-center justify-start">
+        <Checkbox
+          checked={isChecked}
+          onCheckedChange={() => toggleSelect(item.id)}
+          aria-label={`Select ${item.name}`}
+        />
+      </div>
+      <div className="p-3 flex items-center">
+        <div className="h-10 w-10 rounded-lg overflow-hidden border border-border bg-muted/40 shrink-0">
+          <img
+            src={`media:///${(item.thumbnailPath || item.path).replace(/\\/g, "/")}`}
+            alt={item.name}
+            className="h-full w-full object-cover pointer-events-none select-none"
+            loading="lazy"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none'
+            }}
+          />
+        </div>
+      </div>
+      <div className="p-3 font-medium truncate" title={item.name}>
+        {item.name}
+      </div>
+      <div className="p-3">
+        <Badge
+          variant="outline"
+          className={cn(
+            "text-[0.5625rem] px-2 py-0.5 uppercase tracking-wider",
+            isKeep
+              ? "bg-green-500/10 border-green-500/20 text-green-600 dark:text-green-400"
+              : isDelete
+                ? "bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400"
+                : "bg-muted border-border text-muted-foreground"
+          )}
+        >
+          {item.currentDecision}
+        </Badge>
+      </div>
+      <div className="p-3 text-right">
+        <div className="flex items-center justify-end gap-1.5">
+          {!isKeep && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 rounded-full text-green-600 hover:bg-green-500/10 dark:text-green-400"
+                  onClick={() => onSingleAction(item.mediaId, "keep")}
+                >
+                  <Bookmark className="h-3.5 w-3.5 fill-current" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">Change to Keep</TooltipContent>
+            </Tooltip>
+          )}
+          {!isDelete && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 rounded-full text-red-600 hover:bg-red-500/10 dark:text-red-400"
+                  onClick={() => onSingleAction(item.mediaId, "delete")}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">Change to Delete</TooltipContent>
+            </Tooltip>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+})
 
 interface HistoryDialogProps {
   isOpen: boolean
@@ -36,6 +149,18 @@ export const HistoryDialog: React.FC<HistoryDialogProps> = ({
   onSingleAction,
 }) => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [scrollElement, setScrollElementState] = useState<HTMLDivElement | null>(null)
+
+  const setScrollElement = useCallback((node: HTMLDivElement | null) => {
+    setScrollElementState(node)
+  }, [])
+
+  const rowVirtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => scrollElement,
+    estimateSize: () => 56,
+    overscan: 5,
+  })
 
   // Reset selection when modal closes or items change
   React.useEffect(() => {
@@ -44,7 +169,7 @@ export const HistoryDialog: React.FC<HistoryDialogProps> = ({
     }
   }, [isOpen, items])
 
-  const toggleSelect = (id: string) => {
+  const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev)
       if (next.has(id)) {
@@ -54,7 +179,7 @@ export const HistoryDialog: React.FC<HistoryDialogProps> = ({
       }
       return next
     })
-  }
+  }, [])
 
   const toggleSelectAll = () => {
     if (selectedIds.size === items.length) {
@@ -131,110 +256,67 @@ export const HistoryDialog: React.FC<HistoryDialogProps> = ({
         )}
 
         {/* Content list */}
-        <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin rounded-lg border border-border bg-card/20">
+        <div className="flex-1 min-h-0 flex flex-col rounded-lg border border-border bg-card/20">
           {items.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full py-12 text-muted-foreground text-xs gap-2 select-none">
               <History className="h-8 w-8 text-muted-foreground opacity-30" />
               <span>No decisions made in this session yet.</span>
             </div>
           ) : (
-            <table className="w-full border-collapse text-[0.6875rem] text-foreground">
-              <thead className="sticky top-0 bg-muted/95 backdrop-blur-md border-b border-border z-10">
-                <tr>
-                  <th className="p-3 text-left w-10">
-                    <Checkbox
-                      checked={isAllSelected}
-                      onCheckedChange={toggleSelectAll}
-                      aria-label="Select all"
-                    />
-                  </th>
-                  <th className="p-3 text-left w-14">Preview</th>
-                  <th className="p-3 text-left">File Name</th>
-                  <th className="p-3 text-left w-24">Decision</th>
-                  <th className="p-3 text-right w-20">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/50">
-                {items.map((item) => {
-                  const isChecked = selectedIds.has(item.id)
-                  const isKeep = item.currentDecision === "keep"
-                  const isDelete = item.currentDecision === "delete"
+            <>
+              {/* Header */}
+              <div
+                className="bg-muted border-b border-border grid items-center text-[0.6875rem] font-semibold text-muted-foreground shrink-0 pr-[8px]"
+                style={{ gridTemplateColumns: "40px 56px 1fr 96px 80px" }}
+              >
+                <div className="p-3 flex items-center justify-start">
+                  <Checkbox
+                    checked={isAllSelected}
+                    onCheckedChange={toggleSelectAll}
+                    aria-label="Select all"
+                  />
+                </div>
+                <div className="p-3 text-left">Preview</div>
+                <div className="p-3 text-left">File Name</div>
+                <div className="p-3 text-left">Decision</div>
+                <div className="p-3 text-right">Actions</div>
+              </div>
 
-                  return (
-                    <tr
-                      key={item.id}
-                      className={`hover:bg-muted/20 transition-colors ${
-                        isChecked ? "bg-accent/25" : ""
-                      }`}
-                    >
-                      <td className="p-3 text-left">
-                        <Checkbox
-                          checked={isChecked}
-                          onCheckedChange={() => toggleSelect(item.id)}
-                          aria-label={`Select ${item.name}`}
-                        />
-                      </td>
-                      <td className="p-3">
-                        <div className="h-10 w-10 rounded-lg overflow-hidden border border-border bg-muted/40 shrink-0">
-                          <img
-                            src={`media:///${(item.thumbnailPath || item.path).replace(/\\/g, "/")}`}
-                            alt={item.name}
-                            className="h-full w-full object-cover pointer-events-none select-none"
-                            onError={(e) => {
-                              // fallback if image fails to render
-                              e.currentTarget.style.display = 'none'
-                            }}
-                          />
-                        </div>
-                      </td>
-                      <td className="p-3 font-medium truncate max-w-[200px]" title={item.name}>
-                        {item.name}
-                      </td>
-                      <td className="p-3">
-                        <Badge
-                          variant="outline"
-                          className={`text-[0.5625rem] px-2 py-0.5 uppercase tracking-wider ${
-                            isKeep
-                              ? "bg-green-500/10 border-green-500/20 text-green-600 dark:text-green-400"
-                              : isDelete
-                                ? "bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400"
-                                : "bg-muted border-border text-muted-foreground"
-                          }`}
-                        >
-                          {item.currentDecision}
-                        </Badge>
-                      </td>
-                      <td className="p-3 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {!isKeep && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              title="Change to Keep"
-                              className="h-7 w-7 rounded-full text-green-600 hover:bg-green-500/10 dark:text-green-400"
-                              onClick={() => onSingleAction(item.mediaId, "keep")}
-                            >
-                              <Bookmark className="h-3.5 w-3.5 fill-current" />
-                            </Button>
-                          )}
-                          {!isDelete && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              title="Change to Delete"
-                              className="h-7 w-7 rounded-full text-red-600 hover:bg-red-500/10 dark:text-red-400"
-                              onClick={() => onSingleAction(item.mediaId, "delete")}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+              {/* Scroll Container */}
+              <div
+                ref={setScrollElement}
+                className="flex-1 min-h-0 overflow-y-auto scrollbar-thin relative"
+              >
+                <div
+                  className="w-full relative"
+                  style={{
+                    height: `${rowVirtualizer.getTotalSize()}px`,
+                  }}
+                >
+                  {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                    const item = items[virtualRow.index]
+                    if (!item) return null
+                    const isChecked = selectedIds.has(item.id)
+                    const isKeep = item.currentDecision === "keep"
+                    const isDelete = item.currentDecision === "delete"
+
+                    return (
+                      <HistoryRow
+                        key={item.id}
+                        item={item}
+                        isChecked={isChecked}
+                        isKeep={isKeep}
+                        isDelete={isDelete}
+                        onSingleAction={onSingleAction}
+                        toggleSelect={toggleSelect}
+                        translateY={virtualRow.start}
+                        measureRef={rowVirtualizer.measureElement}
+                      />
+                    )
+                  })}
+                </div>
+              </div>
+            </>
           )}
         </div>
       </DialogContent>

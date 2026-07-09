@@ -1,5 +1,6 @@
 import type { OrganizePreviewItem } from '../../shared/types/ipc';
 import type { MediaItem } from '../../shared/types/media';
+import { getNormalizedFilenameBase } from '../../shared/filename-utils';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -83,6 +84,9 @@ export function planOrganization(params: {
   // to avoid internal conflicts.
   const assignedLowerPaths = new Set<string>();
 
+  // Keep track of unique source file keys we have already planned to organize.
+  const seenSourceKeys = new Set<string>();
+
   for (const item of items) {
     const date = new Date(item.dateTarget);
     if (isNaN(date.getTime())) {
@@ -120,25 +124,42 @@ export function planOrganization(params: {
       }
     }
 
+    const sourceKey = `${getNormalizedFilenameBase(item.name)}_${item.hash || item.size}`;
+    const isDuplicateSource = seenSourceKeys.has(sourceKey);
+    if (!isDuplicateSource) {
+      seenSourceKeys.add(sourceKey);
+    }
+
     // Resolve conflict
     const finalFilename = resolveFilenameConflict(item.name, siblingNames);
     const relativePath = `${folderFragment}${finalFilename}`;
     const targetPath = `${normalizedDest}/${relativePath}`;
 
-    assignedLowerPaths.add(targetPath.toLowerCase());
+    if (isDuplicateSource) {
+      result.push({
+        mediaId: item.id,
+        sourcePath: item.path,
+        targetPath: targetPath.replace(/\//g, '\\'),
+        relativePath: relativePath.replace(/\//g, '\\'),
+        conflict: true,
+        conflictReason: 'duplicate_source'
+      });
+    } else {
+      assignedLowerPaths.add(targetPath.toLowerCase());
 
-    const isConflict = 
-      existingFilePaths.has(targetPath.toLowerCase()) || 
-      item.path.toLowerCase() === targetPath.toLowerCase();
+      const isConflict = 
+        existingFilePaths.has(targetPath.toLowerCase()) || 
+        item.path.toLowerCase() === targetPath.toLowerCase();
 
-    result.push({
-      mediaId: item.id,
-      sourcePath: item.path,
-      targetPath: targetPath.replace(/\//g, '\\'), // OS matching format
-      relativePath: relativePath.replace(/\//g, '\\'),
-      conflict: isConflict,
-      conflictReason: isConflict ? 'already_exists' : undefined
-    });
+      result.push({
+        mediaId: item.id,
+        sourcePath: item.path,
+        targetPath: targetPath.replace(/\//g, '\\'), // OS matching format
+        relativePath: relativePath.replace(/\//g, '\\'),
+        conflict: isConflict,
+        conflictReason: isConflict ? 'already_exists' : undefined
+      });
+    }
   }
 
   return result;

@@ -13,7 +13,7 @@ interface SessionState {
   initSession: (folderPath: string, totalFilesCount: number) => Promise<void>;
   submitDecision: (mediaId: string, state: 'keep' | 'delete' | 'skipped', item: MediaItem) => Promise<void>;
   undo: () => Promise<boolean>;
-  commitDeletions: () => Promise<{ successCount: number; failedPaths: string[] | null }>;
+  commitDeletions: (specificMediaIds?: string[]) => Promise<{ successCount: number; failedPaths: string[] | null }>;
   clearSession: () => Promise<void>;
   getProgress: () => { reviewed: number; total: number; percentage: number };
 }
@@ -35,6 +35,19 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           checkpoint = { ...existing, totalFiles: totalFilesCount };
           await window.api.saveSessionCheckpoint(checkpoint);
         }
+
+        // Sync checkpoint decisions back to media store
+        const mediaStore = useMediaStore.getState();
+        if (mediaStore.items.length > 0) {
+          const updatedItems = mediaStore.items.map(item => {
+            if (checkpoint.decisions[item.id]) {
+              return { ...item, reviewState: checkpoint.decisions[item.id] };
+            }
+            return item;
+          });
+          useMediaStore.setState({ items: updatedItems });
+        }
+
         set({
           checkpoint,
           currentIndex: checkpoint.currentIndex,
@@ -171,7 +184,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     return true;
   },
 
-  commitDeletions: async () => {
+  commitDeletions: async (specificMediaIds?: string[]) => {
     const { checkpoint, decisions } = get();
     if (!checkpoint) return { successCount: 0, failedPaths: null };
 
@@ -182,11 +195,16 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const itemMap = new Map(mediaStoreItems.map(i => [i.id, i]));
 
     const pathsToDelete: string[] = [];
-    for (const [mediaId, decision] of Object.entries(decisions)) {
-      if (decision === 'delete') {
+    const idsToTrash: string[] = [];
+    
+    const targets = specificMediaIds || Object.keys(decisions);
+
+    for (const mediaId of targets) {
+      if (decisions[mediaId] === 'delete') {
         const item = itemMap.get(mediaId);
         if (item) {
           pathsToDelete.push(item.path);
+          idsToTrash.push(mediaId);
         }
       }
     }
@@ -204,20 +222,58 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       }
     }
 
-    // Clear session checkpoint since reviews are committed
-    await window.api.clearSession(checkpoint.folderPath);
+    if (specificMediaIds) {
+      // Partial commit (e.g. for exact duplicates)
+      const updatedDecisions = { ...decisions };
+      for (const mediaId of specificMediaIds) {
+        delete updatedDecisions[mediaId];
+      }
 
-    // Re-fetch folders data to sync UI
-    await useMediaStore.getState().fetchMediaItems(checkpoint.folderPath);
+      const targetSet = new Set(specificMediaIds);
+      const updatedUndoStack = checkpoint.undoStack.filter(
+        action => !targetSet.has(action.mediaId)
+      );
 
-    // Reset store states
-    set({
-      checkpoint: null,
-      currentIndex: 0,
-      decisions: {},
-      undoStack: [],
-      isCommitting: false
-    });
+      const newIndex = Math.max(0, checkpoint.currentIndex - idsToTrash.length);
+
+      const updatedCheckpoint: SessionCheckpoint = {
+        ...checkpoint,
+        currentIndex: newIndex,
+        decisions: updatedDecisions,
+        undoStack: updatedUndoStack,
+        savedAt: new Date().toISOString()
+      };
+
+      await window.api.saveSessionCheckpoint(updatedCheckpoint);
+      await useMediaStore.getState().fetchMediaItems(checkpoint.folderPath);
+
+      set({
+        checkpoint: updatedCheckpoint,
+        currentIndex: newIndex,
+        decisions: updatedDecisions,
+        undoStack: updatedUndoStack,
+        isCommitting: false
+      });
+    } else {
+      // Full commit: Clear session checkpoint since reviews are committed
+      await window.api.clearSession(checkpoint.folderPath);
+
+      // Clear localStorage active tab and group index for this folder
+      localStorage.removeItem(`duplicates_active_tab_${checkpoint.folderPath}`);
+      localStorage.removeItem(`duplicates_manual_group_index_${checkpoint.folderPath}`);
+
+      // Re-fetch folders data to sync UI
+      await useMediaStore.getState().fetchMediaItems(checkpoint.folderPath);
+
+      // Reset store states
+      set({
+        checkpoint: null,
+        currentIndex: 0,
+        decisions: {},
+        undoStack: [],
+        isCommitting: false
+      });
+    }
 
     return { successCount, failedPaths };
   },
@@ -227,6 +283,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     if (!checkpoint) return;
 
     await window.api.clearSession(checkpoint.folderPath);
+    
+    // Clear localStorage active tab and group index for this folder
+    localStorage.removeItem(`duplicates_active_tab_${checkpoint.folderPath}`);
+    localStorage.removeItem(`duplicates_manual_group_index_${checkpoint.folderPath}`);
+    
     await useMediaStore.getState().fetchMediaItems(checkpoint.folderPath);
 
     set({

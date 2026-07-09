@@ -40,6 +40,8 @@ interface VideoPlayerProps {
   externalFullscreen?: boolean
   /** Callback fired when play state changes */
   onPlayStateChange?: (playing: boolean) => void
+  /** Automatically start playback when mounted */
+  autoPlay?: boolean
 }
 
 export interface VideoPlayerRef {
@@ -63,6 +65,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       onFullscreenToggle,
       externalFullscreen,
       onPlayStateChange,
+      autoPlay = false,
     },
     ref
   ) => {
@@ -193,6 +196,21 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       }
       onPlayStateChange?.(false)
     }, [src])
+
+    // Auto-play when requested
+    useEffect(() => {
+      if (!autoPlay || !videoRef.current) return
+      const video = videoRef.current
+      const play = () => {
+        video.play().then(() => setIsPlaying(true)).catch(() => {})
+      }
+      if (video.readyState >= 3) {
+        play()
+      } else {
+        video.addEventListener('canplay', play, { once: true })
+        return () => video.removeEventListener('canplay', play)
+      }
+    }, [src, autoPlay])
 
     const toggleFullscreen = useCallback(async () => {
       if (onFullscreenToggle) {
@@ -638,7 +656,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
 
                 {/* Time */}
                 <span
-                  className={`font-mono text-white/80 tabular-nums select-none ${isNarrow ? "text-2xs" : "text-xs"}`}
+                  className={`font-mono text-white/80 tabular-nums select-none ${isNarrow ? "text-3xs" : "text-xs"}`}
                 >
                   {formatTime(currentTime)} / {formatTime(duration)}
                 </span>

@@ -36,6 +36,7 @@ export const BrowsePage: React.FC = () => {
     setFilterQuality,
     sortBy,
     setSortBy,
+    searchQuery,
     getFilteredItems 
   } = useMediaStore();
 
@@ -54,7 +55,9 @@ export const BrowsePage: React.FC = () => {
     }
   }, [activeRootPath, items.length, initSession]);
 
-  const filteredItems = getFilteredItems();
+  const filteredItems = React.useMemo(() => {
+    return getFilteredItems();
+  }, [getFilteredItems, items, searchQuery, filterType, filterQuality, sortBy]);
 
   const handleSelectToggle = (id: string, _e: React.MouseEvent) => {
     setSelectedIds(prev => {

@@ -23,10 +23,8 @@ export const OrganizePage: React.FC = () => {
   }
 
   return (
-    <PageContainer className="h-full select-none flex flex-col min-h-0 lg:h-full lg:overflow-hidden" maxWidth="xl">
-      <div className="flex-1 min-h-0 lg:overflow-hidden">
-        <DateOrganizer />
-      </div>
+    <PageContainer className="select-none flex flex-col lg:flex-row gap-6 min-h-0 text-xs font-sans items-stretch" maxWidth="xl">
+      <DateOrganizer />
     </PageContainer>
   );
 };

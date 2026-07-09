@@ -8,11 +8,19 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from '@/components/ui/dialog';
 import { 
   FolderPlus, 
   Play, 
   ShieldAlert,
-  CalendarCheck,
   FolderOpen,
   Info,
   Loader2,
@@ -184,6 +192,7 @@ export const DateOrganizer: React.FC = () => {
   const [isExecuting, setIsExecuting] = useState(false);
   const [progress, setProgress] = useState<OrganizeProgressPayload | null>(null);
   const [previewItem, setPreviewItem] = useState<MediaItem | null>(null);
+  const [showHelpDialog, setShowHelpDialog] = useState(false);
 
   const handleSelectDest = async () => {
     try {
@@ -278,9 +287,21 @@ export const DateOrganizer: React.FC = () => {
             <Eye className="w-3 h-3" />
           </Button>
           {item.conflict && (
-            <Badge variant="destructive" className="text-3xs uppercase tracking-wider px-1.5 py-0 bg-destructive/80">
-              File Exists
-            </Badge>
+            item.conflictReason === 'duplicate_source' ? (
+              preserveOriginals ? (
+                <Badge variant="secondary" className="text-3xs uppercase tracking-wider px-1.5 py-0 bg-muted text-muted-foreground border border-border">
+                  Duplicate (Skipped)
+                </Badge>
+              ) : (
+                <Badge variant="destructive" className="text-3xs uppercase tracking-wider px-1.5 py-0 bg-amber-500 hover:bg-amber-600 border border-amber-600/30 text-white">
+                  Duplicate (Trashed)
+                </Badge>
+              )
+            ) : (
+              <Badge variant="destructive" className="text-3xs uppercase tracking-wider px-1.5 py-0 bg-destructive/80">
+                File Exists
+              </Badge>
+            )
           )}
         </div>
       </div>
@@ -288,60 +309,65 @@ export const DateOrganizer: React.FC = () => {
   }, [items]);
 
   return (
-    <div className="w-full h-full flex flex-col lg:flex-row gap-6 min-h-0 text-xs font-sans">
+    <>
       {/* Left Column: Configuration Form */}
-      <div className="w-full lg:w-96 shrink-0 flex flex-col gap-4 lg:h-full lg:overflow-y-auto pr-1">
+      <div className="w-full lg:w-80 shrink-0 flex flex-col gap-4 pr-1">
         <Card className="border-border bg-card/65 shadow-sm flex flex-col shrink-0">
-          <CardHeader className="pb-4 border-b border-border">
-            <CardTitle className="font-heading font-bold text-sm text-foreground flex items-center gap-2">
-              <CalendarCheck className="w-4 h-4 text-primary" />
-              Date Organization Setup
-            </CardTitle>
-            <CardDescription className="text-xs text-muted-foreground mt-0.5">
-              Configure target paths and structures. We infer dates automatically from EXIF or filename.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-5 space-y-5">
+          <CardContent className="p-4 space-y-4 pt-5">
+            {/* Top Helper Header with Dialog Link */}
+            <div className="flex justify-between items-center border-b border-border pb-2 mb-2">
+              <span className="font-semibold text-foreground text-xs uppercase tracking-wider">Settings</span>
+              <Button
+                variant="ghost"
+                size="xs"
+                className="h-6 gap-1 text-xs text-muted-foreground hover:text-primary px-1.5 cursor-pointer rounded-md"
+                onClick={() => setShowHelpDialog(true)}
+              >
+                <Info className="w-3.5 h-3.5" />
+                How it works
+              </Button>
+            </div>
+
             {/* Destination Path Selector */}
-            <div className="space-y-2">
-              <Label className="font-semibold text-muted-foreground text-2xs uppercase tracking-wider">Destination Directory</Label>
+            <div className="space-y-1.5">
+              <Label className="font-semibold text-foreground text-xs">Destination Directory</Label>
               <div className="flex gap-2">
                 <Input
                   type="text"
                   readOnly
                   placeholder="Select output folder..."
                   value={destination}
-                  className="flex-1 h-9 bg-background/50 border-border text-xs truncate"
+                  className="flex-1 h-8 bg-background/50 border-border text-xs truncate"
                 />
-                <Button variant="outline" size="sm" className="h-9 border-border hover:bg-accent shrink-0" onClick={handleSelectDest}>
-                  <FolderPlus className="w-3.5 h-3.5 mr-1.5" />
-                  Browse...
+                <Button variant="outline" size="lg" className="shrink-0" onClick={handleSelectDest}>
+                  <FolderPlus className="w-3.5 h-3.5 mr-1" />
+                  Browse
                 </Button>
               </div>
             </div>
 
             {/* Pattern Input and Presets */}
-            <div className="space-y-2">
-              <Label className="font-semibold text-muted-foreground text-2xs uppercase tracking-wider">Subfolder Naming Pattern</Label>
+            <div className="space-y-1.5">
+              <Label className="font-semibold text-foreground text-xs">Subfolder Naming Pattern</Label>
               <Input
                 type="text"
                 value={pattern}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPattern(e.target.value)}
                 placeholder="e.g. YYYY/MM/"
-                className="h-9 bg-background/50 border-border text-xs font-mono"
+                className="h-8 bg-background/50 border-border text-xs font-mono"
               />
               
               {/* Pattern Presets list */}
               <div className="space-y-1">
-                <span className="text-[0.5625rem] text-muted-foreground">Quick Presets:</span>
-                <div className="flex flex-wrap gap-1.5">
+                <span className="text-xs text-muted-foreground">Quick Presets:</span>
+                <div className="flex flex-wrap gap-1">
                   {PRESETS.map((preset) => (
                     <Button
                       key={preset.value}
                       type="button"
                       variant="outline"
                       size="sm"
-                      className={`h-6 text-2xs px-2 py-0.5 ${pattern === preset.value ? 'bg-primary/10 border-primary/30 text-primary hover:bg-primary/20' : 'bg-background hover:bg-accent'}`}
+                      className={`rounded-md ${pattern === preset.value ? 'bg-primary/10 border-primary/30 text-primary hover:bg-primary/20' : 'bg-background hover:bg-accent'}`}
                       onClick={() => setPattern(preset.value)}
                     >
                       {preset.label}
@@ -350,18 +376,18 @@ export const DateOrganizer: React.FC = () => {
                 </div>
               </div>
 
-              <p className="text-[0.5625rem] text-muted-foreground leading-relaxed">
-                Tokens: <code className="font-mono bg-muted px-1 rounded text-primary">YYYY</code> (Year), <code className="font-mono bg-muted px-1 rounded text-primary">MM</code> (2-digit Month), <code className="font-mono bg-muted px-1 rounded text-primary">MMMM</code> (Month name), <code className="font-mono bg-muted px-1 rounded text-primary">DD</code> (Day)
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Tokens: <code className="font-mono bg-muted px-1.5 py-0.5 rounded text-primary">YYYY</code>, <code className="font-mono bg-muted px-1.5 py-0.5 rounded text-primary">MM</code>, <code className="font-mono bg-muted px-1.5 py-0.5 rounded text-primary">MMMM</code>, <code className="font-mono bg-muted px-1.5 py-0.5 rounded text-primary">DD</code>
               </p>
             </div>
 
             {/* Dynamic Preview path */}
-            <div className="space-y-2">
-              <Label className="font-semibold text-muted-foreground text-2xs uppercase tracking-wider flex items-center gap-1">
+            <div className="space-y-1.5">
+              <Label className="font-semibold text-foreground text-xs flex items-center gap-1">
                 <Info className="w-3.5 h-3.5 text-muted-foreground" />
                 Example Destination Path
               </Label>
-              <div className="bg-background/80 p-3 rounded-lg border border-border font-mono text-[0.6875rem] overflow-x-auto whitespace-nowrap shadow-inner">
+              <div className="bg-background/80 p-2.5 rounded-lg border border-border font-mono text-xs overflow-x-auto whitespace-nowrap shadow-inner">
                 <span className="text-muted-foreground">{destination ? (destination.split(/[\\/]/).pop() || destination) : 'Destination'}</span>
                 <span className="text-muted-foreground/40">/</span>
                 <span className="text-primary font-semibold">{getPatternPreview(pattern)}</span>
@@ -369,10 +395,10 @@ export const DateOrganizer: React.FC = () => {
             </div>
 
             {/* Preserves originals copy vs move */}
-            <div className="flex items-center justify-between border border-border rounded-lg p-3.5 bg-muted/10">
+            <div className="flex items-center justify-between border border-border rounded-lg p-2.5 bg-muted/10">
               <div className="space-y-0.5">
                 <Label htmlFor="preserve-switch" className="font-semibold text-foreground text-xs cursor-pointer">Copy instead of Move</Label>
-                <p className="text-2xs text-muted-foreground">Keep original files in current folder</p>
+                <p className="text-xs text-muted-foreground leading-snug mt-0.5">Keep original files in current folder</p>
               </div>
               <Switch
                 id="preserve-switch"
@@ -391,9 +417,9 @@ export const DateOrganizer: React.FC = () => {
             </div>
           </CardContent>
 
-          <CardFooter className="bg-muted/10 border-t border-border flex justify-end p-4 shrink-0">
+          <CardFooter className="p-4 border-t border-border bg-muted/10 flex justify-end shrink-0">
             <Button
-              className="w-full px-4 py-2 font-medium h-9 text-xs cursor-pointer bg-primary text-primary-foreground hover:bg-primary/95 transition-colors"
+              className="w-full px-4 py-2 font-medium h-8 text-xs cursor-pointer bg-primary text-primary-foreground hover:bg-primary/95 transition-colors"
               onClick={handlePreview}
               disabled={isPlanning || isExecuting || !destination}
             >
@@ -409,7 +435,7 @@ export const DateOrganizer: React.FC = () => {
       </div>
 
       {/* Right Column: Dynamic Preview / State Container */}
-      <div className="flex-1 min-h-0 lg:h-full flex flex-col min-w-0">
+      <div className="flex-1 min-h-0 flex flex-col min-w-0">
         {/* State 1: Executing Progress */}
         {isExecuting && progress && (
           <Card className="flex-1 min-h-0 flex flex-col border-border bg-card/65 shadow-sm justify-center p-8">
@@ -513,11 +539,20 @@ export const DateOrganizer: React.FC = () => {
             </CardContent>
 
             <CardFooter className="flex justify-end p-4 gap-3 bg-muted/10 shrink-0">
-              <Button variant="outline" className="h-9 text-xs border-border cursor-pointer" onClick={() => setPreviewItems([])}>
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => setPreviewItems([])}
+              >
                 Cancel Plan
               </Button>
-              <Button className="h-9 text-xs cursor-pointer gap-1.5 bg-primary text-primary-foreground hover:bg-primary/95 transition-colors" onClick={handleExecute}>
-                <Play className="w-3 h-3 fill-current" />
+              <Button
+                variant="default"
+                size="lg"
+                className="gap-1.5"
+                onClick={handleExecute}
+              >
+                <Play className="w-3.5 h-3.5 fill-current" />
                 Apply Organization Changes
               </Button>
             </CardFooter>
@@ -531,6 +566,56 @@ export const DateOrganizer: React.FC = () => {
         items={items}
         onItemChange={setPreviewItem}
       />
-    </div>
+
+      <Dialog open={showHelpDialog} onOpenChange={setShowHelpDialog}>
+        <DialogContent className="max-w-md bg-card/95 border-border backdrop-blur-md text-foreground font-sans text-xs">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-bold flex items-center gap-2">
+              <Info className="w-4 h-4 text-primary" />
+              How Date Organization Works
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Learn how Galleo automatically structures and names your folders.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3.5 py-2 leading-relaxed text-xs">
+            <div className="space-y-1">
+              <h4 className="font-semibold text-foreground">1. Exif Date Extraction</h4>
+              <p className="text-muted-foreground">
+                Galleo first attempts to read the precise capture date from the file's embedded EXIF metadata (metadata written by cameras and phones when the photo or video was taken).
+              </p>
+            </div>
+            <div className="space-y-1">
+              <h4 className="font-semibold text-foreground">2. Filename Date Parsing</h4>
+              <p className="text-muted-foreground">
+                If the EXIF metadata is missing, Galleo scans the filename for structured date formats (such as YYYY-MM-DD or Unix timestamps).
+              </p>
+            </div>
+            <div className="space-y-1">
+              <h4 className="font-semibold text-foreground">3. System File Dates (Fallback)</h4>
+              <p className="text-muted-foreground">
+                As a final fallback, Galleo uses the file's system creation date or last modification date as the target organization date.
+              </p>
+            </div>
+            <div className="space-y-1">
+              <h4 className="font-semibold text-foreground">4. Pattern Subfolders</h4>
+              <p className="text-muted-foreground">
+                Once the date is determined, the file is moved or copied to a folder matching your naming pattern (e.g. <code className="font-mono bg-muted px-1.5 py-0.5 rounded text-primary">YYYY/MM - MMMM/</code> will organize files into folders like <code className="font-mono bg-muted px-1.5 py-0.5 rounded text-primary">2026/06 - June/</code>).
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button
+                variant="default"
+                size="lg"
+              >
+                Got it
+              </Button>
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };

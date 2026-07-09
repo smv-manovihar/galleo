@@ -25,13 +25,15 @@ interface MediaPreviewProps {
   onClose: () => void;
   items?: MediaItem[];
   onItemChange?: (item: MediaItem) => void;
+  autoPlay?: boolean;
 }
 
 export const MediaPreview: React.FC<MediaPreviewProps> = ({
   item: propItem,
   onClose,
   items,
-  onItemChange
+  onItemChange,
+  autoPlay = false,
 }) => {
   const [showMetaPanel, setShowMetaPanel] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
@@ -354,7 +356,7 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
               >
                 <div className="pointer-events-auto max-w-full max-h-full">
                   {isVideo ? (
-                    <VideoPlayer ref={videoPlayerRef} src={safeSrc} poster={item.thumbnailPath ? `media:///${item.thumbnailPath.replace(/\\/g, '/')}` : undefined} className="w-full max-w-3xl" hideFullscreen={false} />
+                    <VideoPlayer ref={videoPlayerRef} src={safeSrc} poster={item.thumbnailPath ? `media:///${item.thumbnailPath.replace(/\\/g, '/')}` : undefined} className="w-full max-w-3xl" hideFullscreen={false} autoPlay={autoPlay} />
                   ) : (
                     <img
                       src={safeSrc}

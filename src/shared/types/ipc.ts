@@ -46,7 +46,7 @@ export interface OrganizePreviewItem {
   targetPath: string;
   relativePath: string;
   conflict: boolean;
-  conflictReason?: 'already_exists' | 'duplicate_target';
+  conflictReason?: 'already_exists' | 'duplicate_target' | 'duplicate_source';
 }
 
 export interface GalleoAPI {

@@ -5,6 +5,7 @@ import { useUIStore } from '../stores/ui-store';
 import { Card as ShadcnCard, CardHeader as ShadcnCardHeader, CardTitle as ShadcnCardTitle, CardDescription as ShadcnCardDescription, CardContent as ShadcnCardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PageContainer } from '@/components/ui/page-layout';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { 
   Sparkles, 
   Layers, 
@@ -41,6 +42,15 @@ export const DashboardPage: React.FC = () => {
 
   return (
     <PageContainer className="select-none font-sans text-xs" maxWidth="xl">
+      {totalFiles === 0 && (
+        <Alert className="mb-6 border-amber-500/25 bg-amber-500/5 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400">
+          <AlertCircle className="size-4 text-amber-500" />
+          <AlertTitle className="text-foreground text-sm font-semibold">No media scanned yet</AlertTitle>
+          <AlertDescription className="text-muted-foreground text-2xs leading-relaxed mt-0.5">
+            To build your local dashboard and start culling duplicates, click the <strong className="text-foreground">Scan Folders</strong> button in the top header. If you need to manage your library folders first, select <strong className="text-foreground">Roots</strong> in the sidebar.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Grid Stats */}
       <div className="grid grid-cols-4 gap-4">
@@ -202,18 +212,6 @@ export const DashboardPage: React.FC = () => {
             </ShadcnCardContent>
           </ShadcnCard>
 
-          {/* Quick instructions / Help */}
-          {totalFiles === 0 && (
-            <div className="border border-yellow-500/20 bg-yellow-500/5 rounded-lg p-4 flex gap-3 text-[0.6875rem] text-muted-foreground leading-normal">
-              <AlertCircle className="w-5 h-5 text-yellow-500 shrink-0" />
-              <div>
-                <strong className="text-foreground font-semibold">No media scanned yet!</strong>
-                <p className="mt-1">
-                  Ensure you configure allowed folders under Roots sidebar, then click the "Scan Folders" button in the header bar.
-                </p>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </PageContainer>

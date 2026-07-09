@@ -40,8 +40,20 @@ export class DuplicateService {
         return dupItem ? dupItem : item;
       });
 
-      // Save updated items back to DB
-      this.repository.upsertMany(finalItems);
+      // Save only updated items whose duplicate state actually changed to avoid massive DB write locking
+      const itemsToUpdate = finalItems.filter(finalItem => {
+        const originalItem = items.find(i => i.id === finalItem.id);
+        if (!originalItem) return true;
+        return (
+          originalItem.isDuplicate !== finalItem.isDuplicate ||
+          originalItem.duplicateGroupId !== finalItem.duplicateGroupId ||
+          originalItem.isBestInDuplicateGroup !== finalItem.isBestInDuplicateGroup
+        );
+      });
+
+      if (itemsToUpdate.length > 0) {
+        this.repository.upsertMany(itemsToUpdate);
+      }
       
       return ok(finalItems);
     } catch (e: any) {

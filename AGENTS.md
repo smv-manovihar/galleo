@@ -161,6 +161,7 @@ def calculate_metrics(user_id: str, threshold: float) -> dict[str, float]:
 ### Styling & CSS Variables
 * **Static Identity Colors Use Fixed Colors, Not Theme Vars:** When a color must stay stable to carry meaning, category coding, or any "this color *is* the thing" mapping — do **not** tie it to the theme `accent` / `primary` variables, which get recolored frequently and will silently shift that meaning. Use fixed Tailwind colors instead (e.g. `bg-amber-500/10` + `text-amber-600 dark:text-amber-400`), always with `dark:` variants, and choose tones that keep contrast regardless of the current accent. Theme vars (`primary`/`accent`) are for brand/action surfaces that *should* follow the theme. Define a small fixed palette constant.
 * **No "AI Default / Vivid Glow / Aurora" Styling:** Keep the UI clean and flat (Notion-like). Do **not** use neon/luminous highlights, glowing box-shadows or halos, iridescent/aurora multi-stop gradients, or decorative blurred gradient "blobs". Use solid token surfaces. If you encounter this glowy styling, flatten it.
+* **Custom Typography Utilities (Tailwind v4):** Prefer custom pre-configured font size utilities like `text-2xs` (0.625rem / 10px) and `text-3xs` (0.5rem / 8px) for extremely compact status labels, timestamps, metadata counts, and badge text rather than using arbitrary values like `text-[0.625rem]` or standard `text-xs` (which can be too large for small side-panels or status widgets).
 
 ---
 

@@ -2,11 +2,10 @@ import React from 'react';
 import { useUIStore } from '../../stores/ui-store';
 import { useMediaStore } from '../../stores/media-store';
 import { useSettingsStore } from '../../stores/settings-store';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { SidebarTrigger } from '@/components/ui/sidebar';
+import { Input } from '@/components/ui/input';
 import { 
-  Search, 
   Play, 
   Square,
   Moon,
@@ -14,7 +13,8 @@ import {
   Laptop,
   ChevronDown,
   RefreshCw,
-  Loader2
+  Loader2,
+  Search
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -34,14 +34,63 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import { Progress } from '@/components/ui/progress';
 
 export const TopBar: React.FC = () => {
-  const { currentView, theme, setTheme } = useUIStore();
-  const { searchQuery, setSearchQuery, isScanning, isStopping, startScan, cancelScan, scanProgress } = useMediaStore();
+  const { currentView, theme, setTheme, setCurrentView } = useUIStore();
+  const searchQuery = useMediaStore((state) => state.searchQuery);
+  const setSearchQuery = useMediaStore((state) => state.setSearchQuery);
+  const isScanning = useMediaStore((state) => state.isScanning);
+  const isStopping = useMediaStore((state) => state.isStopping);
+  const startScan = useMediaStore((state) => state.startScan);
+  const cancelScan = useMediaStore((state) => state.cancelScan);
+  const scanProgress = useMediaStore((state) => state.scanProgress);
   const { settings } = useSettingsStore();
 
   const [showRescanDialog, setShowRescanDialog] = React.useState(false);
   const [selectedPaths, setSelectedPaths] = React.useState<string[]>([]);
+
+  const [localSearch, setLocalSearch] = React.useState(searchQuery);
+  const searchTimeoutRef = React.useRef<any>(null);
+
+  // Sync global search query back to local input (e.g. if cleared from store)
+  React.useEffect(() => {
+    setLocalSearch(searchQuery);
+  }, [searchQuery]);
+
+  // Cleanup timeout on unmount
+  React.useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        window.clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handleSearchSubmit = () => {
+    if (searchTimeoutRef.current) {
+      window.clearTimeout(searchTimeoutRef.current);
+    }
+    setSearchQuery(localSearch);
+    if (currentView === 'dashboard' && localSearch.trim().length > 0) {
+      setCurrentView('browse');
+    }
+  };
+
+  const handleSearchChange = (value: string) => {
+    setLocalSearch(value);
+
+    if (searchTimeoutRef.current) {
+      window.clearTimeout(searchTimeoutRef.current);
+    }
+
+    searchTimeoutRef.current = window.setTimeout(() => {
+      setSearchQuery(value);
+      if (currentView === 'dashboard' && value.trim().length > 0) {
+        setCurrentView('browse');
+      }
+    }, 300);
+  };
 
   const handleOpenRescanDialog = () => {
     const enabledRoots = settings.folders.roots.filter(r => r.enabled).map(r => r.path);
@@ -111,62 +160,82 @@ export const TopBar: React.FC = () => {
   };
 
   return (
-    <header className="h-16 border-b border-border bg-card/45 backdrop-blur-md px-6 flex items-center justify-between select-none gap-4">
+    <header className="h-16 border-b border-border bg-card/45 backdrop-blur-md px-6 flex items-center justify-between select-none gap-4 relative">
       {/* Title & Trigger */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 shrink-0">
         <SidebarTrigger className="h-8 w-8 text-muted-foreground hover:text-foreground border border-border rounded-lg bg-background/50" />
         <h2 className="font-heading font-bold text-lg text-foreground leading-none">{getTitle()}</h2>
       </div>
 
-      {/* Global Actions */}
-      <div className="flex items-center gap-4">
-        {/* Search Bar (Only shown on Browse/Dashboard views) */}
-        {(currentView === 'browse' || currentView === 'dashboard') && (
-          <div className="relative w-64">
+      {/* Centered Search Bar (Only shown on Browse/Dashboard views) */}
+      {(currentView === 'browse' || currentView === 'dashboard') && (
+        <div className="absolute left-1/2 -translate-x-1/2 w-80 max-w-[30%] shrink-0">
+          <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               type="text"
               placeholder="Search files..."
               className="pl-9 h-9 w-full bg-background/50 border-border focus-visible:ring-1 focus-visible:ring-primary rounded-lg text-xs"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              value={localSearch}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleSearchSubmit();
+                }
+              }}
             />
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Scan Button */}
+      {/* Global Actions */}
+      <div className="flex items-center gap-4 ml-auto shrink-0">
+        {/* Scan Controls & Unified Progress */}
         {settings.folders.roots.some(r => r.enabled) && (
-          <div className="flex items-center gap-3">
-            {isScanning && (
-              <div className="text-right text-2xs text-muted-foreground font-sans max-w-44 truncate">
-                {isStopping ? (
-                  <div className="font-semibold text-amber-500 animate-pulse">Stopping...</div>
-                ) : (
-                  <div className="font-semibold text-primary">Scanning...</div>
-                )}
-                <div className="truncate">{isStopping ? 'Finishing database updates...' : (scanProgress.currentFile || 'Reading...')}</div>
-              </div>
-            )}
+          <div className="flex items-center">
             {isScanning ? (
-              <Button
-                variant="destructive"
-                size="sm"
-                className="gap-2 h-9 rounded-lg font-medium text-xs px-3.5 shadow-sm cursor-pointer"
-                onClick={handleScanClick}
-                disabled={isStopping}
-              >
-                {isStopping ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    Stopping...
-                  </>
-                ) : (
-                  <>
-                    <Square className="w-3.5 h-3.5 fill-current" />
-                    Stop Scan
-                  </>
-                )}
-              </Button>
+              <div className="flex items-center gap-3 border border-border bg-background/30 rounded-xl p-1.5 pl-3 h-10">
+                <div className="flex flex-col gap-0.5 w-40">
+                  <div className="flex items-center justify-between text-2xs leading-none">
+                    <span className="font-semibold text-primary animate-pulse">
+                      {isStopping ? 'Stopping...' : 'Scanning...'}
+                    </span>
+                    <span className="font-mono text-muted-foreground text-3xs tabular-nums font-semibold">
+                      {scanProgress.totalCount > 0
+                        ? `${Math.round((scanProgress.scannedCount / scanProgress.totalCount) * 100)}%`
+                        : '0%'}
+                    </span>
+                  </div>
+                  <Progress 
+                    value={scanProgress.totalCount > 0 ? (scanProgress.scannedCount / scanProgress.totalCount) * 100 : 0} 
+                    className="h-1 bg-muted rounded-full"
+                  />
+                  <div className="text-2xs text-muted-foreground truncate w-40" title={scanProgress.currentFile}>
+                    {isStopping ? 'Finishing DB...' : (scanProgress.currentFile || 'Reading...')}
+                  </div>
+                </div>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      className="h-7 w-7 rounded-lg cursor-pointer shrink-0"
+                      onClick={handleScanClick}
+                      disabled={isStopping}
+                    >
+                      {isStopping ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Square className="w-3 h-3 fill-current" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    {isStopping ? 'Stopping scan...' : 'Stop Scan'}
+                  </TooltipContent>
+                </Tooltip>
+              </div>
             ) : (
               <div className="flex items-center -space-x-px">
                 <Button

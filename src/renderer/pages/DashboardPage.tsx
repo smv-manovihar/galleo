@@ -1,7 +1,7 @@
 import React from 'react';
 import { useMediaStore } from '../stores/media-store';
 import { useUIStore } from '../stores/ui-store';
-import { useSettingsStore } from '../stores/settings-store';
+
 import { Card as ShadcnCard, CardHeader as ShadcnCardHeader, CardTitle as ShadcnCardTitle, CardDescription as ShadcnCardDescription, CardContent as ShadcnCardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PageContainer } from '@/components/ui/page-layout';
@@ -16,9 +16,9 @@ import {
 import { formatBytes } from '../lib/format';
 
 export const DashboardPage: React.FC = () => {
-  const { items, setFilterQuality, startScan } = useMediaStore();
+  const { items, setFilterQuality } = useMediaStore();
   const { setCurrentView } = useUIStore();
-  const { settings } = useSettingsStore();
+
 
   const totalFiles = items.length;
   const totalSize = items.reduce((sum, i) => sum + i.size, 0);
@@ -38,33 +38,9 @@ export const DashboardPage: React.FC = () => {
     setCurrentView('browse');
   };
 
-  const handleQuickScan = () => {
-    const enabledRoots = settings.folders.roots.filter(r => r.enabled).map(r => r.path);
-    if (enabledRoots.length > 0) {
-      startScan(enabledRoots);
-    }
-  };
 
   return (
     <PageContainer className="select-none font-sans text-xs" maxWidth="xl">
-      {/* Top Banner */}
-      <div className="flex items-center justify-between border border-border bg-card/45 backdrop-blur-md p-6 rounded-lg">
-        <div className="space-y-1">
-          <h3 className="font-heading font-bold text-lg text-foreground flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-primary" />
-            Media Storage Health
-          </h3>
-          <p className="text-muted-foreground text-xs leading-relaxed">
-            Review scanning insights to find duplicate photos, blurry screenshot captures, and recover wasted space.
-          </p>
-        </div>
-        
-        {settings.folders.roots.length > 0 && totalFiles === 0 && (
-          <Button onClick={handleQuickScan} size="sm" className="px-4 py-2 font-medium">
-            Run Initial Scan
-          </Button>
-        )}
-      </div>
 
       {/* Grid Stats */}
       <div className="grid grid-cols-4 gap-4">

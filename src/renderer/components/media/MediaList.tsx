@@ -324,7 +324,7 @@ export const MediaList: React.FC<MediaListProps> = ({
                     height: 38,
                     transform: `translateY(${virtualRow.start}px)`
                   }}
-                  onClick={(e: React.MouseEvent) => onSelectToggle(item.id, e)}
+                  onClick={() => onPreviewOpen(item)}
                 >
                   {/* Select Checkbox */}
                   <div className="flex justify-center border-r border-border/30 h-full items-center" onClick={(e: React.MouseEvent) => e.stopPropagation()}>

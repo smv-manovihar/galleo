@@ -61,18 +61,14 @@ export class ScannerService {
         await this.discoverFiles(root, supportedExtensions, excludePatterns, scanList);
       }
 
-      if (this.isCancelled) {
-        this.isScanning = false;
-        return ok(undefined);
-      }
+      if (!this.isCancelled) {
+        const totalCount = scanList.length;
+        let scannedCount = 0;
+        const batchSize = settings.performance.scanBatchSize || 50;
 
-      const totalCount = scanList.length;
-      let scannedCount = 0;
-      const batchSize = settings.performance.scanBatchSize || 50;
-
-      // 2. Process discovered files in batches
-      for (let i = 0; i < totalCount; i += batchSize) {
-        if (this.isCancelled) break;
+        // 2. Process discovered files in batches
+        for (let i = 0; i < totalCount; i += batchSize) {
+          if (this.isCancelled) break;
 
         const batch = scanList.slice(i, i + batchSize);
         const processedItems: MediaItem[] = [];
@@ -222,18 +218,17 @@ export class ScannerService {
           window.webContents.send(IPC_CHANNELS.SCAN_PROGRESS, payload);
         }
       }
-
-      // 3. Post-scan duplicate analysis across all files
-      if (!this.isCancelled) {
-        for (const root of rootPaths) {
-          this.duplicateService.resolveDuplicatesInFolder(
-            root,
-            settings.quality.duplicateHashDistance
-          );
-        }
-        
-        window.webContents.send(IPC_CHANNELS.SCAN_COMPLETE);
       }
+
+      // 3. Post-scan duplicate analysis across all files (runs even if cancelled)
+      for (const root of rootPaths) {
+        this.duplicateService.resolveDuplicatesInFolder(
+          root,
+          settings.quality.duplicateHashDistance
+        );
+      }
+      
+      window.webContents.send(IPC_CHANNELS.SCAN_COMPLETE);
 
       this.isScanning = false;
       return ok(undefined);

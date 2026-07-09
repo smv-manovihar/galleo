@@ -85,6 +85,11 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
         return;
       }
 
+      // If the active element is inside the video player, let the VideoPlayer handle keys for seeking/volume controls
+      if (document.activeElement?.closest('.group\\/video')) {
+        return;
+      }
+
       if (e.key === 'ArrowLeft') {
         if (hasPrevious) {
           e.preventDefault();

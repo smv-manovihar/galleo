@@ -13,7 +13,8 @@ import {
   Sun,
   Laptop,
   ChevronDown,
-  RefreshCw
+  RefreshCw,
+  Loader2
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -36,7 +37,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip
 
 export const TopBar: React.FC = () => {
   const { currentView, theme, setTheme } = useUIStore();
-  const { searchQuery, setSearchQuery, isScanning, startScan, cancelScan, scanProgress } = useMediaStore();
+  const { searchQuery, setSearchQuery, isScanning, isStopping, startScan, cancelScan, scanProgress } = useMediaStore();
   const { settings } = useSettingsStore();
 
   const [showRescanDialog, setShowRescanDialog] = React.useState(false);
@@ -138,8 +139,12 @@ export const TopBar: React.FC = () => {
           <div className="flex items-center gap-3">
             {isScanning && (
               <div className="text-right text-2xs text-muted-foreground font-sans max-w-44 truncate">
-                <div className="font-semibold text-primary">Scanning...</div>
-                <div className="truncate">{scanProgress.currentFile || 'Reading...'}</div>
+                {isStopping ? (
+                  <div className="font-semibold text-amber-500 animate-pulse">Stopping...</div>
+                ) : (
+                  <div className="font-semibold text-primary">Scanning...</div>
+                )}
+                <div className="truncate">{isStopping ? 'Finishing database updates...' : (scanProgress.currentFile || 'Reading...')}</div>
               </div>
             )}
             {isScanning ? (
@@ -148,9 +153,19 @@ export const TopBar: React.FC = () => {
                 size="sm"
                 className="gap-2 h-9 rounded-lg font-medium text-xs px-3.5 shadow-sm cursor-pointer"
                 onClick={handleScanClick}
+                disabled={isStopping}
               >
-                <Square className="w-3.5 h-3.5 fill-current" />
-                Stop Scan
+                {isStopping ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Stopping...
+                  </>
+                ) : (
+                  <>
+                    <Square className="w-3.5 h-3.5 fill-current" />
+                    Stop Scan
+                  </>
+                )}
               </Button>
             ) : (
               <div className="flex items-center -space-x-px">

@@ -13,6 +13,7 @@ interface MediaState {
   
   // Scanning State
   isScanning: boolean;
+  isStopping: boolean;
   scanProgress: {
     scannedCount: number;
     totalCount: number;
@@ -44,6 +45,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   activeRootPath: null,
   
   isScanning: false,
+  isStopping: false,
   scanProgress: {
     scannedCount: 0,
     totalCount: 0
@@ -71,6 +73,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     
     set({
       isScanning: true,
+      isStopping: false,
       scanProgress: { scannedCount: 0, totalCount: 0, currentFile: 'Discovered directories...' }
     });
 
@@ -96,7 +99,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     const cleanupComplete = window.api.onScanComplete(async () => {
       cleanupProgress();
       cleanupComplete();
-      set({ isScanning: false });
+      set({ isScanning: false, isStopping: false });
       // Refresh current folder items to load newly populated EXIF/duplicates
       const { activeRootPath } = get();
       if (activeRootPath) {
@@ -108,13 +111,13 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     if (!res.ok) {
       cleanupProgress();
       cleanupComplete();
-      set({ isScanning: false });
+      set({ isScanning: false, isStopping: false });
     }
   },
 
   cancelScan: async () => {
+    set({ isStopping: true });
     await window.api.cancelScan();
-    set({ isScanning: false });
   },
 
   getFilteredItems: () => {

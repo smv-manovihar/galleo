@@ -3,6 +3,7 @@ import { useUIStore } from '../../stores/ui-store';
 import { useSettingsStore } from '../../stores/settings-store';
 import { useMediaStore } from '../../stores/media-store';
 import { AppSidebar } from './AppSidebar';
+import { TitleBar } from './TitleBar';
 import { TopBar } from './TopBar';
 import { StatusBar } from './StatusBar';
 import { SetupWizard } from '../onboarding/SetupWizard';
@@ -84,25 +85,28 @@ export const AppShell: React.FC = () => {
   };
 
   return (
-    <SidebarProvider>
-      <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground font-sans">
-        <AppSidebar />
-        <SidebarInset className="flex-1 flex flex-col min-w-0 h-full relative">
-          <TopBar />
-          {!isElectron && (
-            <div className="bg-amber-500/10 border-b border-amber-500/20 px-6 py-2.5 flex items-center justify-between text-amber-600 dark:text-amber-400 font-sans text-xs">
-              <span className="flex items-center gap-2">
-                <span className="font-semibold">⚠️ Web Browser Preview Mode:</span>
-                Galleo requires the Electron app wrapper to access the file system and select folders.
-              </span>
-            </div>
-          )}
-          <main className="flex-1 overflow-y-auto overflow-x-hidden relative bg-background/50">
-            {renderContent()}
-          </main>
-          <StatusBar />
-        </SidebarInset>
-      </div>
-    </SidebarProvider>
+    <div className={`flex flex-col h-screen w-screen overflow-hidden bg-background text-foreground font-sans ${isElectron ? 'has-titlebar' : ''}`}>
+      {isElectron && <TitleBar />}
+      <SidebarProvider className="flex-1 min-h-0">
+        <div className="flex h-full w-full overflow-hidden">
+          <AppSidebar />
+          <SidebarInset className="flex-1 flex flex-col min-w-0 h-full relative">
+            <TopBar />
+            {!isElectron && (
+              <div className="bg-amber-500/10 border-b border-amber-500/20 px-6 py-2.5 flex items-center justify-between text-amber-600 dark:text-amber-400 font-sans text-xs">
+                <span className="flex items-center gap-2">
+                  <span className="font-semibold">⚠️ Web Browser Preview Mode:</span>
+                  Galleo requires the Electron app wrapper to access the file system and select folders.
+                </span>
+              </div>
+            )}
+            <main className="flex-1 overflow-y-auto overflow-x-hidden relative bg-background/50">
+              {renderContent()}
+            </main>
+            <StatusBar />
+          </SidebarInset>
+        </div>
+      </SidebarProvider>
+    </div>
   );
 };

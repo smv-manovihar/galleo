@@ -5,7 +5,7 @@ import path from 'path';
 import { Readable } from 'stream';
 import { fileURLToPath } from 'url';
 
-import { app, BrowserWindow, protocol } from 'electron';
+import { app, BrowserWindow, ipcMain, nativeTheme, protocol } from 'electron';
 
 import { registerIpcHandlers } from './ipc-router';
 import { initDatabase, closeDatabase } from './infrastructure/database';
@@ -29,6 +29,15 @@ const __dirname = path.dirname(__filename);
 
 let mainWindow: BrowserWindow | null = null;
 
+function getTitleBarOverlay(): Electron.TitleBarOverlayOptions {
+  const isDark = nativeTheme.shouldUseDarkColors;
+  return {
+    color: isDark ? '#1d1d1d' : '#ffffff',
+    symbolColor: isDark ? '#e0e0e0' : '#1d1d1d',
+    height: 36,
+  };
+}
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -37,7 +46,9 @@ function createWindow(): void {
     minHeight: 600,
     show: false,
     title: 'Galleo',
-    backgroundColor: '#0c0d12', // Background color of HSL(230, 25%, 8%)
+    backgroundColor: '#0c0d12',
+    titleBarStyle: 'hidden',
+    titleBarOverlay: getTitleBarOverlay(),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       nodeIntegration: false,
@@ -51,7 +62,7 @@ function createWindow(): void {
   if (devServerUrl) {
     mainWindow.loadURL(devServerUrl);
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+    mainWindow.loadFile(path.join(__dirname, '../../dist/index.html'));
   }
 
   mainWindow.once('ready-to-show', () => {
@@ -60,6 +71,16 @@ function createWindow(): void {
 
   mainWindow.on('closed', () => {
     mainWindow = null;
+  });
+
+  // Keep overlay colors in sync with OS theme
+  nativeTheme.on('updated', () => {
+    mainWindow?.setTitleBarOverlay(getTitleBarOverlay());
+  });
+
+  // Allow renderer to update overlay colors when app theme changes
+  ipcMain.handle('titlebar:update', (_event, colors: { color: string; symbolColor: string }) => {
+    mainWindow?.setTitleBarOverlay(colors);
   });
 
   // Initialize SQLite schema and SQLite connection

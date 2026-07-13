@@ -106,17 +106,18 @@ pnpm dev
 | `pnpm format` | Format TypeScript/TSX with Prettier |
 | `pnpm test` | Run Vitest unit tests |
 | `pnpm test:watch` | Run Vitest in watch mode |
+| `pnpm postinstall` | Automatically run after installation to rebuild native dependencies matching Electron |
+| `pnpm dist` | Generate gradient assets, build codebase, and compile standard Windows installer |
 
 ### Packaging (Windows)
 
-Production packaging uses [electron-builder](https://www.electron.build/). After a successful build:
+Production packaging uses [electron-builder](https://www.electron.build/). To extract the brand logo and gradients, compile the codebase, and package the installer in one command:
 
 ```bash
-pnpm build
-pnpm exec electron-builder --config electron-builder.json
+pnpm dist
 ```
 
-Output is written to `dist-build/`. The NSIS installer is configured in `electron-builder.json` (`oneClick`, desktop and Start Menu shortcuts).
+Output is written to `dist-build/`. The standard NSIS installer is configured in `electron-builder.json` (with custom sidebar/header brand gradients, shortcuts, and custom installation paths/multi-user options).
 
 ## Project structure
 
@@ -169,7 +170,7 @@ pnpm test
 ## Development notes
 
 - **Web preview:** Running Vite without Electron (`vite` directly) loads the UI but cannot access the file system. Use `pnpm dev` for full functionality.
-- **Native rebuilds:** If `better-sqlite3` or `sharp` fail after a Node version change, run `pnpm rebuild better-sqlite3 sharp ffmpeg-static`.
+- **Native rebuilds:** If native modules (such as `better-sqlite3`) fail after a Node or Electron version change, run `pnpm postinstall` to rebuild native dependencies matching Electron, or use `pnpm rebuild better-sqlite3 sharp ffmpeg-static` if rebuilding from source is specifically needed.
 - **UI components:** Add shadcn primitives with `npx shadcn@latest add <component>`. Components land in `src/components/ui/`.
 
 ## Roadmap ideas

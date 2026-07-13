@@ -1,18 +1,23 @@
 {
   "name": "galleo",
-  "private": true,
+  "version": "0.1.0",
   "main": "dist-electron/main/index.js",
-  "version": "0.0.1",
+  "description": "Smart desktop app for cleaning up and organizing local photo and video libraries.",
+  "author": "Galleo Team",
+  "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "node scripts/generate-icon.js && tsc -b && vite build",
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc -b tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "postinstall": "electron-builder install-app-deps",
+    "build:icon": "node scripts/generate-icon.js",
+    "dist": "node scripts/build-installer.js"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

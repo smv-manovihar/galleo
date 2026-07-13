@@ -1,0 +1,118 @@
+name: Release App
+
+on:
+  push:
+    branches:
+      - 'release/**'
+      - 'releases/**'
+
+# ──────────────────────────────────────────────────────────────
+# Code Signing Secrets (add to GitHub repo settings when ready):
+#
+# macOS:
+#   MAC_CSC_LINK            – Base64-encoded .p12 certificate
+#   MAC_CSC_KEY_PASSWORD    – Certificate password
+#   APPLE_ID                – Apple ID for notarization
+#   APPLE_APP_SPECIFIC_PASSWORD – App-specific password
+#   APPLE_TEAM_ID           – Apple Developer Team ID
+#
+# Windows:
+#   WIN_CSC_LINK            – Base64-encoded .pfx certificate
+#   WIN_CSC_KEY_PASSWORD    – Certificate password
+# ──────────────────────────────────────────────────────────────
+
+permissions:
+  contents: write
+
+jobs:
+  # ─── Gate: validate version and block duplicate releases ───
+  validate:
+    name: Validate Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Extract and validate version
+        id: meta
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="v${VERSION}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "📦 Release: ${TAG}"
+
+          if gh release view "${TAG}" &>/dev/null; then
+            echo "::error::Release ${TAG} already exists. Bump version in package.json first."
+            exit 1
+          fi
+
+  # ─── Build and publish installers for each platform ───
+  build:
+    name: Build (${{ matrix.platform.name }})
+    needs: validate
+    runs-on: ${{ matrix.platform.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - { name: Windows, os: windows-2022 }
+          - { name: macOS, os: macos-14 }
+          - { name: Linux, os: ubuntu-22.04 }
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Cache electron-builder downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\AppData\Local\electron-builder\Cache
+            ~/.cache/electron
+            ~/.cache/electron-builder
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+          key: ${{ runner.os }}-electron-builder-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-electron-builder-
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Application
+        run: pnpm build
+
+      - name: Package and Publish Installer
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Prevent macOS keychain cert search on CI — avoids build
+          # failures when no signing certificate is configured yet.
+          # When MAC_CSC_LINK is provided, electron-builder uses it
+          # directly and ignores keychain discovery.
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          # Code signing certificates (optional — produces unsigned builds if unset)
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          # macOS notarization (optional)
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: pnpm exec electron-builder --config electron-builder.json --publish always

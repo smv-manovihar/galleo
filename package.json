@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "main": "dist-electron/main/index.js",
   "description": "Smart desktop app for cleaning up and organizing local photo and video libraries.",
-  "author": "Galleo Team",
+  "author": {
+    "name": "Manovihar Sirimalla",
+    "email": "sirimallamanovihar@outlook.com"
+  },
   "private": true,
   "type": "module",
   "scripts": {

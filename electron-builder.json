@@ -23,7 +23,8 @@
       "AppImage",
       "deb"
     ],
-    "icon": "build/icon.png"
+    "icon": "build/icon.png",
+    "maintainer": "Manovihar Sirimalla <sirimallamanovihar@outlook.com>"
   },
   "nsis": {
     "oneClick": false,

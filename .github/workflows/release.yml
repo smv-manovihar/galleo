@@ -99,6 +99,7 @@ jobs:
         run: pnpm build
 
       - name: Package and Publish Installer
+        shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Prevent macOS keychain cert search on CI — avoids build
@@ -106,13 +107,22 @@ jobs:
           # When MAC_CSC_LINK is provided, electron-builder uses it
           # directly and ignores keychain discovery.
           CSC_IDENTITY_AUTO_DISCOVERY: false
-          # Code signing certificates (optional — produces unsigned builds if unset)
-          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
-          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
-          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          # Raw secrets passed to temporary variables to avoid empty-string path issues
+          RAW_MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          RAW_MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          RAW_WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          RAW_WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
           # macOS notarization (optional)
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: pnpm exec electron-builder --config electron-builder.json --publish always
+        run: |
+          if [ ! -z "$RAW_MAC_CSC_LINK" ]; then
+            export CSC_LINK="$RAW_MAC_CSC_LINK"
+            export CSC_KEY_PASSWORD="$RAW_MAC_CSC_KEY_PASSWORD"
+          fi
+          if [ ! -z "$RAW_WIN_CSC_LINK" ]; then
+            export WIN_CSC_LINK="$RAW_WIN_CSC_LINK"
+            export WIN_CSC_KEY_PASSWORD="$RAW_WIN_CSC_KEY_PASSWORD"
+          fi
+          pnpm exec electron-builder --config electron-builder.json --publish always

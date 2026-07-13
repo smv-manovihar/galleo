@@ -5,6 +5,7 @@ on:
     branches:
       - 'release/**'
       - 'releases/**'
+  workflow_dispatch:
 
 # ──────────────────────────────────────────────────────────────
 # Code Signing Secrets (add to GitHub repo settings when ready):

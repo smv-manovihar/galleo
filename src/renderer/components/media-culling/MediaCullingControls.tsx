@@ -4,9 +4,9 @@ import type { UndoableAction } from "../../../shared/types/session"
 import { Button } from "@/components/ui/button"
 import { Undo2, History, Bookmark, Trash2 } from "lucide-react"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
-import { HistoryDialog, type HistoryDialogItem } from "./HistoryDialog"
+import { MediaCullingHistoryDialog, type MediaCullingHistoryDialogItem } from "./MediaCullingHistoryDialog"
 
-interface ReviewControlsProps {
+interface MediaCullingControlsProps {
   undoStack: UndoableAction[]
   allItems: MediaItem[]
   onUndo: () => void
@@ -15,7 +15,7 @@ interface ReviewControlsProps {
   onBulkChangeDecisions: (mediaIds: string[], decision: "keep" | "delete") => Promise<void>
 }
 
-export const ReviewControls: React.FC<ReviewControlsProps> = ({
+export const MediaCullingControls: React.FC<MediaCullingControlsProps> = ({
   undoStack,
   allItems,
   onUndo,
@@ -25,8 +25,8 @@ export const ReviewControls: React.FC<ReviewControlsProps> = ({
 }) => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
 
-  // Map UndoableActions to standard HistoryDialogItem format
-  const historyItems = useMemo<HistoryDialogItem[]>(() => {
+  // Map UndoableActions to standard MediaCullingHistoryDialogItem format
+  const historyItems = useMemo<MediaCullingHistoryDialogItem[]>(() => {
     return undoStack.map((action) => {
       const item = allItems.find((i) => i.id === action.mediaId)
       return {
@@ -69,7 +69,7 @@ export const ReviewControls: React.FC<ReviewControlsProps> = ({
         </div>
 
         {/* History Dialog Trigger — right */}
-        <div className="absolute right-4">
+        <div className="absolute right-4 flex items-center gap-2">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -85,7 +85,7 @@ export const ReviewControls: React.FC<ReviewControlsProps> = ({
             <TooltipContent side="top">Decision History</TooltipContent>
           </Tooltip>
 
-          <HistoryDialog
+          <MediaCullingHistoryDialog
             isOpen={isHistoryOpen}
             onOpenChange={setIsHistoryOpen}
             items={historyItems}

@@ -29,38 +29,6 @@ async function main() {
       fs.rmSync(buildOutDir, { recursive: true, force: true });
     }
 
-    // Patch electron-builder's internal NSIS template to allow installation logs.
-    // By default, electron-builder injects `SetDetailsPrint none` which makes ShowInstDetails output empty.
-    let nshPath;
-    try {
-      const { createRequire } = await import('module');
-      const require = createRequire(import.meta.url);
-      const appBuilderLibPath = path.dirname(require.resolve('app-builder-lib/package.json'));
-      nshPath = path.join(appBuilderLibPath, 'templates/nsis/installSection.nsh');
-    } catch (e) {
-      // Fallback for strict pnpm setup: search the .pnpm directory
-      const pnpmDir = path.resolve('node_modules/.pnpm');
-      if (fs.existsSync(pnpmDir)) {
-        const files = fs.readdirSync(pnpmDir);
-        const match = files.find(f => f.startsWith('app-builder-lib@'));
-        if (match) {
-          nshPath = path.resolve('node_modules/.pnpm', match, 'node_modules/app-builder-lib/templates/nsis/installSection.nsh');
-        }
-      }
-    }
-
-    if (nshPath && fs.existsSync(nshPath)) {
-      let content = fs.readFileSync(nshPath, 'utf8');
-      if (content.includes('SetDetailsPrint none')) {
-        console.log('Patching electron-builder template to enable installation logs...');
-        content = content.replace('SetDetailsPrint none', 'SetDetailsPrint both');
-        fs.writeFileSync(nshPath, content, 'utf8');
-        console.log('Successfully enabled installation logs.');
-      }
-    } else {
-      console.warn('Warning: Could not find electron-builder nsis template to patch.');
-    }
-
     // 1. Generate icon, sidebar, and header assets with the custom brand gradient
     await runCommand('node', ['scripts/generate-icon.js']);
 

@@ -56,6 +56,18 @@ export function registerIpcHandlers(window: BrowserWindow): void {
     return mediaRepository.getByFolderPath(folderPath);
   });
 
+  ipcMain.handle(IPC_CHANNELS.MEDIA_CLEAR_INDEX, (_, folderPath: string) => {
+    try {
+      mediaRepository.clearByFolder(folderPath);
+      return ok(undefined);
+    } catch (e: any) {
+      return fail({
+        code: 'UNKNOWN',
+        message: e.message || 'Clearing folder index failed'
+      });
+    }
+  });
+
   ipcMain.handle(
     IPC_CHANNELS.MEDIA_UPDATE_REVIEWS,
     (_, { sessionId, updates, undoAction }) => {

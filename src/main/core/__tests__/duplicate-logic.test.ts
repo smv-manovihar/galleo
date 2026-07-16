@@ -28,10 +28,10 @@ describe('hammingDistance', () => {
 });
 
 describe('findDuplicates', () => {
-  const createMockItem = (id: string, hash: string, score: number, size = 1000): MediaItem => ({
+  const createMockItem = (id: string, hash: string, score: number, size = 1000, name?: string): MediaItem => ({
     id,
-    path: `path/to/${id}.jpg`,
-    name: `${id}.jpg`,
+    path: `path/to/${name || id}.jpg`,
+    name: `${name || id}.jpg`,
     size,
     extension: 'jpg',
     mediaType: 'photo',
@@ -66,10 +66,10 @@ describe('findDuplicates', () => {
     expect(groups[0].items.map(i => i.id)).toContain('item2');
   });
 
-  it('selects the best quality item as best in group', () => {
-    const item1 = createMockItem('item1', 'ffff', 80, 500); // score 80
-    const item2 = createMockItem('item2', 'fffe', 90, 400); // score 90 (should be best)
-    const item3 = createMockItem('item3', 'fff0', 80, 800); // score 80 (largest size, but lower quality)
+  it('selects the best quality item as best in group for exact duplicates', () => {
+    const item1 = createMockItem('item1', 'ffff', 80, 500, 'copy'); // same name, same size
+    const item2 = createMockItem('item2', 'fffe', 90, 500, 'copy'); // same name, same size
+    const item3 = createMockItem('item3', 'fff0', 80, 500, 'copy'); // same name, same size
 
     const groups = findDuplicates([item1, item2, item3], 4);
     expect(groups.length).toBe(1);
@@ -80,12 +80,15 @@ describe('findDuplicates', () => {
     expect(best!.id).toBe('item2');
   });
 
-  it('selects larger resolution/size in case of tie in quality score', () => {
-    const item1 = createMockItem('item1', 'ffff', 90, 500); // score 90, size 500
-    const item2 = createMockItem('item2', 'fffe', 90, 1000); // score 90, size 1000 (should be best)
+  it('does not set isBestInDuplicateGroup to true for similar media (different filenames)', () => {
+    const item1 = createMockItem('item1', 'ffff', 80, 500, 'photo1');
+    const item2 = createMockItem('item2', 'fffe', 90, 400, 'photo2');
 
     const groups = findDuplicates([item1, item2], 4);
-    const best = groups[0].items.find(i => i.isBestInDuplicateGroup);
-    expect(best!.id).toBe('item2');
+    expect(groups.length).toBe(1);
+    
+    const itemsInGroup = groups[0].items;
+    const best = itemsInGroup.find(i => i.isBestInDuplicateGroup);
+    expect(best).toBeUndefined(); // should not set isBestInDuplicateGroup on ingestion for similar media
   });
 });

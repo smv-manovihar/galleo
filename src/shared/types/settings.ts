@@ -2,6 +2,7 @@ export interface RootFolder {
   path: string;
   enabled: boolean;
   label?: string;
+  scanned?: boolean;
 }
 
 export interface AppSettings {

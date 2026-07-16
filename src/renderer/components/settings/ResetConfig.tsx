@@ -31,7 +31,8 @@ export const ResetConfig: React.FC = () => {
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [confirmType, setConfirmType] = useState<'granular' | 'factory'>('granular');
 
-  const { fetchMediaItems, activeRootPath } = useMediaStore();
+  const fetchMediaItems = useMediaStore((s) => s.fetchMediaItems);
+  const activeRootPath = useMediaStore((s) => s.activeRootPath);
   const { fetchSettings } = useSettingsStore();
 
   const handleToggle = (key: keyof typeof options) => {

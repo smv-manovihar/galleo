@@ -187,6 +187,7 @@ def calculate_metrics(user_id: str, threshold: float) -> dict[str, float]:
 * **Out-of-Sync Models:** Never modify backend API schemas without making corresponding adjustments to frontend type definitions. Unsynchronized data layers breach end-to-end type safety.
 * **CSS Variables Source:** Always use the standard theme variables exposed in `src/index.css`. If new variables are needed, add them directly in `src/index.css`.
 * **Misused Tokens & Glow Styling:** Never use `accent` as the brand/action color (it is the subtle surface token — use `primary`), never use raw color utilities (`bg-blue-50`, hex) or legacy `text-text-*` aliases when a shadcn primitive exists, and never introduce glowing/neon/aurora effects or decorative blurred gradient blobs.
+* **Non-pnpm Package Managers:** Never use `npm`, `yarn`, or `bun` for package management, dependency installation, or script execution. Always use `pnpm` exclusively (e.g., `pnpm add`, `pnpm run dev`, `pnpm install`).
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.

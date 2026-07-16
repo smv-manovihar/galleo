@@ -52,6 +52,9 @@ export class SessionRepository {
 
       // 2. Clear old decisions and insert updated map
       // (Easier to just write all current ones as transactional sync)
+      const deleteDecisions = db.prepare('DELETE FROM session_decisions WHERE session_id = ?');
+      deleteDecisions.run(cp.sessionId);
+
       for (const [mediaId, decision] of Object.entries(cp.decisions)) {
         insertDecision.run({
           sessionId: cp.sessionId,

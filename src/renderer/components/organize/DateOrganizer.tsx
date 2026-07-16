@@ -180,7 +180,8 @@ const getFileIcon = (filename: string) => {
 };
 
 export const DateOrganizer: React.FC = () => {
-  const { activeRootPath, items } = useMediaStore();
+  const activeRootPath = useMediaStore((s) => s.activeRootPath);
+  const items = useMediaStore((s) => s.items);
   const { settings, saveSettings } = useSettingsStore();
 
   const [destination, setDestination] = useState(settings.folders.destination || '');

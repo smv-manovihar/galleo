@@ -3,11 +3,22 @@ import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 import electron from "vite-plugin-electron"
+import babel from "@rolldown/plugin-babel"
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
     react(),
+    babel({
+      plugins: [
+        [
+          "babel-plugin-react-compiler",
+          {
+            target: "19", // Explicitly targeting React 19
+          },
+        ],
+      ],
+    }),
     tailwindcss(),
     electron([
       {

@@ -10,6 +10,7 @@ export interface ScanFileData {
   path: string;
   name: string;
   size: number;
+  mtime: string;   // ISO string of file modification time for incremental scan skipping
   extension: string;
   mediaType: MediaType;
 }

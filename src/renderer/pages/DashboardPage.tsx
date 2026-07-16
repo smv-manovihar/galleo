@@ -17,7 +17,9 @@ import {
 import { formatBytes } from '../lib/format';
 
 export const DashboardPage: React.FC = () => {
-  const { items, setFilterQuality } = useMediaStore();
+  const items = useMediaStore((s) => s.items);
+  const setFilterQuality = useMediaStore((s) => s.setFilterQuality);
+  const setFilterReviewState = useMediaStore((s) => s.setFilterReviewState);
   const { setCurrentView } = useUIStore();
 
 
@@ -184,7 +186,7 @@ export const DashboardPage: React.FC = () => {
                 variant="outline" 
                 className="w-full justify-start gap-3 h-10 text-left border-border bg-background/40 hover:bg-accent text-xs font-medium cursor-pointer"
                 onClick={() => {
-                  setFilterQuality('pending');
+                  setFilterReviewState('pending');
                   setCurrentView('review');
                 }}
                 disabled={totalFiles === 0}

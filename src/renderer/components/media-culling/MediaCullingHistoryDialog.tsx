@@ -14,7 +14,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { cn } from "@/lib/utils"
 
-export interface HistoryDialogItem {
+export interface MediaCullingHistoryDialogItem {
   id: string // unique entry ID
   mediaId: string
   name: string
@@ -33,7 +33,7 @@ const HistoryRow = React.memo(({
   translateY,
   measureRef,
 }: {
-  item: HistoryDialogItem
+  item: MediaCullingHistoryDialogItem
   isChecked: boolean
   isKeep: boolean
   isDelete: boolean
@@ -133,15 +133,15 @@ const HistoryRow = React.memo(({
   )
 })
 
-interface HistoryDialogProps {
+interface MediaCullingHistoryDialogProps {
   isOpen: boolean
   onOpenChange: (open: boolean) => void
-  items: HistoryDialogItem[]
+  items: MediaCullingHistoryDialogItem[]
   onBulkAction: (mediaIds: string[], action: "keep" | "delete") => Promise<void>
   onSingleAction: (mediaId: string, action: "keep" | "delete") => Promise<void>
 }
 
-export const HistoryDialog: React.FC<HistoryDialogProps> = ({
+export const MediaCullingHistoryDialog: React.FC<MediaCullingHistoryDialogProps> = ({
   isOpen,
   onOpenChange,
   items,

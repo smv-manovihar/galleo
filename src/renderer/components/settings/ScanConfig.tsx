@@ -4,12 +4,14 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Slider } from '@/components/ui/slider';
 
 export const ScanConfig: React.FC = () => {
   const { settings, saveSettings } = useSettingsStore();
 
   const [includeSubfolders, setIncludeSubfolders] = useState(settings.scanning.includeSubfolders);
   const [minFileSizeKB, setMinFileSizeKB] = useState(Math.round(settings.scanning.minFileSize / 1024));
+  const [concurrency, setConcurrency] = useState(settings.performance.maxConcurrentOps ?? 4);
 
   const handleToggleSubfolders = async (val: boolean) => {
     setIncludeSubfolders(val);
@@ -32,6 +34,18 @@ export const ScanConfig: React.FC = () => {
       scanning: {
         ...settings.scanning,
         minFileSize: kbVal * 1024
+      }
+    });
+  };
+
+  const handleConcurrencyChange = async (val: number[]) => {
+    const next = val[0];
+    setConcurrency(next);
+    await saveSettings({
+      ...settings,
+      performance: {
+        ...settings.performance,
+        maxConcurrentOps: next
       }
     });
   };
@@ -75,6 +89,26 @@ export const ScanConfig: React.FC = () => {
                 className="w-20 h-9 bg-background/50 border-border text-center text-xs"
               />
               <span className="text-muted-foreground font-medium">KB</span>
+            </div>
+          </div>
+
+          {/* Indexing parallelism */}
+          <div className="flex items-center justify-between border border-border rounded-lg p-4 bg-muted/10 gap-4">
+            <div className="space-y-0.5 min-w-0 flex-1">
+              <Label className="font-semibold text-foreground">Indexing Parallelism</Label>
+              <p className="text-xs text-muted-foreground">Files processed simultaneously. Higher = faster scans, more CPU &amp; RAM usage.</p>
+            </div>
+            <div className="flex items-center gap-3 shrink-0 w-40">
+              <Slider
+                id="concurrency-slider"
+                min={1}
+                max={8}
+                step={1}
+                value={[concurrency]}
+                onValueChange={handleConcurrencyChange}
+                className="flex-1"
+              />
+              <span className="text-foreground font-semibold w-4 text-center text-xs tabular-nums">{concurrency}</span>
             </div>
           </div>
         </CardContent>

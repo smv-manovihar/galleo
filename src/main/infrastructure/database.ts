@@ -58,6 +58,7 @@ export function initDatabase(): Database.Database {
       date_target_source TEXT NOT NULL,
       hash TEXT,
       thumbnail_path TEXT,
+      date_modified TEXT,
       
       -- Quality Metrics
       blur_score REAL,
@@ -112,6 +113,13 @@ export function initDatabase(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_session_decisions ON session_decisions(session_id);
     CREATE INDEX IF NOT EXISTS idx_undo_session ON undo_actions(session_id);
   `);
+
+  // Backward-compatible migration: add date_modified column if it does not exist yet
+  try {
+    db.exec(`ALTER TABLE media_items ADD COLUMN date_modified TEXT;`);
+  } catch {
+    // Column already exists — safe to ignore
+  }
 
   dbInstance = db;
   return db;

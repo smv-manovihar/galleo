@@ -11,8 +11,14 @@ interface SessionState {
   isCommitting: boolean;
 
   initSession: (folderPath: string, totalFilesCount: number) => Promise<void>;
-  submitDecision: (mediaId: string, state: 'keep' | 'delete' | 'skipped', item: MediaItem) => Promise<void>;
-  undo: () => Promise<boolean>;
+  submitDecision: (
+    mediaId: string,
+    state: 'keep' | 'delete' | 'skipped',
+    item: MediaItem,
+    source: 'culling' | 'browse' | 'duplicates',
+    batchId?: string
+  ) => Promise<void>;
+  undo: (sourceFilter?: 'culling' | 'browse' | 'duplicates') => Promise<boolean>;
   commitDeletions: (specificMediaIds?: string[]) => Promise<{ successCount: number; failedPaths: string[] | null }>;
   clearSession: () => Promise<void>;
   getProgress: () => { reviewed: number; total: number; percentage: number };
@@ -79,14 +85,20 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }
   },
 
-  submitDecision: async (mediaId: string, state: 'keep' | 'delete' | 'skipped', item: MediaItem) => {
+  submitDecision: async (
+    mediaId: string,
+    state: 'keep' | 'delete' | 'skipped',
+    item: MediaItem,
+    source: 'culling' | 'browse' | 'duplicates',
+    batchId?: string
+  ) => {
     const { checkpoint, currentIndex, decisions, undoStack } = get();
     if (!checkpoint) return;
 
     // Create Undoable Action
     const actionId = `action_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const previousState = { reviewState: item.reviewState };
-    const newState = { reviewState: state };
+    const newState = { reviewState: state, source, batchId };
 
     const undoAction: UndoableAction = {
       id: actionId,
@@ -130,23 +142,57 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     await window.api.updateReviews(checkpoint.sessionId, [{ mediaId, state }], undoAction);
   },
 
-  undo: async () => {
+  undo: async (sourceFilter?: 'culling' | 'browse' | 'duplicates') => {
     const { checkpoint, undoStack, decisions } = get();
     if (!checkpoint || undoStack.length === 0) return false;
 
-    // Pop the last action
     const poppedStack = [...undoStack];
-    const lastAction = poppedStack.pop()!;
+    let targetIndex = -1;
+
+    if (sourceFilter) {
+      for (let i = poppedStack.length - 1; i >= 0; i--) {
+        if (poppedStack[i].newState.source === sourceFilter) {
+          targetIndex = i;
+          break;
+        }
+      }
+    } else {
+      targetIndex = poppedStack.length - 1;
+    }
+
+    if (targetIndex === -1) return false;
+
+    const actionToUndo = poppedStack[targetIndex];
+    const batchId = actionToUndo.newState.batchId;
+
+    const actionsToRevert: UndoableAction[] = [];
+    if (batchId) {
+      for (let i = poppedStack.length - 1; i >= 0; i--) {
+        if (poppedStack[i].newState.batchId === batchId) {
+          actionsToRevert.push(poppedStack[i]);
+          poppedStack.splice(i, 1);
+        }
+      }
+    } else {
+      actionsToRevert.push(actionToUndo);
+      poppedStack.splice(targetIndex, 1);
+    }
 
     // Revert decisions
     const updatedDecisions = { ...decisions };
-    if (lastAction.previousState.reviewState === 'pending') {
-      delete updatedDecisions[lastAction.mediaId];
-    } else {
-      updatedDecisions[lastAction.mediaId] = lastAction.previousState.reviewState as any;
+    const reviewsToUpdate: { mediaId: string; state: 'keep' | 'delete' | 'skipped' | 'pending' }[] = [];
+
+    for (const action of actionsToRevert) {
+      const prevReviewState = action.previousState.reviewState || 'pending';
+      if (prevReviewState === 'pending') {
+        delete updatedDecisions[action.mediaId];
+      } else {
+        updatedDecisions[action.mediaId] = prevReviewState as any;
+      }
+      reviewsToUpdate.push({ mediaId: action.mediaId, state: prevReviewState as any });
     }
 
-    const prevIndex = Math.max(0, checkpoint.currentIndex - 1);
+    const prevIndex = Math.max(0, checkpoint.currentIndex - actionsToRevert.length);
 
     const updatedCheckpoint: SessionCheckpoint = {
       ...checkpoint,
@@ -156,13 +202,17 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       savedAt: new Date().toISOString()
     };
 
-    // Update media store review state synchronously before setting state
-    const prevReviewState = lastAction.previousState.reviewState || 'pending';
+    // Revert media store review states synchronously before setting state
     const mediaStore = useMediaStore.getState();
+    const actionMap = new Map(actionsToRevert.map(a => [a.mediaId, a.previousState.reviewState || 'pending']));
+    
     useMediaStore.setState({
-      items: mediaStore.items.map(i =>
-        i.id === lastAction.mediaId ? { ...i, reviewState: prevReviewState as any } : i
-      ),
+      items: mediaStore.items.map(i => {
+        if (actionMap.has(i.id)) {
+          return { ...i, reviewState: actionMap.get(i.id) as any };
+        }
+        return i;
+      }),
     });
 
     set({
@@ -176,10 +226,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     await window.api.saveSessionCheckpoint(updatedCheckpoint);
 
     // Revert database reviews
-    await window.api.updateReviews(
-      checkpoint.sessionId, 
-      [{ mediaId: lastAction.mediaId, state: (lastAction.previousState.reviewState as any) || 'pending' }]
-    );
+    await window.api.updateReviews(checkpoint.sessionId, reviewsToUpdate as any);
 
     return true;
   },
@@ -299,10 +346,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   getProgress: () => {
-    const { checkpoint, currentIndex } = get();
+    const { checkpoint, decisions } = get();
     if (!checkpoint) return { reviewed: 0, total: 0, percentage: 0 };
     
-    const reviewed = currentIndex;
+    const reviewed = Object.keys(decisions).length;
     const total = checkpoint.totalFiles;
     const percentage = total > 0 ? Math.round((reviewed / total) * 100) : 0;
     

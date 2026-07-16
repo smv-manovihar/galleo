@@ -1,13 +1,29 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useSettingsStore } from '../../stores/settings-store';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Plus, Trash2, Folder } from 'lucide-react';
 import { Label } from '@/components/ui/label';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip"
 
 export const FolderConfig: React.FC = () => {
   const { settings, addRootFolder, removeRootFolder, toggleRootFolder } = useSettingsStore();
+  const [folderToDelete, setFolderToDelete] = useState<string | null>(null);
 
   const handleAddFolder = async () => {
     try {
@@ -67,20 +83,67 @@ export const FolderConfig: React.FC = () => {
                       Enabled
                     </Label>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="w-8 h-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
-                    onClick={() => removeRootFolder(root.path)}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="w-8 h-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+                        onClick={() => setFolderToDelete(root.path)}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="left">
+                      Remove Folder
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
               </div>
             ))
           )}
         </CardContent>
       </Card>
+
+      {/* Confirmation Alert Dialog */}
+      <AlertDialog
+        open={!!folderToDelete}
+        onOpenChange={(open) => !open && setFolderToDelete(null)}
+      >
+        <AlertDialogContent className="bg-card/95 border border-border text-foreground font-sans outline-none p-5 max-w-sm backdrop-blur-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-base font-bold text-foreground">
+              Remove Folder from Galleo
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-muted-foreground leading-normal mt-1.5">
+              This removes <span className="font-semibold text-foreground break-all">{folderToDelete}</span> from Galleo. <span className="font-semibold text-foreground">Your actual files are completely safe.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-4 gap-2">
+            <AlertDialogCancel
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs font-semibold cursor-pointer"
+              onClick={() => setFolderToDelete(null)}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              size="sm"
+              className="h-8 text-xs font-semibold cursor-pointer"
+              onClick={async () => {
+                if (folderToDelete) {
+                  await removeRootFolder(folderToDelete);
+                  setFolderToDelete(null);
+                }
+              }}
+            >
+              Remove Folder
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

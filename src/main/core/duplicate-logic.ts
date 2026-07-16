@@ -1,4 +1,5 @@
 import type { MediaItem } from '../../shared/types/media';
+import { getNormalizedFilenameBase } from '../../shared/filename-utils';
 
 // Pre-computed lookup table for set bits in a nibble (4 bits, 0-15)
 const NIBBLE_BIT_COUNT = new Uint8Array([
@@ -117,12 +118,24 @@ export function findDuplicates(items: MediaItem[], maxDistance: number): Duplica
         }
       }
 
+      // Check if the group is purely exact duplicates (same normalized name base and size)
+      const isPureExact = (() => {
+        if (groupItems.length <= 1) return true;
+        const firstKey = `${getNormalizedFilenameBase(groupItems[0].name).toLowerCase()}_${groupItems[0].size}`;
+        for (let idx = 1; idx < groupItems.length; idx++) {
+          const item = groupItems[idx];
+          const key = `${getNormalizedFilenameBase(item.name).toLowerCase()}_${item.size}`;
+          if (key !== firstKey) return false;
+        }
+        return true;
+      })();
+
       // Mark items in the group
       const updatedGroupItems = groupItems.map(item => ({
         ...item,
         duplicateGroupId: groupId,
         isDuplicate: true,
-        isBestInDuplicateGroup: item.id === bestItem.id
+        isBestInDuplicateGroup: isPureExact ? (item.id === bestItem.id) : false
       }));
 
       groups.push({

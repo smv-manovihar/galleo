@@ -42,6 +42,7 @@ export class MediaRepository {
       dateTargetSource: row.date_target_source as 'exif' | 'filename' | 'filesystem',
       hash: row.hash ?? undefined,
       thumbnailPath: row.thumbnail_path ?? undefined,
+      dateModified: row.date_modified ?? undefined,
       quality,
       duplicateGroupId: row.duplicate_group_id ?? undefined,
       isDuplicate: Boolean(row.is_duplicate),
@@ -61,13 +62,13 @@ export class MediaRepository {
       INSERT INTO media_items (
         id, path, name, size, extension, media_type, width, height,
         date_added, date_original, date_inferred, date_filesystem,
-        date_target, date_target_source, hash, thumbnail_path,
+        date_target, date_target_source, hash, thumbnail_path, date_modified,
         blur_score, brightness, is_dark, is_blurry, is_screenshot, is_small, composite_score,
         duplicate_group_id, is_duplicate, is_best_in_duplicate_group, review_state, reviewed_at
       ) VALUES (
         $id, $path, $name, $size, $extension, $mediaType, $width, $height,
         $dateAdded, $dateOriginal, $dateInferred, $dateFileSystem,
-        $dateTarget, $dateTargetSource, $hash, $thumbnailPath,
+        $dateTarget, $dateTargetSource, $hash, $thumbnailPath, $dateModified,
         $blurScore, $brightness, $isDark, $isBlurry, $isScreenshot, $isSmall, $compositeScore,
         $duplicateGroupId, $isDuplicate, $isBestInDuplicateGroup, $reviewState, $reviewedAt
       )
@@ -86,6 +87,7 @@ export class MediaRepository {
         date_target_source = excluded.date_target_source,
         hash = excluded.hash,
         thumbnail_path = COALESCE(excluded.thumbnail_path, media_items.thumbnail_path),
+        date_modified = excluded.date_modified,
         blur_score = excluded.blur_score,
         brightness = excluded.brightness,
         is_dark = excluded.is_dark,
@@ -117,6 +119,7 @@ export class MediaRepository {
           dateTargetSource: item.dateTargetSource,
           hash: item.hash ?? null,
           thumbnailPath: item.thumbnailPath ?? null,
+          dateModified: item.dateModified ?? null,
           blurScore: item.quality?.blurScore ?? null,
           brightness: item.quality?.brightness ?? null,
           isDark: item.quality ? (item.quality.isDark ? 1 : 0) : 0,
@@ -141,18 +144,27 @@ export class MediaRepository {
    */
   public getByFolderPath(folderPath: string): MediaItem[] {
     const db = this.getDb();
+    if (folderPath.toLowerCase() === 'all') {
+      const stmt = db.prepare(`
+        SELECT * FROM media_items 
+        ORDER BY date_target DESC
+      `);
+      const rows = stmt.all();
+      return rows.map(row => this.rowToMediaItem(row));
+    }
+    
     // Normalize path separators to search standard path matching
     const searchPath = folderPath.replace(/\\/g, '/').toLowerCase();
     
     // We match any item whose path starts with the folderPath
     const stmt = db.prepare(`
-      SELECT * FROM media_items 
-      WHERE LOWER(path) LIKE ? 
-      ORDER BY date_target DESC
-    `);
-    
-    const rows = stmt.all(`${searchPath}%`);
-    return rows.map(row => this.rowToMediaItem(row));
+       SELECT * FROM media_items 
+       WHERE LOWER(path) LIKE ? 
+       ORDER BY date_target DESC
+     `);
+     
+     const rows = stmt.all(`${searchPath}%`);
+     return rows.map(row => this.rowToMediaItem(row));
   }
 
   /**
@@ -216,6 +228,11 @@ export class MediaRepository {
    */
   public clearByFolder(folderPath: string): void {
     const db = this.getDb();
+    if (folderPath.toLowerCase() === 'all') {
+      const stmt = db.prepare('DELETE FROM media_items');
+      stmt.run();
+      return;
+    }
     const searchPath = folderPath.replace(/\\/g, '/').toLowerCase();
     const stmt = db.prepare('DELETE FROM media_items WHERE LOWER(path) LIKE ?');
     stmt.run(`${searchPath}%`);
@@ -226,6 +243,14 @@ export class MediaRepository {
    */
   public resetReviewStatesByFolder(folderPath: string): void {
     const db = this.getDb();
+    if (folderPath.toLowerCase() === 'all') {
+      const stmt = db.prepare(`
+        UPDATE media_items 
+        SET review_state = 'pending', reviewed_at = NULL
+      `);
+      stmt.run();
+      return;
+    }
     const searchPath = folderPath.replace(/\\/g, '/').toLowerCase();
     const stmt = db.prepare(`
       UPDATE media_items 

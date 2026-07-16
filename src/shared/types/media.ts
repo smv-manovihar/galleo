@@ -31,6 +31,7 @@ export interface MediaItem {
   // Hash & Thumbnail
   hash?: string;           // perceptual hash for duplicate detection
   thumbnailPath?: string;  // path to local thumbnail file
+  dateModified?: string;   // ISO date string from file mtime (used for incremental scan skipping)
   
   // Quality & Grouping
   quality?: QualityMetrics;

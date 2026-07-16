@@ -5,8 +5,8 @@ export interface UndoableAction {
   type: 'mark-delete' | 'mark-keep' | 'skip' | 'move' | 'rename';
   mediaId: string;
   timestamp: number;
-  previousState: Partial<MediaItem>;
-  newState: Partial<MediaItem>;
+  previousState: Partial<MediaItem> & { source?: 'culling' | 'browse' | 'duplicates'; batchId?: string };
+  newState: Partial<MediaItem> & { source?: 'culling' | 'browse' | 'duplicates'; batchId?: string };
 }
 
 export interface SessionCheckpoint {

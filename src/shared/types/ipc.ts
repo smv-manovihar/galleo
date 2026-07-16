@@ -23,7 +23,7 @@ export const IPC_CHANNELS = {
   FILE_SHOW: 'file:show',
   MEDIA_TRASH: 'media:trash',
   APP_RESET: 'app:reset',
-  TITLEBAR_UPDATE: 'titlebar:update',
+  MEDIA_CLEAR_INDEX: 'media:clear-index',
 } as const;
 
 export interface ScanProgressPayload {
@@ -78,7 +78,7 @@ export interface GalleoAPI {
   showFile: (path: string) => Promise<Result<void>>;
   trashFiles: (paths: string[]) => Promise<Result<void>>;
   resetApp: (options: { settings?: boolean; database?: boolean; cache?: boolean; sessions?: boolean }) => Promise<Result<void>>;
-  updateTitleBarOverlay: (colors: { color: string; symbolColor: string }) => Promise<void>;
+  clearFolderIndex: (folderPath: string) => Promise<Result<void>>;
 }
 
 // Global declaration to typed window

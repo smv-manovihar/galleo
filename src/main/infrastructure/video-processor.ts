@@ -5,9 +5,14 @@ import { existsSync } from 'fs';
 import { type Result, fail, ok } from '../../shared/types/results';
 import { getThumbnailCacheDir } from './image-processor';
 
-// Set static path for ffmpeg
-if (ffmpegPath) {
-  ffmpeg.setFfmpegPath(ffmpegPath);
+// Set static path for ffmpeg, adjusting for Electron ASAR unpacking in production
+let resolvedFfmpegPath = ffmpegPath;
+if (resolvedFfmpegPath && resolvedFfmpegPath.includes('app.asar')) {
+  resolvedFfmpegPath = resolvedFfmpegPath.replace('app.asar', 'app.asar.unpacked');
+}
+
+if (resolvedFfmpegPath) {
+  ffmpeg.setFfmpegPath(resolvedFfmpegPath);
 }
 
 /**

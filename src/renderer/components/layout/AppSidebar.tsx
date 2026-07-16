@@ -1,8 +1,9 @@
-import React from 'react';
-import { useUIStore } from '../../stores/ui-store';
-import { useSettingsStore } from '../../stores/settings-store';
-import { useMediaStore } from '../../stores/media-store';
-import { Button } from '@/components/ui/button';
+import React, { useState } from "react"
+import { useUIStore } from "../../stores/ui-store"
+import { useSettingsStore } from "../../stores/settings-store"
+import { useMediaStore } from "../../stores/media-store"
+import { useScanStore } from "../../stores/scan-store"
+import { Button } from "@/components/ui/button"
 import {
   LayoutDashboard,
   FolderOpen,
@@ -13,8 +14,25 @@ import {
   Folder,
   Plus,
   Trash2,
-  Aperture
-} from 'lucide-react';
+  Aperture,
+  Library,
+  ScanSearch,
+} from "lucide-react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip"
 import {
   Sidebar,
   SidebarContent,
@@ -28,57 +46,86 @@ import {
   SidebarSeparator,
   SidebarRail,
   SidebarMenuAction,
-} from '@/components/ui/sidebar';
+} from "@/components/ui/sidebar"
 
 export const AppSidebar: React.FC = () => {
-  const { currentView, setCurrentView } = useUIStore();
-  const { settings, addRootFolder, removeRootFolder } = useSettingsStore();
-  const { activeRootPath, fetchMediaItems } = useMediaStore();
+  const { currentView, setCurrentView } = useUIStore()
+  const { settings, addRootFolder, removeRootFolder } = useSettingsStore()
+  const activeRootPath = useMediaStore((s) => s.activeRootPath)
+  const fetchMediaItems = useMediaStore((s) => s.fetchMediaItems)
+  const startScan = useScanStore((s) => s.startScan)
+  const isScanning = useScanStore((s) => s.isScanning)
+
+  const [folderToDelete, setFolderToDelete] = useState<string | null>(null)
+  const [showScanPrompt, setShowScanPrompt] = useState(false)
 
   const navItems = [
-    { view: 'dashboard' as const, label: 'Dashboard', icon: LayoutDashboard },
-    { view: 'browse' as const, label: 'Browse Media', icon: FolderOpen },
-    { view: 'review' as const, label: 'Media Culling', icon: CheckSquare },
-    { view: 'duplicates' as const, label: 'Duplicate Audit', icon: Copy },
-    { view: 'organize' as const, label: 'Organize Files', icon: CalendarDays },
-    { view: 'settings' as const, label: 'Settings', icon: Settings },
-  ];
+    { view: "dashboard" as const, label: "Dashboard", icon: LayoutDashboard },
+    { view: "browse" as const, label: "Browse Media", icon: FolderOpen },
+    { view: "review" as const, label: "Media Culling", icon: CheckSquare },
+    { view: "duplicates" as const, label: "Duplicate Audit", icon: Copy },
+    { view: "organize" as const, label: "Organize Files", icon: CalendarDays },
+    { view: "settings" as const, label: "Settings", icon: Settings },
+  ]
 
   const handleAddFolder = async () => {
     try {
-      const selected = await window.api.selectFolder();
+      const selected = await window.api.selectFolder()
       if (selected) {
-        await addRootFolder(selected);
+        await addRootFolder(selected)
       }
     } catch (e) {
-      console.error('Folder selection failed:', e);
+      console.error("Folder selection failed:", e)
     }
-  };
+  }
 
   const handleFolderClick = async (path: string) => {
-    setCurrentView('browse');
-    await fetchMediaItems(path);
-  };
+    const mediaViews = ["browse", "review", "duplicates", "organize"]
+    if (!mediaViews.includes(currentView)) {
+      setCurrentView("browse")
+    }
+    await fetchMediaItems(path)
+  }
+
+  const hasAnyScanned = settings.folders.roots.some(r => r.scanned)
+
+  const handleAllMediaClick = () => {
+    handleFolderClick("all")
+  }
+
+  const handleScanNow = () => {
+    setShowScanPrompt(false)
+    const enabledRoots = settings.folders.roots
+      .filter((r) => r.enabled)
+      .map((r) => r.path)
+    if (enabledRoots.length > 0) {
+      startScan(enabledRoots)
+    }
+  }
 
   return (
-    <Sidebar className="border-r border-border bg-card/60 backdrop-blur-md">
-      <SidebarHeader className="p-6 border-b border-border flex flex-row items-center gap-3">
-        <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-linear-to-br from-primary to-destructive text-primary-foreground shrink-0">
-          <Aperture className="w-5 h-5" />
+    <Sidebar className="border-r border-border bg-card/60">
+      <SidebarHeader className="flex flex-row items-center gap-3 border-b border-border p-6">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-linear-to-br from-primary to-destructive text-primary-foreground">
+          <Aperture className="h-5 w-5" />
         </div>
         <div>
-          <h1 className="font-heading font-bold text-base tracking-wider text-foreground">Galleo</h1>
-          <p className="text-xs text-muted-foreground font-sans">Smart Cleanup & Organizer</p>
+          <h1 className="font-heading text-base font-bold tracking-wider text-foreground">
+            Galleo
+          </h1>
+          <p className="font-sans text-xs text-muted-foreground">
+            Smart Cleanup & Organizer
+          </p>
         </div>
       </SidebarHeader>
 
       {/* Main Navigation */}
-      <SidebarContent className="p-4 flex flex-col gap-4">
+      <SidebarContent className="flex flex-col gap-4 p-4">
         <SidebarGroup className="p-0">
           <SidebarMenu className="gap-1">
             {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = currentView === item.view;
+              const Icon = item.icon
+              const isActive = currentView === item.view
               return (
                 <SidebarMenuItem key={item.view}>
                   <SidebarMenuButton
@@ -86,71 +133,233 @@ export const AppSidebar: React.FC = () => {
                     onClick={() => setCurrentView(item.view)}
                     className="w-full justify-start gap-3 px-3 py-2 text-sm font-medium transition-colors"
                   >
-                    <Icon className="w-4 h-4 shrink-0" />
+                    <Icon className="h-4 w-4 shrink-0" />
                     <span>{item.label}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
-              );
+              )
             })}
           </SidebarMenu>
         </SidebarGroup>
 
         <SidebarSeparator className="bg-border opacity-50" />
 
+        {/* All Media — standalone, above the Root Directories section */}
+        {settings.folders.roots.length > 0 && (
+          <SidebarGroup className="p-0">
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <SidebarMenuButton
+                      isActive={activeRootPath === "all"}
+                      onClick={handleAllMediaClick}
+                      className="w-full justify-start gap-3 px-3 py-2 text-sm font-medium transition-colors"
+                      disabled={isScanning}
+                    >
+                      <Library
+                        className={`h-4 w-4 shrink-0 ${
+                          !hasAnyScanned
+                            ? "text-amber-500"
+                            : activeRootPath === "all"
+                              ? "text-primary"
+                              : "text-muted-foreground"
+                        }`}
+                      />
+                      <span className="truncate">All Media</span>
+                      {!hasAnyScanned && (
+                        <ScanSearch className="ml-auto h-3.5 w-3.5 shrink-0 text-amber-500/80" />
+                      )}
+                    </SidebarMenuButton>
+                  </TooltipTrigger>
+                  {!hasAnyScanned && (
+                    <TooltipContent side="right">
+                      No folders scanned yet — click to scan now
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroup>
+        )}
+
+        <SidebarSeparator className="bg-border opacity-50" />
+
         {/* Source Directories */}
-        <SidebarGroup className="p-0 flex-1 flex flex-col min-h-0">
-          <div className="flex items-center justify-between px-2 mb-2">
-            <SidebarGroupLabel className="text-[0.6875rem] font-semibold text-muted-foreground uppercase tracking-wider p-0">
+        <SidebarGroup className="flex min-h-0 flex-1 flex-col p-0">
+          <div className="mb-2 flex items-center justify-between px-2">
+            <SidebarGroupLabel className="p-0 text-[0.6875rem] font-semibold tracking-wider text-muted-foreground uppercase">
               Root Directories
             </SidebarGroupLabel>
             <Button
               variant="ghost"
               size="icon"
-              className="w-5 h-5 text-muted-foreground hover:text-foreground hover:bg-accent rounded"
+              className="h-5 w-5 rounded text-muted-foreground hover:bg-accent hover:text-foreground"
               onClick={handleAddFolder}
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="h-3.5 w-3.5" />
             </Button>
           </div>
 
-          <SidebarGroupContent className="flex-1 overflow-y-auto flex flex-col gap-1 pr-1">
+          <SidebarGroupContent className="flex flex-1 flex-col gap-1 overflow-y-auto pr-1">
             {settings.folders.roots.length === 0 ? (
-              <div className="text-xs text-muted-foreground px-3 py-4 text-center border border-dashed border-border rounded-lg bg-muted/20">
+              <div className="rounded-lg border border-dashed border-border bg-muted/20 px-3 py-4 text-center text-xs text-muted-foreground">
                 No folders added yet
               </div>
             ) : (
               <SidebarMenu className="gap-1">
                 {settings.folders.roots.map((root) => {
-                  const isSelected = activeRootPath === root.path;
+                  const isScanned = !!root.scanned
+                  const label = root.label || root.path
+                  const isSelected =
+                    activeRootPath?.replace(/\\/g, "/").toLowerCase() ===
+                    root.path.replace(/\\/g, "/").toLowerCase()
+
                   return (
                     <SidebarMenuItem key={root.path}>
-                      <SidebarMenuButton
-                        isActive={isSelected}
-                        onClick={() => handleFolderClick(root.path)}
-                        className="w-full justify-start gap-2.5 px-3 py-1.5"
-                      >
-                        <Folder className={`w-4 h-4 shrink-0 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
-                        <span className="truncate">{root.label || root.path}</span>
-                      </SidebarMenuButton>
-                      <SidebarMenuAction
-                        showOnHover
-                        className="w-5 h-5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-opacity"
-                        onClick={(e: React.MouseEvent) => {
-                          e.stopPropagation();
-                          removeRootFolder(root.path);
-                        }}
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </SidebarMenuAction>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <SidebarMenuButton
+                            isActive={isSelected}
+                            onClick={() => {
+                              handleFolderClick(root.path)
+                            }}
+                            className="w-full justify-start gap-2.5 px-3 py-1.5"
+                          >
+                            <Folder
+                              className={`h-4 w-4 shrink-0 ${
+                                !isScanned
+                                  ? "text-amber-500/80"
+                                  : isSelected
+                                    ? "text-primary"
+                                    : "text-muted-foreground/75"
+                              }`}
+                            />
+                            <span
+                              className="flex-1 truncate font-sans text-xs"
+                              title={root.path}
+                            >
+                              {label}
+                            </span>
+                            {!isScanned && (
+                              <ScanSearch className="ml-auto h-3.5 w-3.5 shrink-0 text-amber-500/60" />
+                            )}
+                          </SidebarMenuButton>
+                        </TooltipTrigger>
+                        <TooltipContent side="right">
+                          {label} {!isScanned && " (Not Scanned)"}
+                        </TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <SidebarMenuAction
+                            showOnHover
+                            className="h-5 w-5 rounded text-muted-foreground opacity-0 transition-all group-hover/item:opacity-100 hover:bg-destructive/10 hover:text-destructive"
+                            onClick={(e: React.MouseEvent) => {
+                              e.stopPropagation()
+                              setFolderToDelete(root.path)
+                            }}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </SidebarMenuAction>
+                        </TooltipTrigger>
+                        <TooltipContent side="right">
+                          Remove Folder
+                        </TooltipContent>
+                      </Tooltip>
                     </SidebarMenuItem>
-                  );
+                  )
                 })}
               </SidebarMenu>
             )}
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
+      {/* Scan prompt — shown when user clicks All Media with no indexed items */}
+      <AlertDialog
+        open={showScanPrompt}
+        onOpenChange={(open) => !open && setShowScanPrompt(false)}
+      >
+        <AlertDialogContent className="max-w-sm border border-border bg-card/95 p-5 font-sans text-foreground backdrop-blur-md outline-none">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+              <ScanSearch className="h-4 w-4 text-amber-500" />
+              Scan Folders Required
+            </AlertDialogTitle>
+            <AlertDialogDescription className="mt-1.5 text-xs leading-normal text-muted-foreground">
+              Your folders have not been scanned yet. Scan them now to index
+              your media library and access the catalog.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-4 gap-2">
+            <AlertDialogCancel
+              variant="outline"
+              size="sm"
+              className="h-8 cursor-pointer text-xs font-semibold"
+              onClick={() => setShowScanPrompt(false)}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              size="sm"
+              className="h-8 cursor-pointer text-xs font-semibold"
+              onClick={handleScanNow}
+            >
+              Scan Now
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirmation Alert Dialog for folder removal */}
+      <AlertDialog
+        open={!!folderToDelete}
+        onOpenChange={(open) => !open && setFolderToDelete(null)}
+      >
+        <AlertDialogContent className="max-w-sm border border-border bg-card/95 p-5 font-sans text-foreground backdrop-blur-md outline-none">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-base font-bold text-foreground">
+              Remove Folder from Galleo
+            </AlertDialogTitle>
+            <AlertDialogDescription className="mt-1.5 text-xs leading-normal text-muted-foreground">
+              This removes{" "}
+              <span className="font-semibold break-all text-foreground">
+                {folderToDelete}
+              </span>{" "}
+              from Galleo.{" "}
+              <span className="font-semibold text-foreground">
+                Your actual files are completely safe.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-4 gap-2">
+            <AlertDialogCancel
+              variant="outline"
+              size="sm"
+              className="h-8 cursor-pointer text-xs font-semibold"
+              onClick={() => setFolderToDelete(null)}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              size="sm"
+              className="h-8 cursor-pointer text-xs font-semibold"
+              onClick={async () => {
+                if (folderToDelete) {
+                  await removeRootFolder(folderToDelete)
+                  setFolderToDelete(null)
+                }
+              }}
+            >
+              Remove Folder
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <SidebarRail />
     </Sidebar>
-  );
-};
+  )
+}

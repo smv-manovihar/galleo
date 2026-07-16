@@ -42,6 +42,8 @@ interface VideoPlayerProps {
   onPlayStateChange?: (playing: boolean) => void
   /** Automatically start playback when mounted */
   autoPlay?: boolean
+  /** Force the player container to fill its parent instead of sizing to the video's aspect ratio */
+  fillContainer?: boolean
 }
 
 export interface VideoPlayerRef {
@@ -66,6 +68,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       externalFullscreen,
       onPlayStateChange,
       autoPlay = false,
+      fillContainer = false,
     },
     ref
   ) => {
@@ -112,7 +115,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
     }, [aspectRatio, isRotated90])
 
     const containerStyle = useMemo<React.CSSProperties>(() => {
-      if (isFullscreen) return { width: "100%", height: "100%" }
+      if (isFullscreen || fillContainer) return { width: "100%", height: "100%" }
       if (!effectiveAspect) return { width: "100%" }
 
       if (effectiveAspect < 1) {

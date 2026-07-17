@@ -52,6 +52,8 @@ const api: GalleoAPI = {
   trashFiles: (paths) => ipcRenderer.invoke(IPC_CHANNELS.MEDIA_TRASH, paths),
   resetApp: (options) => ipcRenderer.invoke(IPC_CHANNELS.APP_RESET, options),
   clearFolderIndex: (folderPath) => ipcRenderer.invoke(IPC_CHANNELS.MEDIA_CLEAR_INDEX, folderPath),
+  checkForUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.APP_CHECK_UPDATE),
+  openExternal: (url) => ipcRenderer.invoke(IPC_CHANNELS.URL_OPEN, url),
 };
 
 contextBridge.exposeInMainWorld('api', api);

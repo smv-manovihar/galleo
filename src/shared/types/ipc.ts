@@ -24,7 +24,19 @@ export const IPC_CHANNELS = {
   MEDIA_TRASH: 'media:trash',
   APP_RESET: 'app:reset',
   MEDIA_CLEAR_INDEX: 'media:clear-index',
+  APP_CHECK_UPDATE: 'app:check-update',
+  URL_OPEN: 'url:open',
 } as const;
+
+export interface UpdateCheckResult {
+  updateAvailable: boolean;
+  currentVersion: string;
+  latestVersion: string;
+  releaseUrl: string;
+  downloadUrl: string;
+  releaseNotes?: string;
+  releaseDate?: string;
+}
 
 export interface ScanProgressPayload {
   scannedCount: number;
@@ -79,6 +91,8 @@ export interface GalleoAPI {
   trashFiles: (paths: string[]) => Promise<Result<void>>;
   resetApp: (options: { settings?: boolean; database?: boolean; cache?: boolean; sessions?: boolean }) => Promise<Result<void>>;
   clearFolderIndex: (folderPath: string) => Promise<Result<void>>;
+  checkForUpdates: () => Promise<Result<UpdateCheckResult>>;
+  openExternal: (url: string) => Promise<Result<void>>;
 }
 
 // Global declaration to typed window

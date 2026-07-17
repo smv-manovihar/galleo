@@ -1,4 +1,4 @@
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { useUIStore } from "../../stores/ui-store"
 import { useSettingsStore } from "../../stores/settings-store"
 import { useMediaStore } from "../../stores/media-store"
@@ -17,6 +17,7 @@ import {
   Aperture,
   Library,
   ScanSearch,
+  X,
 } from "lucide-react"
 import {
   AlertDialog,
@@ -46,11 +47,18 @@ import {
   SidebarSeparator,
   SidebarRail,
   SidebarMenuAction,
+  SidebarFooter,
 } from "@/components/ui/sidebar"
 
 export const AppSidebar: React.FC = () => {
-  const { currentView, setCurrentView } = useUIStore()
+  const { currentView, setCurrentView, updateInfo, checkForUpdates, hasRunInitialUpdateCheck, dismissedVersion, dismissUpdate } = useUIStore()
   const { settings, addRootFolder, removeRootFolder } = useSettingsStore()
+
+  useEffect(() => {
+    if (!hasRunInitialUpdateCheck) {
+      checkForUpdates()
+    }
+  }, [hasRunInitialUpdateCheck, checkForUpdates])
   const activeRootPath = useMediaStore((s) => s.activeRootPath)
   const fetchMediaItems = useMediaStore((s) => s.fetchMediaItems)
   const startScan = useScanStore((s) => s.startScan)
@@ -130,11 +138,19 @@ export const AppSidebar: React.FC = () => {
                 <SidebarMenuItem key={item.view}>
                   <SidebarMenuButton
                     isActive={isActive}
-                    onClick={() => setCurrentView(item.view)}
+                    onClick={() => {
+                      setCurrentView(item.view)
+                      if (item.view === "settings" && updateInfo?.updateAvailable && updateInfo.latestVersion !== dismissedVersion) {
+                        useUIStore.getState().setActiveSettingsTab("about")
+                      }
+                    }}
                     className="w-full justify-start gap-3 px-3 py-2 text-sm font-medium transition-colors"
                   >
                     <Icon className="h-4 w-4 shrink-0" />
                     <span>{item.label}</span>
+                    {item.view === "settings" && updateInfo?.updateAvailable && updateInfo.latestVersion !== dismissedVersion && (
+                      <span className="ml-auto flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                    )}
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               )
@@ -275,6 +291,53 @@ export const AppSidebar: React.FC = () => {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
+      {updateInfo?.updateAvailable && updateInfo.latestVersion !== dismissedVersion && (
+        <SidebarFooter className="p-3 pt-0">
+          <div 
+            onClick={() => window.api.openExternal(updateInfo.downloadUrl)}
+            className="relative flex items-center justify-between gap-2.5 rounded-lg border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/15 px-3 py-2 text-2xs cursor-pointer transition-all select-none group/update"
+          >
+            <span 
+              className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-300"
+              title="Click to download new update"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+              Update v{updateInfo.latestVersion}
+            </span>
+            <div className="flex items-center gap-2">
+              <span
+                onClick={(e) => {
+                  e.stopPropagation()
+                  window.api.openExternal(updateInfo.releaseUrl)
+                }}
+                className="font-semibold text-muted-foreground hover:text-foreground hover:underline transition-colors"
+                title="View release notes"
+              >
+                Notes
+              </span>
+              <span className="h-2.5 w-px bg-border/40" />
+              <span 
+                className="font-semibold text-emerald-600 dark:text-emerald-400 group-hover/update:underline"
+                title="Click to download new update"
+              >
+                Download
+              </span>
+            </div>
+            
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                dismissUpdate();
+              }}
+              className="absolute -top-1.5 -right-1.5 opacity-0 group-hover/update:opacity-100 transition-opacity bg-background hover:bg-destructive/10 text-muted-foreground hover:text-destructive p-0.5 rounded-full border border-border shadow-xs cursor-pointer"
+              title="Dismiss update notifier"
+            >
+              <X className="h-2.5 w-2.5" />
+            </button>
+          </div>
+        </SidebarFooter>
+      )}
 
       {/* Scan prompt — shown when user clicks All Media with no indexed items */}
       <AlertDialog

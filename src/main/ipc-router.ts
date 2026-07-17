@@ -1,4 +1,4 @@
-import { ipcMain, dialog, BrowserWindow } from 'electron';
+import { ipcMain, dialog, BrowserWindow, shell } from 'electron';
 import fs from 'fs/promises';
 import path from 'path';
 import { IPC_CHANNELS, type OrganizePreviewItem } from '../shared/types/ipc';
@@ -6,6 +6,7 @@ import { SettingsService } from './services/settings.service';
 import { ScannerService } from './services/scanner.service';
 import { FileOpsService } from './services/file-ops.service';
 import { SessionService } from './services/session.service';
+import { UpdateService } from './services/update.service';
 import { MediaRepository } from './repositories/media.repository';
 import { planOrganization } from './core/organization';
 import { type Result, ok, fail } from '../shared/types/results';
@@ -19,6 +20,7 @@ export function registerIpcHandlers(window: BrowserWindow): void {
   const fileOpsService = new FileOpsService();
   const sessionService = new SessionService();
   const mediaRepository = new MediaRepository();
+  const updateService = new UpdateService();
 
   // Settings
   ipcMain.handle(IPC_CHANNELS.SETTINGS_GET, () => {
@@ -179,6 +181,23 @@ export function registerIpcHandlers(window: BrowserWindow): void {
       }
     }
   );
+
+  // App Update Checker Handlers
+  ipcMain.handle(IPC_CHANNELS.APP_CHECK_UPDATE, async () => {
+    return await updateService.checkForUpdates();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.URL_OPEN, (_, url: string) => {
+    try {
+      shell.openExternal(url);
+      return ok(undefined);
+    } catch (e: any) {
+      return fail({
+        code: 'UNKNOWN',
+        message: e.message || 'Opening URL failed'
+      });
+    }
+  });
 }
 
 // Utility to recursively discover files for duplicate target detection in organization preview

@@ -5,6 +5,7 @@ import { ScanConfig } from '../components/settings/ScanConfig';
 import { QualityConfig } from '../components/settings/QualityConfig';
 import { AppearanceConfig } from '../components/settings/AppearanceConfig';
 import { ResetConfig } from '../components/settings/ResetConfig';
+import { AboutConfig } from '../components/settings/AboutConfig';
 import { PageContainer } from '@/components/ui/page-layout';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { 
@@ -12,11 +13,12 @@ import {
   Settings2, 
   LineChart, 
   Eye,
-  RefreshCcw
+  RefreshCcw,
+  Info
 } from 'lucide-react';
 
 export const SettingsPage: React.FC = () => {
-  const { activeSettingsTab, setActiveSettingsTab } = useUIStore();
+  const { activeSettingsTab, setActiveSettingsTab, updateInfo, dismissedVersion } = useUIStore();
   const [orientation, setOrientation] = useState<'horizontal' | 'vertical'>('vertical');
 
   useEffect(() => {
@@ -32,7 +34,7 @@ export const SettingsPage: React.FC = () => {
     <PageContainer maxWidth="xl">
       <Tabs
         value={activeSettingsTab}
-        onValueChange={(val: string) => setActiveSettingsTab(val as 'folders' | 'scan' | 'quality' | 'appearance' | 'reset')}
+        onValueChange={(val: string) => setActiveSettingsTab(val as 'folders' | 'scan' | 'quality' | 'appearance' | 'reset' | 'about')}
         orientation={orientation}
         className="flex flex-col md:flex-row gap-6 md:gap-8 items-stretch flex-1 min-h-0"
       >
@@ -58,6 +60,13 @@ export const SettingsPage: React.FC = () => {
             <RefreshCcw className="w-4 h-4" />
             Reset App Data
           </TabsTrigger>
+          <TabsTrigger value="about" className="flex-1 md:flex-none w-auto md:w-full justify-start h-8 text-sm font-medium gap-2 px-3">
+            <Info className="w-4 h-4" />
+            About & Updates
+            {updateInfo?.updateAvailable && updateInfo.latestVersion !== dismissedVersion && (
+              <span className="ml-auto flex h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+            )}
+          </TabsTrigger>
         </TabsList>
 
         {/* Configurations Views Panels */}
@@ -76,6 +85,9 @@ export const SettingsPage: React.FC = () => {
           </TabsContent>
           <TabsContent value="reset" className="m-0 focus-visible:outline-none">
             <ResetConfig />
+          </TabsContent>
+          <TabsContent value="about" className="m-0 focus-visible:outline-none">
+            <AboutConfig />
           </TabsContent>
         </div>
       </Tabs>

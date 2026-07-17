@@ -3,8 +3,8 @@ name: Release App
 on:
   push:
     branches:
-      - 'release/**'
-      - 'releases/**'
+      - "release/**"
+      - "releases/**"
   workflow_dispatch:
 
 # ──────────────────────────────────────────────────────────────
@@ -37,7 +37,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Extract and validate version
+      - name: Extract, validate, and pre-create release draft
         id: meta
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -49,8 +49,17 @@ jobs:
           echo "📦 Release: ${TAG}"
 
           if gh release view "${TAG}" &>/dev/null; then
-            echo "::error::Release ${TAG} already exists. Bump version in package.json first."
-            exit 1
+            # Release exists. Check if it's a draft.
+            IS_DRAFT=$(gh release view "${TAG}" --json isDraft --jq '.isDraft')
+            if [ "$IS_DRAFT" = "false" ]; then
+              echo "::error::Release ${TAG} already exists and is published. Bump version in package.json first."
+              exit 1
+            else
+              echo "Draft release ${TAG} already exists. Reusing it."
+            fi
+          else
+            echo "Creating draft release for ${TAG}..."
+            gh release create "${TAG}" --draft --target "$GITHUB_SHA" --title "Version ${VERSION}" --notes "Release Version ${VERSION}"
           fi
 
   # ─── Build and publish installers for each platform ───
@@ -79,7 +88,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'pnpm'
+          cache: "pnpm"
 
       - name: Cache electron-builder downloads
         uses: actions/cache@v4

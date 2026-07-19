@@ -1,9 +1,9 @@
 // Polyfill DOMParser globally in the Node.js main process to suppress warnings from exifreader
-if (typeof (globalThis as any).DOMParser === 'undefined') {
+if (typeof (globalThis as any).DOMParser === "undefined") {
   class MockDOMParser {
     parseFromString() {
-      return null;
+      return null
     }
   }
-  (globalThis as any).DOMParser = MockDOMParser;
+  ;(globalThis as any).DOMParser = MockDOMParser
 }

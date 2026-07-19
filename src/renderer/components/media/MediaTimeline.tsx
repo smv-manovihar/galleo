@@ -1,18 +1,21 @@
-import React, { useRef, useMemo, useState } from 'react';
-import { useVirtualizer } from '@tanstack/react-virtual';
-import type { MediaItem } from '../../../shared/types/media';
-import { MediaCard } from './MediaCard';
-import { formatDate } from '../../lib/format';
-import { ChevronRight } from 'lucide-react';
+import React, { useRef, useMemo, useState, useEffect } from "react"
+import { useVirtualizer } from "@tanstack/react-virtual"
+import type { MediaItem } from "../../../shared/types/media"
+import { MediaCard } from "./MediaCard"
+import { formatDate } from "../../lib/format"
+import { ChevronRight } from "lucide-react"
 
 interface MediaTimelineProps {
-  items: MediaItem[];
-  selectedIds: Set<string>;
-  onSelectToggle: (id: string, e: React.MouseEvent) => void;
-  onPreviewOpen: (item: MediaItem) => void;
-  onInfoOpen: (item: MediaItem) => void;
-  onReviewAction: (id: string, state: 'keep' | 'delete' | 'skipped') => void;
+  items: MediaItem[]
+  selectedIds: Set<string>
+  onSelectToggle: (id: string, e: React.MouseEvent) => void
+  onPreviewOpen: (item: MediaItem) => void
+  onInfoOpen: (item: MediaItem) => void
+  onReviewAction: (id: string, state: "keep" | "delete" | "skipped") => void
 }
+
+const GAP = 16
+const TARGET_CARD_WIDTH = 200
 
 export const MediaTimeline: React.FC<MediaTimelineProps> = ({
   items,
@@ -20,143 +23,173 @@ export const MediaTimeline: React.FC<MediaTimelineProps> = ({
   onSelectToggle,
   onPreviewOpen,
   onInfoOpen,
-  onReviewAction
+  onReviewAction,
 }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+  const [containerWidth, setContainerWidth] = useState<number>(800)
 
-  // Group items by date fragment: "YYYY-MM-DD"
-  const grouped = useMemo(() => {
-    const groups: Record<string, MediaItem[]> = {};
-    for (const item of items) {
-      const date = new Date(item.dateTarget);
-      if (isNaN(date.getTime())) continue;
-      
-      const key = date.toISOString().split('T')[0]; // format YYYY-MM-DD
-      if (!groups[key]) {
-        groups[key] = [];
+  useEffect(() => {
+    if (!containerRef.current) return
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.contentRect.width > 0) {
+          setContainerWidth(entry.contentRect.width)
+        }
       }
-      groups[key].push(item);
+    })
+    observer.observe(containerRef.current)
+    return () => observer.disconnect()
+  }, [])
+
+  const activeColumns = useMemo(() => {
+    const computed = Math.floor(
+      (containerWidth + GAP) / (TARGET_CARD_WIDTH + GAP)
+    )
+    return Math.max(2, Math.min(8, computed))
+  }, [containerWidth])
+
+  const estimatedRowHeight = useMemo(() => {
+    const cardWidth =
+      (containerWidth - (activeColumns - 1) * GAP) / activeColumns
+    return Math.max(120, Math.round(cardWidth + GAP + 16))
+  }, [containerWidth, activeColumns])
+
+  // Fast-path group items by date fragment: "YYYY-MM-DD"
+  const grouped = useMemo(() => {
+    const groups: Record<string, MediaItem[]> = {}
+    for (const item of items) {
+      if (!item.dateTarget) continue
+      const key = item.dateTarget.slice(0, 10)
+      if (!groups[key]) {
+        groups[key] = []
+      }
+      groups[key].push(item)
     }
-    
-    // Sort keys descending
+
     return Object.keys(groups)
       .sort((a, b) => b.localeCompare(a))
-      .map(key => ({
+      .map((key) => ({
         dateKey: key,
         dateFormatted: formatDate(key),
-        items: groups[key]
-      }));
-  }, [items]);
+        items: groups[key],
+      }))
+  }, [items])
 
   const toggleGroup = (dateKey: string) => {
-    setCollapsedGroups(prev => {
-      const next = new Set(prev);
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev)
       if (next.has(dateKey)) {
-        next.delete(dateKey);
+        next.delete(dateKey)
       } else {
-        next.add(dateKey);
+        next.add(dateKey)
       }
-      return next;
-    });
-  };
+      return next
+    })
+  }
 
   // Flatten grouped structures into a single flat list of rows for virtualization
   const flatRows = useMemo(() => {
     const rows: Array<
-      | { type: 'header'; dateFormatted: string; count: number; dateKey: string; key: string }
-      | { type: 'items'; items: MediaItem[]; key: string }
-    > = [];
+      | {
+          type: "header"
+          dateFormatted: string
+          count: number
+          dateKey: string
+          key: string
+        }
+      | { type: "items"; items: MediaItem[]; key: string }
+    > = []
 
     for (const group of grouped) {
-      const isCollapsed = collapsedGroups.has(group.dateKey);
-      
+      const isCollapsed = collapsedGroups.has(group.dateKey)
+
       rows.push({
-        type: 'header',
+        type: "header",
         key: `header-${group.dateKey}`,
         dateKey: group.dateKey,
         dateFormatted: group.dateFormatted,
-        count: group.items.length
-      });
+        count: group.items.length,
+      })
 
       if (!isCollapsed) {
-        const columns = 4;
-        for (let i = 0; i < group.items.length; i += columns) {
-          const chunk = group.items.slice(i, i + columns);
+        for (let i = 0; i < group.items.length; i += activeColumns) {
+          const chunk = group.items.slice(i, i + activeColumns)
           rows.push({
-            type: 'items',
+            type: "items",
             items: chunk,
-            key: `${group.dateKey}-row-${i}`
-          });
+            key: `${group.dateKey}-row-${i}`,
+          })
         }
       }
     }
 
-    return rows;
-  }, [grouped, collapsedGroups]);
+    return rows
+  }, [grouped, collapsedGroups, activeColumns])
 
   const rowVirtualizer = useVirtualizer({
     count: flatRows.length,
     getScrollElement: () => containerRef.current,
     estimateSize: (index) => {
-      const row = flatRows[index];
-      return row?.type === 'header' ? 36 : 240;
+      const row = flatRows[index]
+      return row?.type === "header" ? 36 : estimatedRowHeight
     },
     getItemKey: (index) => flatRows[index]?.key || index,
-    overscan: 10
-  });
+    overscan: 4,
+  })
 
   return (
     <div
       ref={containerRef}
-      className="w-full h-full overflow-y-auto select-none pr-1 scrollbar-thin"
+      className="h-full w-full scrollbar-thin overflow-y-auto pr-1 select-none"
     >
       <div
-        className="w-full relative"
+        className="relative w-full"
         style={{
-          height: `${rowVirtualizer.getTotalSize()}px`
+          height: `${rowVirtualizer.getTotalSize()}px`,
         }}
       >
         {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-          const row = flatRows[virtualRow.index];
-          if (!row) return null;
+          const row = flatRows[virtualRow.index]
+          if (!row) return null
 
-          if (row.type === 'header') {
-            const isCollapsed = collapsedGroups.has(row.dateKey);
+          if (row.type === "header") {
+            const isCollapsed = collapsedGroups.has(row.dateKey)
             return (
               <div
                 key={virtualRow.key}
                 ref={rowVirtualizer.measureElement}
                 data-index={virtualRow.index}
-                className="absolute top-0 left-0 w-full flex items-center gap-4 bg-background/80 backdrop-blur py-2 z-10 cursor-pointer select-none hover:opacity-85"
+                className="absolute top-0 left-0 z-10 flex w-full cursor-pointer items-center gap-4 bg-background/90 py-2 backdrop-blur select-none hover:opacity-85"
                 style={{
-                  transform: `translateY(${virtualRow.start}px)`
+                  transform: `translateY(${virtualRow.start}px)`,
                 }}
                 onClick={() => toggleGroup(row.dateKey)}
               >
-                <span className="font-heading font-bold text-xs text-foreground tracking-wide flex items-center gap-1.5">
+                <span className="flex items-center gap-1.5 font-heading text-xs font-bold tracking-wide text-foreground">
                   <ChevronRight
-                    className={`w-3.5 h-3.5 text-muted-foreground/80 ${
-                      !isCollapsed ? 'rotate-90' : ''
+                    className={`h-3.5 w-3.5 text-muted-foreground/80 transition-transform ${
+                      !isCollapsed ? "rotate-90" : ""
                     }`}
                   />
                   {row.dateFormatted}
                 </span>
-                <div className="h-px bg-border flex-1" />
-                <span className="text-2xs text-muted-foreground font-sans uppercase font-semibold">
+                <div className="h-px flex-1 bg-border" />
+                <span className="font-sans text-2xs font-semibold text-muted-foreground uppercase">
                   {row.count} items
                 </span>
               </div>
-            );
+            )
           } else {
             return (
               <div
                 key={virtualRow.key}
                 ref={rowVirtualizer.measureElement}
                 data-index={virtualRow.index}
-                className="absolute top-0 left-0 w-full grid grid-cols-4 gap-4 py-2"
+                className="absolute top-0 left-0 grid w-full gap-4 py-2 will-change-transform"
                 style={{
-                  transform: `translateY(${virtualRow.start}px)`
+                  gridTemplateColumns: `repeat(${activeColumns}, minmax(0, 1fr))`,
+                  transform: `translateY(${virtualRow.start}px)`,
                 }}
               >
                 {row.items.map((item) => (
@@ -171,17 +204,16 @@ export const MediaTimeline: React.FC<MediaTimelineProps> = ({
                   />
                 ))}
               </div>
-            );
+            )
           }
         })}
 
         {items.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-64 text-muted-foreground font-sans">
+          <div className="flex h-64 flex-col items-center justify-center font-sans text-muted-foreground">
             <span className="text-sm">No items found</span>
           </div>
         )}
       </div>
     </div>
-  );
-};
-
+  )
+}

@@ -1,7 +1,9 @@
 import React, { useEffect } from "react"
+import { Loader2 } from "lucide-react"
 import { useUIStore } from "../../stores/ui-store"
 import { useSettingsStore } from "../../stores/settings-store"
 import { useMediaStore } from "../../stores/media-store"
+import { useTheme } from "@/components/theme-provider"
 import { AppSidebar } from "./AppSidebar"
 import { TopBar } from "./TopBar"
 import { StatusBar } from "./StatusBar"
@@ -18,8 +20,9 @@ import { OrganizeFilesPage } from "../../pages/OrganizeFilesPage"
 import { SettingsPage } from "../../pages/SettingsPage"
 
 export const AppShell: React.FC = () => {
-  const { currentView, setTheme } = useUIStore()
-  const { settings, fetchSettings } = useSettingsStore()
+  const { currentView } = useUIStore()
+  const { setTheme } = useTheme()
+  const { settings, fetchSettings, isInitialized } = useSettingsStore()
   const hasItems = useMediaStore((s) => s.items.length > 0)
   const fetchMediaItems = useMediaStore((s) => s.fetchMediaItems)
 
@@ -82,10 +85,18 @@ export const AppShell: React.FC = () => {
     }
   }
 
+  // Show a full-screen loading state until the initial DB read resolves.
+  // This prevents the SetupWizard from flashing before real settings arrive.
+  if (!isInitialized) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-background">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
   return (
-    <div
-      className="flex h-screen w-screen flex-col overflow-hidden bg-background font-sans text-foreground"
-    >
+    <div className="flex h-screen w-screen flex-col overflow-hidden bg-background font-sans text-foreground">
       <SidebarProvider className="min-h-0 flex-1">
         <div className="flex h-full w-full overflow-hidden">
           <AppSidebar />

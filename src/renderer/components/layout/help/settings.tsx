@@ -1,103 +1,184 @@
-import React from 'react';
-import { DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Settings, Zap, FolderPlus, SlidersHorizontal, Palette } from 'lucide-react';
+import React, { useState } from "react"
+import {
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog"
+import {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from "@/components/ui/collapsible"
+import {
+  Settings,
+  FolderPlus,
+  SlidersHorizontal,
+  Palette,
+  Zap,
+  BookOpen,
+  Code2,
+  ChevronDown,
+} from "lucide-react"
 
 export const SettingsHelp: React.FC = () => {
+  const [isTechOpen, setIsTechOpen] = useState(false)
+
   return (
     <>
       {/* Header */}
-      <DialogHeader className="border-b border-border pb-3 shrink-0">
+      <DialogHeader className="shrink-0 border-b border-border pb-3">
         <DialogTitle className="flex items-center gap-2.5 text-base font-bold text-foreground">
           <Settings className="size-5 text-primary" />
           App Settings
         </DialogTitle>
-        <DialogDescription className="text-2xs text-muted-foreground leading-normal font-semibold mt-0.5 uppercase tracking-wider">
+        <DialogDescription className="mt-0.5 text-2xs leading-normal font-semibold tracking-wider text-muted-foreground uppercase">
           Configure root paths, rules, and triggers.
         </DialogDescription>
       </DialogHeader>
 
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto space-y-5 min-h-0 pr-1 scrollbar-thin">
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          Customize allowed directory paths, quality evaluation rules, and application triggers.
+      <div className="min-h-0 flex-1 scrollbar-thin space-y-4 overflow-y-auto pr-1">
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          Manage scanned folders, quality thresholds, scan rules, and theme preferences.
         </p>
 
-        {/* Core Concepts */}
+        {/* 1. Key Terms */}
         <div className="space-y-2">
-          <h4 className="text-3xs font-extrabold uppercase text-primary tracking-wider">
-            Core Concepts
+          <h4 className="flex items-center gap-1.5 text-3xs font-extrabold tracking-wider text-primary uppercase">
+            <BookOpen className="size-3" />
+            Key Terms
           </h4>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="p-3 border border-border/60 bg-muted/10 rounded-xl flex flex-col gap-1 transition-all duration-200 hover:border-primary/20">
-              <span className="text-xs font-bold text-foreground">Directory Roots</span>
-              <span className="text-2xs text-muted-foreground leading-normal mt-0.5">
-                Folders that Galleo is permitted to scan. You can enable or disable folders individually.
+          <div className="grid grid-cols-1 gap-2.5 md:grid-cols-3">
+            <div className="flex flex-col gap-1 rounded-xl border border-border/60 bg-muted/10 p-2.5">
+              <span className="text-xs font-bold text-foreground">
+                Directory Roots
+              </span>
+              <span className="mt-0.5 text-2xs leading-normal text-muted-foreground">
+                Folders Galleo is granted permission to scan and manage.
               </span>
             </div>
-            <div className="p-3 border border-border/60 bg-muted/10 rounded-xl flex flex-col gap-1 transition-all duration-200 hover:border-primary/20">
-              <span className="text-xs font-bold text-foreground">Defect Sensitivity</span>
-              <span className="text-2xs text-muted-foreground leading-normal mt-0.5">
-                Numerical thresholds that determine when a photo is flagged as blurry (sharpness score) or dark (brightness level).
+            <div className="flex flex-col gap-1 rounded-xl border border-border/60 bg-muted/10 p-2.5">
+              <span className="text-xs font-bold text-foreground">
+                Defect Thresholds
+              </span>
+              <span className="mt-0.5 text-2xs leading-normal text-muted-foreground">
+                Sensitivity scores determining blurry and dark photo flags.
               </span>
             </div>
-            <div className="p-3 border border-border/60 bg-muted/10 rounded-xl flex flex-col gap-1 transition-all duration-200 hover:border-primary/20">
-              <span className="text-xs font-bold text-foreground">Exclusion Patterns</span>
-              <span className="text-2xs text-muted-foreground leading-normal mt-0.5">
-                File names or directory paths matching these rules (e.g. .git, system files) will be ignored.
+            <div className="flex flex-col gap-1 rounded-xl border border-border/60 bg-muted/10 p-2.5">
+              <span className="text-xs font-bold text-foreground">
+                Scan Rules
+              </span>
+              <span className="mt-0.5 text-2xs leading-normal text-muted-foreground">
+                Subdirectory inclusion, min file size, and indexing parallelism options.
               </span>
             </div>
           </div>
         </div>
 
-        {/* Actions & Controls */}
+        {/* 2. Actions & Controls */}
         <div className="space-y-2">
-          <h4 className="text-3xs font-extrabold uppercase text-primary tracking-wider">
+          <h4 className="text-3xs font-extrabold tracking-wider text-primary uppercase">
             Actions & Controls
           </h4>
-          <div className="border border-border/60 rounded-xl overflow-hidden divide-y divide-border/40 bg-muted/5">
-            <div className="flex flex-col sm:grid sm:grid-cols-[180px_1fr] p-3 gap-1 sm:gap-4 text-2xs hover:bg-muted/10 transition-colors items-start sm:items-center">
-              <div className="flex items-center gap-2 shrink-0">
-                <FolderPlus className="size-3.5 text-primary shrink-0" />
-                <span className="font-semibold text-foreground">Add Directory</span>
+          <div className="divide-y divide-border/40 overflow-hidden rounded-xl border border-border/60 bg-muted/5">
+            <div className="flex flex-col items-start gap-1 p-3 text-2xs transition-colors hover:bg-muted/10 sm:grid sm:grid-cols-[180px_1fr] sm:items-center sm:gap-4">
+              <div className="flex shrink-0 items-center gap-2">
+                <FolderPlus className="size-3.5 shrink-0 text-primary" />
+                <span className="font-semibold text-foreground">
+                  Add Root Folder
+                </span>
               </div>
               <span className="text-muted-foreground">
-                Register a new library folder on your computer that Galleo can scan.
+                Add a root folder for Galleo to monitor and scan.
               </span>
             </div>
-            <div className="flex flex-col sm:grid sm:grid-cols-[180px_1fr] p-3 gap-1 sm:gap-4 text-2xs hover:bg-muted/10 transition-colors items-start sm:items-center">
-              <div className="flex items-center gap-2 shrink-0">
-                <SlidersHorizontal className="size-3.5 text-primary shrink-0" />
-                <span className="font-semibold text-foreground">Adjust Sensitivity</span>
+            <div className="flex flex-col items-start gap-1 p-3 text-2xs transition-colors hover:bg-muted/10 sm:grid sm:grid-cols-[180px_1fr] sm:items-center sm:gap-4">
+              <div className="flex shrink-0 items-center gap-2">
+                <SlidersHorizontal className="size-3.5 shrink-0 text-primary" />
+                <span className="font-semibold text-foreground">
+                  Adjust Thresholds
+                </span>
               </div>
               <span className="text-muted-foreground">
-                Drag sharpness and brightness sliders to configure quality checks (higher sensitivity means stricter rules).
+                Adjust blur and darkness sliders to set defect sensitivity.
               </span>
             </div>
-            <div className="flex flex-col sm:grid sm:grid-cols-[180px_1fr] p-3 gap-1 sm:gap-4 text-2xs hover:bg-muted/10 transition-colors items-start sm:items-center">
-              <div className="flex items-center gap-2 shrink-0">
-                <Palette className="size-3.5 text-primary shrink-0" />
-                <span className="font-semibold text-foreground">Switch Themes</span>
+            <div className="flex flex-col items-start gap-1 p-3 text-2xs transition-colors hover:bg-muted/10 sm:grid sm:grid-cols-[180px_1fr] sm:items-center sm:gap-4">
+              <div className="flex shrink-0 items-center gap-2">
+                <Palette className="size-3.5 shrink-0 text-primary" />
+                <span className="font-semibold text-foreground">
+                  Switch Themes
+                </span>
               </div>
               <span className="text-muted-foreground">
-                Toggle between Light, Dark, or System mode matching your OS preferences.
+                Select Light, Dark, or System theme mode.
               </span>
             </div>
           </div>
         </div>
+
+        {/* 3. Collapsible Under the Hood Technical Concepts */}
+        <Collapsible open={isTechOpen} onOpenChange={setIsTechOpen} className="space-y-2">
+          <CollapsibleTrigger asChild>
+            <button className="flex w-full cursor-pointer items-center justify-between rounded-xl border border-border/60 bg-muted/20 px-3 py-2 text-2xs font-semibold text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground">
+              <div className="flex items-center gap-2 text-3xs font-extrabold tracking-wider text-primary uppercase">
+                <Code2 className="size-3.5" />
+                Under the Hood & Technical Concepts
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] font-normal text-muted-foreground">
+                  {isTechOpen ? "Hide details" : "Learn how it works"}
+                </span>
+                <ChevronDown className={`size-3.5 text-muted-foreground transition-transform duration-200 ${isTechOpen ? "rotate-180" : ""}`} />
+              </div>
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="space-y-2 pt-1">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="flex flex-col gap-1 rounded-xl border border-border/50 bg-muted/10 p-2.5">
+                <span className="text-2xs font-bold text-foreground">
+                  Local Storage & JSON Store
+                </span>
+                <span className="text-[11px] leading-relaxed text-muted-foreground">
+                  User configuration options serialize to `settings.json` in Electron `userData` directory.
+                </span>
+              </div>
+              <div className="flex flex-col gap-1 rounded-xl border border-border/50 bg-muted/10 p-2.5">
+                <span className="text-2xs font-bold text-foreground">
+                  IPC Security Boundaries
+                </span>
+                <span className="text-[11px] leading-relaxed text-muted-foreground">
+                  All file read and write operations are restricted strictly to paths present in the registered directory root list.
+                </span>
+              </div>
+              <div className="flex flex-col gap-1 rounded-xl border border-border/50 bg-muted/10 p-2.5">
+                <span className="text-2xs font-bold text-foreground">
+                  Rescan Signal Propagation
+                </span>
+                <span className="text-[11px] leading-relaxed text-muted-foreground">
+                  Adjusting defect sensitivity thresholds marks database quality scores dirty, prompting a rescan banner.
+                </span>
+              </div>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
       </div>
 
-      {/* Tip Banner */}
-      <div className="border-t border-border pt-3.5 mt-auto flex flex-row items-start gap-3 shrink-0">
-        <div className="p-1.5 rounded-lg bg-primary/10 text-primary border border-primary/20 shrink-0">
+      {/* Pro Tip Banner */}
+      <div className="mt-auto flex shrink-0 flex-row items-start gap-3 border-t border-border pt-3.5">
+        <div className="shrink-0 rounded-lg border border-primary/20 bg-primary/10 p-1.5 text-primary">
           <Zap className="size-4" />
         </div>
-        <div className="flex-1 min-w-0">
-          <span className="text-2xs font-extrabold uppercase text-primary tracking-wider block">PRO TIP</span>
-          <span className="text-2xs text-muted-foreground leading-relaxed mt-0.5 block">
-            After adjusting sensitivity thresholds, run a "Force Rescan" from the Scan button dropdown in the Topbar to re-evaluate and update existing media.
+        <div className="min-w-0 flex-1">
+          <span className="block text-2xs font-extrabold tracking-wider text-primary uppercase">
+            PRO TIP
+          </span>
+          <span className="mt-0.5 block text-2xs leading-relaxed text-muted-foreground">
+            Configure <strong>Minimum File Size</strong> in Scan Rules to ignore small icons and noise assets during library scans.
           </span>
         </div>
       </div>
     </>
-  );
-};
+  )
+}

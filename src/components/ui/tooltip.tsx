@@ -36,7 +36,9 @@ function TooltipContent({
   children,
   container,
   ...props
-}: React.ComponentProps<typeof TooltipPrimitive.Content> & { container?: HTMLElement | null }) {
+}: React.ComponentProps<typeof TooltipPrimitive.Content> & {
+  container?: HTMLElement | null
+}) {
   return (
     <TooltipPrimitive.Portal container={container}>
       <TooltipPrimitive.Content

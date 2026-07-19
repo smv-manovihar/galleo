@@ -1,17 +1,20 @@
-import React, { useRef, useMemo } from 'react';
-import { useVirtualizer } from '@tanstack/react-virtual';
-import type { MediaItem } from '../../../shared/types/media';
-import { MediaCard } from './MediaCard';
+import React, { useRef, useMemo, useState, useEffect } from "react"
+import { useVirtualizer } from "@tanstack/react-virtual"
+import type { MediaItem } from "../../../shared/types/media"
+import { MediaCard } from "./MediaCard"
 
 interface MediaGridProps {
-  items: MediaItem[];
-  selectedIds: Set<string>;
-  onSelectToggle: (id: string, e: React.MouseEvent) => void;
-  onPreviewOpen: (item: MediaItem) => void;
-  onInfoOpen: (item: MediaItem) => void;
-  onReviewAction: (id: string, state: 'keep' | 'delete' | 'skipped') => void;
-  columns?: number;
+  items: MediaItem[]
+  selectedIds: Set<string>
+  onSelectToggle: (id: string, e: React.MouseEvent) => void
+  onPreviewOpen: (item: MediaItem) => void
+  onInfoOpen: (item: MediaItem) => void
+  onReviewAction: (id: string, state: "keep" | "delete" | "skipped") => void
+  columns?: number
 }
+
+const GAP = 16
+const TARGET_CARD_WIDTH = 200
 
 export const MediaGrid: React.FC<MediaGridProps> = ({
   items,
@@ -20,49 +23,77 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
   onPreviewOpen,
   onInfoOpen,
   onReviewAction,
-  columns = 4
+  columns: overrideColumns,
 }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [containerWidth, setContainerWidth] = useState<number>(800)
 
-  // Group items into rows based on the number of columns
+  useEffect(() => {
+    if (!containerRef.current) return
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.contentRect.width > 0) {
+          setContainerWidth(entry.contentRect.width)
+        }
+      }
+    })
+    observer.observe(containerRef.current)
+    return () => observer.disconnect()
+  }, [])
+
+  const activeColumns = useMemo(() => {
+    if (overrideColumns && overrideColumns > 0) return overrideColumns
+    const computed = Math.floor(
+      (containerWidth + GAP) / (TARGET_CARD_WIDTH + GAP)
+    )
+    return Math.max(2, Math.min(8, computed))
+  }, [containerWidth, overrideColumns])
+
+  // Compute accurate row height: aspect ratio is 1:1 for cards
+  const estimatedRowHeight = useMemo(() => {
+    const cardWidth =
+      (containerWidth - (activeColumns - 1) * GAP) / activeColumns
+    return Math.max(120, Math.round(cardWidth + GAP + 16))
+  }, [containerWidth, activeColumns])
+
+  // Group items into rows based on calculated columns
   const rows = useMemo(() => {
-    const r: MediaItem[][] = [];
-    for (let i = 0; i < items.length; i += columns) {
-      r.push(items.slice(i, i + columns));
+    const r: MediaItem[][] = []
+    for (let i = 0; i < items.length; i += activeColumns) {
+      r.push(items.slice(i, i + activeColumns))
     }
-    return r;
-  }, [items, columns]);
+    return r
+  }, [items, activeColumns])
 
-  // Use react-virtual to virtualize row items
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => containerRef.current,
-    estimateSize: () => 240, // Closer estimate for row height including gap
-    overscan: 5
-  });
+    estimateSize: () => estimatedRowHeight,
+    overscan: 4,
+  })
 
   return (
     <div
       ref={containerRef}
-      className="w-full h-full overflow-y-auto pr-1 select-none scrollbar-thin"
+      className="h-full w-full scrollbar-thin overflow-y-auto pr-1 select-none"
     >
       <div
-        className="w-full relative"
+        className="relative w-full"
         style={{
-          height: `${rowVirtualizer.getTotalSize()}px`
+          height: `${rowVirtualizer.getTotalSize()}px`,
         }}
       >
         {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-          const rowItems = rows[virtualRow.index];
+          const rowItems = rows[virtualRow.index]
           return (
             <div
               key={virtualRow.index}
               ref={rowVirtualizer.measureElement}
               data-index={virtualRow.index}
-              className="absolute top-0 left-0 w-full grid gap-4 py-2"
+              className="absolute top-0 left-0 grid w-full gap-4 py-2 will-change-transform"
               style={{
-                gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-                transform: `translateY(${virtualRow.start}px)`
+                gridTemplateColumns: `repeat(${activeColumns}, minmax(0, 1fr))`,
+                transform: `translateY(${virtualRow.start}px)`,
               }}
             >
               {rowItems.map((item) => (
@@ -77,15 +108,15 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
                 />
               ))}
             </div>
-          );
+          )
         })}
 
         {items.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-64 text-muted-foreground font-sans">
+          <div className="flex h-64 flex-col items-center justify-center font-sans text-muted-foreground">
             <span className="text-sm">No items match current filters</span>
           </div>
         )}
       </div>
     </div>
-  );
-};
+  )
+}

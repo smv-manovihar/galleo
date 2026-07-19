@@ -48,41 +48,41 @@ function DialogOverlay({
 }
 
 const dialogWidths = {
-  sm: 'sm:max-w-sm',
-  md: 'sm:max-w-md',
-  lg: 'sm:max-w-lg',
-  xl: 'sm:max-w-xl',
-  '2xl': 'sm:max-w-2xl',
-  '3xl': 'sm:max-w-3xl',
-  '4xl': 'sm:max-w-4xl',
-  '5xl': 'sm:max-w-5xl',
-  full: 'sm:max-w-[calc(100vw-2rem)]',
-} as const;
+  sm: "sm:max-w-sm",
+  md: "sm:max-w-md",
+  lg: "sm:max-w-lg",
+  xl: "sm:max-w-xl",
+  "2xl": "sm:max-w-2xl",
+  "3xl": "sm:max-w-3xl",
+  "4xl": "sm:max-w-4xl",
+  "5xl": "sm:max-w-5xl",
+  full: "sm:max-w-[calc(100vw-2rem)]",
+} as const
 
 const dialogHeights = {
-  auto: '',
-  sm: 'h-[40vh]',
-  md: 'h-[55vh]',
-  lg: 'h-[70vh]',
-  xl: 'h-[80vh]',
-  '2xl': 'h-[85vh]',
-  full: 'h-[calc(100dvh-4rem)]',
-} as const;
+  auto: "",
+  sm: "h-[40vh]",
+  md: "h-[55vh]",
+  lg: "h-[70vh]",
+  xl: "h-[80vh]",
+  "2xl": "h-[85vh]",
+  full: "h-[calc(100dvh-4rem)]",
+} as const
 
-type DialogWidth = keyof typeof dialogWidths;
-type DialogHeight = keyof typeof dialogHeights;
+type DialogWidth = keyof typeof dialogWidths
+type DialogHeight = keyof typeof dialogHeights
 
 function DialogContent({
   className,
   children,
   showCloseButton = true,
-  width = 'md',
-  height = 'auto',
+  width = "md",
+  height = "auto",
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
-  showCloseButton?: boolean;
-  width?: DialogWidth;
-  height?: DialogHeight;
+  showCloseButton?: boolean
+  width?: DialogWidth
+  height?: DialogHeight
 }) {
   return (
     <DialogPortal>
@@ -90,7 +90,7 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-xs/relaxed text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 overflow-y-auto",
+          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-xl bg-popover p-4 text-xs/relaxed text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           dialogWidths[width],
           dialogHeights[height],
           className
@@ -114,7 +114,6 @@ function DialogContent({
     </DialogPortal>
   )
 }
-
 
 function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (

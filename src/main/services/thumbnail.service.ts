@@ -1,7 +1,7 @@
-import { generateImageThumbnail } from '../infrastructure/image-processor';
-import { generateVideoThumbnail } from '../infrastructure/video-processor';
-import { type Result, fail } from '../../shared/types/results';
-import type { MediaType } from '../../shared/types/media';
+import { generateImageThumbnail } from "../infrastructure/image-processor"
+import { generateVideoThumbnail } from "../infrastructure/video-processor"
+import { type Result, fail } from "../../shared/types/results"
+import type { MediaType } from "../../shared/types/media"
 
 export class ThumbnailService {
   /**
@@ -13,17 +13,17 @@ export class ThumbnailService {
     mediaType: MediaType
   ): Promise<Result<string>> {
     try {
-      if (mediaType === 'photo') {
-        return await generateImageThumbnail(filePath, mediaId);
+      if (mediaType === "photo") {
+        return await generateImageThumbnail(filePath, mediaId)
       } else {
-        return await generateVideoThumbnail(filePath, mediaId);
+        return await generateVideoThumbnail(filePath, mediaId)
       }
     } catch (e: any) {
       return fail({
-        code: 'THUMBNAIL_FAILED',
+        code: "THUMBNAIL_FAILED",
         path: filePath,
-        reason: e.message || 'Thumbnail service failure'
-      });
+        reason: e.message || "Thumbnail service failure",
+      })
     }
   }
 }

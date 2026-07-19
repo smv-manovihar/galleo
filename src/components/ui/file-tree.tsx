@@ -7,7 +7,12 @@ import React, {
   useState,
 } from "react"
 import { Accordion as AccordionPrimitive } from "radix-ui"
-import { FileIcon, FolderIcon, FolderOpenIcon, ChevronRight } from "lucide-react"
+import {
+  FileIcon,
+  FolderIcon,
+  FolderOpenIcon,
+  ChevronRight,
+} from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -22,9 +27,7 @@ type TreeViewElement = {
 }
 
 type TreeSortMode =
-  | "default"
-  | "none"
-  | ((a: TreeViewElement, b: TreeViewElement) => number)
+  "default" | "none" | ((a: TreeViewElement, b: TreeViewElement) => number)
 
 type TreeContextProps = {
   selectedId: string | undefined
@@ -291,7 +294,7 @@ const TreeIndicator = forwardRef<
       dir={direction}
       ref={ref}
       className={cn(
-        "bg-muted absolute left-1.5 h-full w-px rounded-md py-3 duration-300 ease-in-out hover:bg-slate-300 rtl:right-1.5",
+        "absolute left-1.5 h-full w-px rounded-md bg-muted py-3 duration-300 ease-in-out hover:bg-slate-300 rtl:right-1.5",
         className
       )}
       {...props}
@@ -346,10 +349,11 @@ const Folder = forwardRef<
       >
         <AccordionPrimitive.Trigger
           className={cn(
-            `flex items-center gap-1 rounded-md text-xs py-1 px-1.5 w-full hover:bg-accent/40 text-left transition-colors select-none min-w-0`,
+            `flex w-full min-w-0 items-center gap-1 rounded-md px-1.5 py-1 text-left text-xs transition-colors select-none hover:bg-accent/40`,
             className,
             {
-              "bg-accent text-accent-foreground font-medium": isSelected && isSelectable,
+              "bg-accent font-medium text-accent-foreground":
+                isSelected && isSelectable,
               "cursor-pointer": isSelectable,
               "cursor-not-allowed opacity-50": !isSelectable,
             }
@@ -360,16 +364,22 @@ const Folder = forwardRef<
             handleExpand(value)
           }}
         >
-          <ChevronRight className={cn(
-            "size-3 shrink-0 text-muted-foreground/75 transition-transform duration-200",
-            isExpanded && "rotate-90"
-          )} />
+          <ChevronRight
+            className={cn(
+              "size-3 shrink-0 text-muted-foreground/75 transition-transform duration-200",
+              isExpanded && "rotate-90"
+            )}
+          />
           {isExpanded
-            ? (openIcon ?? <FolderOpenIcon className="size-3.5 text-amber-500 fill-amber-500/10" />)
-            : (closeIcon ?? <FolderIcon className="size-3.5 text-amber-500 fill-amber-500/5" />)}
+            ? (openIcon ?? (
+                <FolderOpenIcon className="size-3.5 fill-amber-500/10 text-amber-500" />
+              ))
+            : (closeIcon ?? (
+                <FolderIcon className="size-3.5 fill-amber-500/5 text-amber-500" />
+              ))}
           <span className="truncate">{element}</span>
         </AccordionPrimitive.Trigger>
-        <AccordionPrimitive.Content className="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down relative h-full overflow-hidden text-xs">
+        <AccordionPrimitive.Content className="relative h-full overflow-hidden text-xs data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
           {element && indicator && <TreeIndicator aria-hidden="true" />}
           {isExpanded && (
             <AccordionPrimitive.Root
@@ -421,9 +431,10 @@ const File = forwardRef<
         type="button"
         disabled={!isSelectable}
         className={cn(
-          "flex w-full items-center gap-1 rounded-md py-1 px-1.5 pl-4 text-xs transition-colors hover:bg-accent/40 text-left select-none min-w-0",
+          "flex w-full min-w-0 items-center gap-1 rounded-md px-1.5 py-1 pl-4 text-left text-xs transition-colors select-none hover:bg-accent/40",
           {
-            "bg-accent text-accent-foreground font-medium": isSelected && isSelectable,
+            "bg-accent font-medium text-accent-foreground":
+              isSelected && isSelectable,
           },
           isSelectable ? "cursor-pointer" : "cursor-not-allowed opacity-50",
           direction === "rtl" ? "rtl" : "ltr",

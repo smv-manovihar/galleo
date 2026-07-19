@@ -3,6 +3,7 @@ import { useUIStore } from "../../stores/ui-store"
 import { useMediaStore } from "../../stores/media-store"
 import { useSettingsStore } from "../../stores/settings-store"
 import { useScanStore } from "../../stores/scan-store"
+import { useTheme } from "@/components/theme-provider"
 import { Button } from "@/components/ui/button"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Input } from "@/components/ui/input"
@@ -44,7 +45,8 @@ import { Progress } from "@/components/ui/progress"
 import { helpComponentsMap, DefaultHelp } from "./help"
 
 export const TopBar: React.FC = () => {
-  const { currentView, theme, setTheme, setCurrentView } = useUIStore()
+  const { currentView, setCurrentView } = useUIStore()
+  const { theme, setTheme } = useTheme()
   const searchQuery = useMediaStore((state) => state.searchQuery)
   const setSearchQuery = useMediaStore((state) => state.setSearchQuery)
   const isScanning = useScanStore((state) => state.isScanning)
@@ -52,7 +54,7 @@ export const TopBar: React.FC = () => {
   const startScan = useScanStore((state) => state.startScan)
   const cancelScan = useScanStore((state) => state.cancelScan)
   const scanProgress = useScanStore((state) => state.scanProgress)
-  const { settings } = useSettingsStore()
+  const { settings, saveSettings } = useSettingsStore()
 
   const [showRescanDialog, setShowRescanDialog] = React.useState(false)
   const [selectedPaths, setSelectedPaths] = React.useState<string[]>([])
@@ -173,10 +175,20 @@ export const TopBar: React.FC = () => {
     }
   }
 
-  const cycleTheme = () => {
-    if (theme === "system") setTheme("light")
-    else if (theme === "light") setTheme("dark")
-    else setTheme("system")
+  const cycleTheme = async () => {
+    const nextTheme: "dark" | "light" | "system" =
+      theme === "system" ? "light" : theme === "light" ? "dark" : "system"
+    setTheme(nextTheme)
+
+    // Persist theme to database settings
+    const updated = {
+      ...settings,
+      ui: {
+        ...settings.ui,
+        theme: nextTheme,
+      },
+    }
+    await saveSettings(updated)
   }
 
   const renderThemeIcon = () => {
@@ -304,7 +316,8 @@ export const TopBar: React.FC = () => {
                   onClick={handleScanClick}
                 >
                   <Play className="h-3.5 w-3.5 fill-current" />
-                  Scan Folders
+                  <span className="hidden lg:inline">Scan Folders</span>
+                  <span className="inline lg:hidden">Scan</span>
                 </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -448,11 +461,11 @@ export const TopBar: React.FC = () => {
       <Dialog open={showInfoDialog} onOpenChange={setShowInfoDialog}>
         <DialogContent
           width="xl"
-          className="bg-card/95 border border-border text-foreground font-sans outline-none p-5 max-h-[85vh] flex flex-col gap-4 backdrop-blur-md"
+          className="flex max-h-[85vh] flex-col gap-4 border border-border bg-card/95 p-5 font-sans text-foreground backdrop-blur-md outline-none"
         >
           {(() => {
-            const HelpComponent = helpComponentsMap[currentView] || DefaultHelp;
-            return <HelpComponent />;
+            const HelpComponent = helpComponentsMap[currentView] || DefaultHelp
+            return <HelpComponent />
           })()}
         </DialogContent>
       </Dialog>

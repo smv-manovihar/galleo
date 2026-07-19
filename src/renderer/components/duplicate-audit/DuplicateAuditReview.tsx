@@ -1,20 +1,14 @@
 import React, { useMemo, useState, useCallback } from "react"
 import type { MediaItem } from "../../../shared/types/media"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import {
-  Bookmark,
-  Trash2,
   ShieldAlert,
   Sparkles,
-  Maximize,
   History,
   Undo2,
   ChevronLeft,
   ChevronRight,
-  Play,
 } from "lucide-react"
-import { formatBytes } from "../../lib/format"
 import {
   Tooltip,
   TooltipTrigger,
@@ -28,6 +22,7 @@ import {
   DuplicateAuditHistoryDialog,
   type DuplicateAuditHistoryDialogItem,
 } from "./DuplicateAuditHistoryDialog"
+import { DuplicateAuditCard } from "./DuplicateAuditCard"
 
 interface DuplicateAuditReviewProps {
   items: MediaItem[]
@@ -74,8 +69,9 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
   const [localUndoStack, setLocalUndoStack] = useState<LocalUndoEntry[]>([])
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
 
-
-  const [temporaryDecisions, setTemporaryDecisions] = useState<Record<string, "keep" | "delete">>({})
+  const [temporaryDecisions, setTemporaryDecisions] = useState<
+    Record<string, "keep" | "delete">
+  >({})
   const [isCurrentGroupCommitted, setIsCurrentGroupCommitted] = useState(false)
 
   // Dynamically resolve the best item in a similar media group based on quality/resolution/size
@@ -92,7 +88,7 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
       } else if (itemScore === bestScore) {
         const itemRes = (item.width ?? 0) * (item.height ?? 0)
         const bestRes = (best.width ?? 0) * (best.height ?? 0)
-        
+
         if (itemRes > bestRes) {
           best = item
         } else if (itemRes === bestRes) {
@@ -114,10 +110,12 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
     }
 
     const store = useSessionStore.getState()
-    
+
     // Check if we already have committed decisions for this group in the session store
-    const hasCommitted = currentGroup.some((item) => store.decisions[item.id] !== undefined)
-    
+    const hasCommitted = currentGroup.some(
+      (item) => store.decisions[item.id] !== undefined
+    )
+
     if (hasCommitted) {
       setTemporaryDecisions({})
       setIsCurrentGroupCommitted(true)
@@ -240,8 +238,6 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
         // We revert it to pending, pop it from stack, and continue to find the previous user decision.
         entriesToRevert.push(...currentBatch)
         currentStack = currentStack.slice(0, -currentBatch.length)
-
-
       } else {
         // This is the actual decision we want to undo!
         entriesToRevert.push(...currentBatch)
@@ -313,8 +309,6 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
     setLocalUndoStack(currentStack)
   }
 
-
-
   const handleBulkChangeDecisions = useCallback(
     async (mediaIds: string[], newDecision: "keep" | "delete") => {
       const store = useSessionStore.getState()
@@ -343,8 +337,6 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
           }
         }
       }
-
-
 
       setLocalUndoStack((prev) => [...prev, ...newUndoEntries])
 
@@ -445,7 +437,7 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
     if (!currentGroup) return
     const batchId = `manual_keep_best_${Date.now()}`
     const bestItem = determineBestItem(currentGroup) || currentGroup[0]
-    
+
     const newDecisions: Record<string, "keep" | "delete"> = {}
     for (const item of currentGroup) {
       newDecisions[item.id] = item.id === bestItem.id ? "keep" : "delete"
@@ -458,7 +450,7 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
   const handleKeepAll = async () => {
     if (!currentGroup) return
     const batchId = `manual_keep_all_${Date.now()}`
-    
+
     const newDecisions: Record<string, "keep" | "delete"> = {}
     for (const item of currentGroup) {
       newDecisions[item.id] = "keep"
@@ -471,7 +463,7 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
   const handleDeleteAll = async () => {
     if (!currentGroup) return
     const batchId = `manual_delete_all_${Date.now()}`
-    
+
     const newDecisions: Record<string, "keep" | "delete"> = {}
     for (const item of currentGroup) {
       newDecisions[item.id] = "delete"
@@ -512,11 +504,11 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
         newDecisions[gItem.id] = newDecision
       } else {
         const existing = getItemReviewState(gItem)
-        newDecisions[gItem.id] = (existing === "pending" ? "keep" : existing) as "keep" | "delete"
+        newDecisions[gItem.id] = (
+          existing === "pending" ? "keep" : existing
+        ) as "keep" | "delete"
       }
     }
-
-
 
     const batchId = `manual_toggle_${Date.now()}`
     await commitGroupDecisions(newDecisions, batchId)
@@ -526,6 +518,93 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
     setAutoPlay(withAutoPlay)
     setPreviewItem(item)
   }
+
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        document.activeElement?.tagName === "INPUT" ||
+        document.activeElement?.tagName === "TEXTAREA" ||
+        document.activeElement?.getAttribute("contenteditable") === "true" ||
+        previewItem !== null ||
+        isHistoryOpen
+      ) {
+        return
+      }
+
+      const key = e.key.toLowerCase()
+
+      // Undo: z or Ctrl+Z
+      if (key === "z") {
+        e.preventDefault()
+        handleUndo()
+        return
+      }
+
+      // Group navigation: Left / Right arrows or H / L keys
+      if (e.key === "ArrowLeft" || key === "h") {
+        e.preventDefault()
+        prevGroup()
+        return
+      }
+      if (e.key === "ArrowRight" || key === "l") {
+        e.preventDefault()
+        nextGroup()
+        return
+      }
+
+      // Keep All: k
+      if (key === "k") {
+        e.preventDefault()
+        handleKeepAll()
+        return
+      }
+
+      // Delete All: d
+      if (key === "d") {
+        e.preventDefault()
+        handleDeleteAll()
+        return
+      }
+
+      // Auto-Keep Best: b, Space or Enter
+      if (key === "b" || e.key === " " || e.key === "Enter") {
+        e.preventDefault()
+        handleKeepBest()
+        return
+      }
+
+      // Individual item toggle: 1, 2, 3, etc.
+      if (currentGroup && /^[1-9]$/.test(e.key)) {
+        const itemIndex = parseInt(e.key, 10) - 1
+        if (itemIndex < currentGroup.length) {
+          e.preventDefault()
+          handleToggleKeep(currentGroup[itemIndex].id)
+        }
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown)
+    }
+  }, [
+    currentGroup,
+    previewItem,
+    isHistoryOpen,
+    handleUndo,
+    prevGroup,
+    nextGroup,
+    handleKeepAll,
+    handleDeleteAll,
+    handleKeepBest,
+    handleToggleKeep,
+  ])
+
+  React.useEffect(() => {
+    if (!currentGroup && duplicateGroups.length > 0 && onComplete) {
+      onComplete()
+    }
+  }, [currentGroup, duplicateGroups.length, onComplete])
 
   if (duplicateGroups.length === 0) {
     return (
@@ -537,30 +616,13 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
   }
 
   if (!currentGroup) {
-    return (
-      <div className="flex h-64 flex-col items-center justify-center gap-3 font-sans text-xs text-muted-foreground select-none">
-        <Bookmark className="h-8 w-8 text-green-500" />
-        <span className="text-sm font-semibold text-foreground">
-          Completed reviewing all duplicate groups!
-        </span>
-        {onComplete && (
-          <Button
-            variant="default"
-            size="sm"
-            className="mt-2 flex h-9 animate-pulse cursor-pointer items-center gap-1.5 bg-primary px-4 text-xs font-medium text-primary-foreground shadow-sm hover:bg-primary/90"
-            onClick={onComplete}
-          >
-            Go to Summary & Commit
-          </Button>
-        )}
-      </div>
-    )
+    return null
   }
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col gap-3 font-sans text-xs select-none">
       {/* Progress */}
-      <div className="flex shrink-0 items-center gap-3">
+      <div className="flex -mt-3 shrink-0 items-center gap-3">
         <span className="text-xs whitespace-nowrap text-muted-foreground">
           Group{" "}
           <span className="font-semibold text-foreground">
@@ -572,6 +634,16 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
           value={((activeGroupIndex + 1) / duplicateGroups.length) * 100}
           className="h-1 flex-1 bg-muted"
         />
+        {onComplete && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onComplete}
+            className="h-5 cursor-pointer px-2 text-3xs font-semibold hover:bg-accent"
+          >
+            View Summary
+          </Button>
+        )}
       </div>
 
       {/* Cards Grid */}
@@ -582,123 +654,20 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
             gridTemplateColumns: `repeat(${Math.min(3, currentGroup.length)}, minmax(0, 1fr))`,
           }}
         >
-          {currentGroup.map((item) => {
+          {currentGroup.map((item, idx) => {
             const dynamicBest = determineBestItem(currentGroup)
             const isBest = dynamicBest && item.id === dynamicBest.id
             const reviewState = getItemReviewState(item)
-            const isMarkedKeep = reviewState === "keep"
-            const isMarkedDelete = reviewState === "delete"
             return (
-              <div
+              <DuplicateAuditCard
                 key={item.id}
+                item={item}
+                isBest={!!isBest}
+                reviewState={reviewState}
+                hotkeyIndex={idx + 1}
                 onClick={() => handleToggleKeep(item.id)}
-                className={`relative flex h-full min-h-0 cursor-pointer flex-col overflow-hidden rounded-lg border transition-all duration-150 ${
-                  isMarkedKeep
-                    ? "border-green-500/70 shadow-sm shadow-green-500/20"
-                    : isMarkedDelete
-                      ? "border-destructive/30 opacity-50 hover:opacity-70"
-                      : isBest
-                        ? "border-primary/40"
-                        : "border-border hover:border-muted-foreground/30"
-                }`}
-              >
-                {/* Thumbnail area */}
-                <div className="relative min-h-0 flex-1 bg-neutral-950">
-                  {item.thumbnailPath ? (
-                    <img
-                      src={`media:///${item.thumbnailPath.replace(/\\/g, "/")}`}
-                      alt={item.name}
-                      className="pointer-events-none absolute inset-0 h-full w-full object-contain select-none"
-                    />
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center text-lg font-bold text-muted-foreground uppercase">
-                      {item.extension}
-                    </div>
-                  )}
-
-                  {/* Top-left: Best badge */}
-                  {isBest && (
-                    <div className="pointer-events-none absolute top-2 left-2 z-20">
-                      <Badge className="h-4 bg-primary/90 px-1.5 py-0 text-[0.6rem] font-bold tracking-wider text-primary-foreground uppercase hover:bg-primary">
-                        Best
-                      </Badge>
-                    </div>
-                  )}
-
-                  {/* Center play overlay for videos */}
-                  {item.mediaType === "video" && (
-                    <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
-                      <div
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          openPreview(item, true)
-                        }}
-                        className="pointer-events-auto flex h-12 w-12 cursor-pointer items-center justify-center rounded-full border border-white/20 bg-black/50 backdrop-blur-sm transition-transform hover:scale-110"
-                      >
-                        <Play className="ml-0.5 h-5 w-5 fill-white text-white" />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Top-right: Maximize */}
-                  <div className="absolute top-2 right-2 z-30">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 rounded-md border border-white/10 bg-black/40 text-white hover:bg-black/60"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            openPreview(item, false)
-                          }}
-                        >
-                          <Maximize className="h-3 w-3" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom">Preview</TooltipContent>
-                    </Tooltip>
-                  </div>
-
-                  {/* Bottom info gradient */}
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-linear-to-t from-black/75 via-black/20 to-transparent px-2.5 pt-6 pb-2 text-white">
-                    <p className="truncate text-[0.65rem] leading-none font-medium">
-                      {item.name}
-                    </p>
-                    <div className="mt-1 flex items-center justify-between text-[0.55rem] opacity-55">
-                      <span>{formatBytes(item.size)}</span>
-                      {item.width && item.height && (
-                        <span>
-                          {item.width} x {item.height}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Status bar */}
-                <div
-                  className={`flex h-7 shrink-0 items-center justify-center gap-1.5 border-t text-xs font-medium transition-colors ${
-                    isMarkedKeep
-                      ? "border-green-500/20 bg-green-500/10 text-green-600 dark:text-green-400"
-                      : isMarkedDelete
-                        ? "border-destructive/20 bg-destructive/10 text-destructive"
-                        : "border-border bg-muted/20 text-muted-foreground"
-                  }`}
-                >
-                  {isMarkedKeep ? (
-                    <>
-                      <Bookmark className="h-3 w-3 fill-current" /> Keep
-                    </>
-                  ) : isMarkedDelete ? (
-                    <>
-                      <Trash2 className="h-3 w-3" /> Delete
-                    </>
-                  ) : (
-                    <span className="opacity-60">Pending</span>
-                  )}
-                </div>
-              </div>
+                onPreview={(withAutoPlay) => openPreview(item, withAutoPlay)}
+              />
             )
           })}
         </div>
@@ -720,7 +689,7 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
                 <Undo2 />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="top">Undo</TooltipContent>
+            <TooltipContent side="top">Undo (Z)</TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -750,21 +719,38 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
 
         {/* Center: Smart Actions */}
         <div className="flex flex-1 items-center justify-center gap-2">
-          <Button variant="destructive" size="lg" onClick={handleDeleteAll}>
-            Delete All
-          </Button>
-          <Button variant="outline" size="lg" onClick={handleKeepAll}>
-            Keep All
-          </Button>
-          <Button
-            variant="default"
-            size="lg"
-            className="gap-1.5"
-            onClick={handleKeepBest}
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            Auto-Keep Best
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="destructive" size="lg" onClick={handleDeleteAll}>
+                Delete All
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Delete All (D)</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="lg" onClick={handleKeepAll}>
+                Keep All
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Keep All (K)</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="default"
+                size="lg"
+                className="gap-1.5"
+                onClick={handleKeepBest}
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                Auto-Keep Best
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Auto-Keep Best (B, Space, or Enter)</TooltipContent>
+          </Tooltip>
         </div>
 
         {/* Divider */}
@@ -784,7 +770,7 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
                 <ChevronLeft />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="top">Previous Group</TooltipContent>
+            <TooltipContent side="top">Previous Group (← or H)</TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -793,12 +779,16 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
                 size="icon-lg"
                 className="text-muted-foreground hover:text-foreground"
                 onClick={nextGroup}
-                disabled={activeGroupIndex >= duplicateGroups.length - 1}
+                disabled={activeGroupIndex >= duplicateGroups.length}
               >
                 <ChevronRight />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="top">Next Group</TooltipContent>
+            <TooltipContent side="top">
+              {activeGroupIndex === duplicateGroups.length - 1
+                ? "Finish & View Summary"
+                : "Next Group (→ or L)"}
+            </TooltipContent>
           </Tooltip>
         </div>
       </div>

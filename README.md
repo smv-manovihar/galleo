@@ -3,39 +3,41 @@
 A desktop app for cleaning up and organizing local photo and video libraries. Scan folders on your machine, surface low-quality and duplicate files, review them in a focused workflow, and sort media into date-based folder structures — all offline, with no cloud upload.
 
 ## Features
+### Smart library scanning & cache sync
 
-### Smart library scanning
+- **Multi-Root scans:** Scan one or more root folders with configurable depth, file-size limits, and glob exclude patterns (e.g. `node_modules`, `.git`).
+- **All Media View:** Browse, search, and audit media across all registered root folders simultaneously using the global catalog view.
+- **Concurrent scan engine:** Discover files via parallel `fs.stat` traversals and analyze up to 4 files concurrently (blur score, image parameters, metadata parsing).
+- **Fast incremental scanning:** Uses database caching verified against file size and modification times (`mtime`) to skip unchanged items on subsequent rescans.
+- **Deduplication and Pruning:** Automatically blocks redundant subfolders in Settings, and prunes media from the database if they were deleted from the disk since the last scan.
+- **Format support:** Standard photos (JPEG, PNG, GIF, WebP, HEIC, BMP, TIFF) and video files (MP4, MOV, AVI, MKV, WebM).
+- **Format upgrades:** Automatically detects legacy formats and updates thumbnail caches to the latest standards.
 
-- Scan one or more root folders with configurable depth, file-size limits, and glob exclude patterns (e.g. `node_modules`, `.git`).
-- Supports common photo formats (JPEG, PNG, GIF, WebP, HEIC, BMP, TIFF) and video formats (MP4, MOV, AVI, MKV, WebM).
-- Incremental scans with progress reporting; cancel an in-progress scan at any time.
-- Extracts EXIF metadata, generates thumbnails, and caches results in a local SQLite database.
+### Quality & duplicate analysis
 
-### Quality analysis
+Automatically flags low-value or clutter media:
 
-Automatically flags media that is likely clutter or low value:
-
-- **Blurry** — perceptual sharpness scoring via image analysis
-- **Dark** — average brightness below a configurable threshold
-- **Low resolution** — below a minimum pixel count or very small file size
-- **Screenshots** — filename heuristics (e.g. `screenshot`, `capture`, `ss_`)
-- **Duplicates** — perceptual hashing (blockhash) with Hamming-distance grouping; keeps the highest-quality copy per group
-
-Each file receives a composite quality score (0–100) used for sorting and review ordering.
+- **Blurry** — perceptual sharpness scoring via image analysis.
+- **Dark** — average brightness below a configurable threshold.
+- **Low resolution** — below minimum pixel bounds or very small files.
+- **Screenshots** — filename heuristics (e.g. `screenshot`, `capture`, `ss_`).
+- **Duplicates (Perceptual & Exact)** — groups media using blockhash and Hamming distance. Differentiates between *pure exact duplicates* (same name and size) and *similar media* (perceptual variations).
+- **Quality scoring:** Files receive a composite quality score (0–100) for sorting and prioritization.
 
 ### Browse and filter
 
-- Grid, list, and timeline views
-- Filter by media type, quality flags, and review state
-- Inline preview for photos and videos
-- Bulk keep/delete actions from the browse view
+- Grid, list, and timeline layout modes.
+- Filter catalog by media type (photo/video), quality tags (blurry, dark, etc.), and review state (pending, kept, trash).
+- Inline preview for images and video players.
+- Bulk keep/delete actions directly from the browse workspace.
 
-### Review workflow
+### Media Culling & Duplicate Audit
 
-- **Swipe mode** — sequential card-by-card review (keep / delete / skip)
-- **Batch mode** — table-style review for duplicates and flagged items
-- **Summary** — session overview after review
-- Checkpoints persist progress per folder; review order is configurable (worst-first, oldest-first, newest-first, random)
+- **Media Culling:** Focused culling workspace with Swipe mode (sequential card reviews) or progress-controlled lists.
+- **Duplicate Audit & Cards:** Side-by-side duplicate group cards for side-by-side comparison, metadata inspection, and card stack review navigation.
+- **Automated Auto-Cleanup:** Automatically resolves exact duplicates (retaining the highest-quality file while trashing copies) with safety confirmation dialogs and a virtualized history browser to review past decisions.
+- **Scoped & Batch Undo:** Revert decisions selectively based on page source (e.g. undo culling only). Automated cleanup runs are undone transactionally as a single batch.
+- **Checkpoints:** Automatically saves session progress per folder, with worst-first, oldest-first, newest-first, and random review ordering.
 
 ### Date-based organization
 
@@ -44,17 +46,26 @@ Each file receives a composite quality score (0–100) used for sorting and revi
 - Configurable conflict resolution (rename, skip, overwrite) and copy-vs-move behavior
 - Destination can be a custom folder or in-place reorganization
 
+### Interactive Context-Aware Help
+
+- Contextual tips and keyboard shortcut guides are accessible from the top bar for every view (Dashboard, Browse, Culling, Audit, Organize, Settings).
+
+### Automatic Update Checker
+
+- Automatically checks for updates against GitHub releases on startup.
+- Displays sidebar update badges/banners and lets you download platform-matched installers (EXE, DMG, AppImage, etc.) or view markdown-rendered release notes inside Settings.
+
 ### Safety and privacy
 
-- All processing runs locally — no network calls for media analysis
-- Deletes can go to the system Recycle Bin, an app-managed trash folder, or permanent deletion (configurable)
-- Optional confirmation before destructive actions
+- All processing runs locally — no cloud or network calls for media files.
+- Deletions are sent to the system Recycle Bin/Trash, an app-managed trash directory, or deleted permanently (configurable).
+- Optional confirmation dialogs for all destructive changes.
 
 ### Settings and onboarding
 
-- First-run setup wizard to pick an initial scan folder
-- Settings for folders, scan rules, defect sensitivity, theme, and UI preferences
-- Reset option to clear app data and start fresh
+- First-run setup wizard to pick an initial scan folder.
+- Settings for folders, scan rules, defect sensitivity, theme, and UI preferences.
+- Reset option to clear app data and start fresh.
 
 ## Tech stack
 
@@ -175,12 +186,11 @@ pnpm test
 
 ## Roadmap ideas
 
-This is early-stage software (`v0.0.1`). Planned direction:
+This is early-stage software (`v0.1.2`). Planned direction:
 
-- **AI agent** — An all-in-one assistant with powerful tools that can carry out complex media-library tasks on your behalf (batch cleanup, organization, tagging, and multi-step workflows from natural-language instructions).
-- **Semantic search** — Vector indexing over photos and videos so you can find media by meaning, scene, or description — not just filename and folder path.
-- **Richer metadata indexing** — Deeper EXIF extraction, including more reliable date resolution and GPS/location parsing from image metadata, with geocoding and map-based browsing.
-- **Cross-platform packaging** — macOS and Linux installers alongside the current Windows NSIS build.
-- **Stronger video analysis** — Quality scoring and duplicate detection tuned for video, not only still images.
-- **Review exports** — Summaries and reports of keep/delete decisions for audit or backup workflows.
-
+- **AI assistant integration** — An embedded automation agent with tools to execute complex media library operations from natural language requests.
+- **Semantic search** — Local vector embedding index to search photos and videos using natural text descriptions.
+- **Object detection** — Object tag extraction to categorize media contents (e.g. food, beaches, documents).
+- **Local face grouping** — Face detection and clustering to identify and filter media by specific people.
+- **Geo-location map** — Interactive map interface grouping media by location using GPS metadata coordinates.
+- **Dedicated video quality scoring** — Frame-by-frame analysis to detect video corruption, audio static, or compression defects.

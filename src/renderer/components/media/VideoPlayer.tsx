@@ -26,7 +26,11 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip"
-import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card"
+import {
+  HoverCard,
+  HoverCardTrigger,
+  HoverCardContent,
+} from "@/components/ui/hover-card"
 
 interface VideoPlayerProps {
   src: string
@@ -115,7 +119,8 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
     }, [aspectRatio, isRotated90])
 
     const containerStyle = useMemo<React.CSSProperties>(() => {
-      if (isFullscreen || fillContainer) return { width: "100%", height: "100%" }
+      if (isFullscreen || fillContainer)
+        return { width: "100%", height: "100%" }
       if (!effectiveAspect) return { width: "100%" }
 
       if (effectiveAspect < 1) {
@@ -205,13 +210,16 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       if (!autoPlay || !videoRef.current) return
       const video = videoRef.current
       const play = () => {
-        video.play().then(() => setIsPlaying(true)).catch(() => {})
+        video
+          .play()
+          .then(() => setIsPlaying(true))
+          .catch(() => {})
       }
       if (video.readyState >= 3) {
         play()
       } else {
-        video.addEventListener('canplay', play, { once: true })
-        return () => video.removeEventListener('canplay', play)
+        video.addEventListener("canplay", play, { once: true })
+        return () => video.removeEventListener("canplay", play)
       }
     }, [src, autoPlay])
 
@@ -329,7 +337,8 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
 
     useEffect(() => {
       const handleFullscreenChange = () => {
-        const isCurrentlyFullscreen = document.fullscreenElement === containerRef.current
+        const isCurrentlyFullscreen =
+          document.fullscreenElement === containerRef.current
         setInternalFullscreen(isCurrentlyFullscreen)
       }
 
@@ -605,11 +614,11 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
                           )}
                         </Button>
                       </HoverCardTrigger>
-                      <HoverCardContent 
-                        side="top" 
+                      <HoverCardContent
+                        side="top"
                         align="center"
                         sideOffset={8}
-                        className="w-10 h-28 flex items-center justify-center p-2 bg-black/90 border border-white/10 text-white rounded-lg shadow-lg ring-0"
+                        className="flex h-28 w-10 items-center justify-center rounded-lg border border-white/10 bg-black/90 p-2 text-white shadow-lg ring-0"
                       >
                         <Slider
                           min={0}
@@ -643,7 +652,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
                           {isMuted || volume === 0 ? "Unmute" : "Mute"}
                         </TooltipContent>
                       </Tooltip>
-                      <div className="hidden w-20 sm:block ml-1">
+                      <div className="ml-1 hidden w-20 sm:block">
                         <Slider
                           min={0}
                           max={1}

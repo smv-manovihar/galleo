@@ -1,7 +1,7 @@
-import { AppShell } from './renderer/components/layout/AppShell';
+import { AppShell } from "./renderer/components/layout/AppShell"
 
 export function App() {
-  return <AppShell />;
+  return <AppShell />
 }
 
-export default App;
+export default App

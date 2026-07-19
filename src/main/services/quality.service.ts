@@ -1,13 +1,13 @@
-import { analyzeImage } from '../infrastructure/image-processor';
-import { evaluateQuality } from '../core/quality-scoring';
-import { type Result, fail, ok } from '../../shared/types/results';
-import type { QualityMetrics } from '../../shared/types/media';
+import { analyzeImage } from "../infrastructure/image-processor"
+import { evaluateQuality } from "../core/quality-scoring"
+import { type Result, fail, ok } from "../../shared/types/results"
+import type { QualityMetrics } from "../../shared/types/media"
 
 interface QualityThresholds {
-  blurThreshold: number;
-  darknessThreshold: number;
-  screenshotDetection: boolean;
-  minResolution: number;
+  blurThreshold: number
+  darknessThreshold: number
+  screenshotDetection: boolean
+  minResolution: number
 }
 
 export class QualityService {
@@ -16,7 +16,7 @@ export class QualityService {
    */
   public async analyzeItem(
     filePath: string,
-    mediaType: 'photo' | 'video',
+    mediaType: "photo" | "video",
     size: number,
     filename: string,
     width: number | undefined,
@@ -24,24 +24,27 @@ export class QualityService {
     thresholds: QualityThresholds
   ): Promise<Result<{ quality: QualityMetrics; hash?: string }>> {
     try {
-      if (mediaType === 'photo') {
-        const analysisRes = await analyzeImage(filePath);
+      if (mediaType === "photo") {
+        const analysisRes = await analyzeImage(filePath)
         if (analysisRes.ok === false) {
-          return fail(analysisRes.error);
+          return fail(analysisRes.error)
         }
-        
-        const { blurScore, brightness, hash } = analysisRes.data;
+
+        const { blurScore, brightness, peakBrightness, contrast, hash } =
+          analysisRes.data
         const quality = evaluateQuality({
           blurScore,
           brightness,
+          peakBrightness,
+          contrast,
           width,
           height,
           size,
           filename,
-          thresholds
-        });
-        
-        return ok({ quality, hash });
+          thresholds,
+        })
+
+        return ok({ quality, hash })
       } else {
         // Video Quality fallback: Videos aren't checked for blur/brightness by default
         // but we analyze screenshots and dimensions.
@@ -54,17 +57,17 @@ export class QualityService {
           filename,
           thresholds: {
             ...thresholds,
-            screenshotDetection: false // screenshots are only photos
-          }
-        });
-        
-        return ok({ quality });
+            screenshotDetection: false, // screenshots are only photos
+          },
+        })
+
+        return ok({ quality })
       }
     } catch (e: any) {
       return fail({
-        code: 'UNKNOWN',
-        message: e.message || 'Quality service item analysis failed'
-      });
+        code: "UNKNOWN",
+        message: e.message || "Quality service item analysis failed",
+      })
     }
   }
 }

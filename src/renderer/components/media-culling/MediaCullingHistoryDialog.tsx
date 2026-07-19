@@ -10,7 +10,11 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Bookmark, Trash2, History, X } from "lucide-react"
-import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { cn } from "@/lib/utils"
 
@@ -23,115 +27,123 @@ export interface MediaCullingHistoryDialogItem {
   currentDecision: "keep" | "delete" | "skipped" | "pending"
 }
 
-const HistoryRow = React.memo(({
-  item,
-  isChecked,
-  isKeep,
-  isDelete,
-  onSingleAction,
-  toggleSelect,
-  translateY,
-  measureRef,
-}: {
-  item: MediaCullingHistoryDialogItem
-  isChecked: boolean
-  isKeep: boolean
-  isDelete: boolean
-  onSingleAction: (mediaId: string, action: "keep" | "delete") => Promise<void>
-  toggleSelect: (id: string) => void
-  translateY: number
-  measureRef: (el: HTMLElement | null) => void
-}) => {
-  const rowStyle = React.useMemo(() => ({
-    gridTemplateColumns: "40px 56px 1fr 96px 80px",
-    height: "56px",
-    transform: `translateY(${translateY}px)`,
-  }), [translateY])
+const HistoryRow = React.memo(
+  ({
+    item,
+    isChecked,
+    isKeep,
+    isDelete,
+    onSingleAction,
+    toggleSelect,
+    translateY,
+    measureRef,
+  }: {
+    item: MediaCullingHistoryDialogItem
+    isChecked: boolean
+    isKeep: boolean
+    isDelete: boolean
+    onSingleAction: (
+      mediaId: string,
+      action: "keep" | "delete"
+    ) => Promise<void>
+    toggleSelect: (id: string) => void
+    translateY: number
+    measureRef: (el: HTMLElement | null) => void
+  }) => {
+    const rowStyle = React.useMemo(
+      () => ({
+        gridTemplateColumns: "40px 56px 1fr 96px 80px",
+        height: "56px",
+        transform: `translateY(${translateY}px)`,
+      }),
+      [translateY]
+    )
 
-  return (
-    <div
-      ref={measureRef}
-      className={cn(
-        "absolute top-0 left-0 w-full grid items-center hover:bg-muted/20 transition-colors border-b border-border/50 text-[0.6875rem]",
-        isChecked ? "bg-accent/25" : ""
-      )}
-      style={rowStyle}
-    >
-      <div className="p-3 flex items-center justify-start">
-        <Checkbox
-          checked={isChecked}
-          onCheckedChange={() => toggleSelect(item.id)}
-          aria-label={`Select ${item.name}`}
-        />
-      </div>
-      <div className="p-3 flex items-center">
-        <div className="h-10 w-10 rounded-lg overflow-hidden border border-border bg-muted/40 shrink-0">
-          <img
-            src={`media:///${(item.thumbnailPath || item.path).replace(/\\/g, "/")}`}
-            alt={item.name}
-            className="h-full w-full object-cover pointer-events-none select-none"
-            loading="lazy"
-            onError={(e) => {
-              e.currentTarget.style.display = 'none'
-            }}
+    return (
+      <div
+        ref={measureRef}
+        className={cn(
+          "absolute top-0 left-0 grid w-full items-center border-b border-border/50 text-[0.6875rem] transition-colors hover:bg-muted/20",
+          isChecked ? "bg-accent/25" : ""
+        )}
+        style={rowStyle}
+      >
+        <div className="flex items-center justify-start p-3">
+          <Checkbox
+            checked={isChecked}
+            onCheckedChange={() => toggleSelect(item.id)}
+            aria-label={`Select ${item.name}`}
           />
         </div>
-      </div>
-      <div className="p-3 font-medium truncate" title={item.name}>
-        {item.name}
-      </div>
-      <div className="p-3">
-        <Badge
-          variant="outline"
-          className={cn(
-            "text-[0.5625rem] px-2 py-0.5 uppercase tracking-wider",
-            isKeep
-              ? "bg-green-500/10 border-green-500/20 text-green-600 dark:text-green-400"
-              : isDelete
-                ? "bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400"
-                : "bg-muted border-border text-muted-foreground"
-          )}
-        >
-          {item.currentDecision}
-        </Badge>
-      </div>
-      <div className="p-3 text-right">
-        <div className="flex items-center justify-end gap-1.5">
-          {!isKeep && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 rounded-full text-green-600 hover:bg-green-500/10 dark:text-green-400"
-                  onClick={() => onSingleAction(item.mediaId, "keep")}
-                >
-                  <Bookmark className="h-3.5 w-3.5 fill-current" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="top">Change to Keep</TooltipContent>
-            </Tooltip>
-          )}
-          {!isDelete && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 rounded-full text-red-600 hover:bg-red-500/10 dark:text-red-400"
-                  onClick={() => onSingleAction(item.mediaId, "delete")}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="top">Change to Delete</TooltipContent>
-            </Tooltip>
-          )}
+        <div className="flex items-center p-3">
+          <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-border bg-muted/40">
+            <img
+              src={`media:///${(item.thumbnailPath || item.path).replace(/\\/g, "/")}`}
+              alt={item.name}
+              className="pointer-events-none h-full w-full object-cover select-none"
+              loading="lazy"
+              onError={(e) => {
+                e.currentTarget.style.display = "none"
+              }}
+            />
+          </div>
+        </div>
+        <div className="truncate p-3 font-medium" title={item.name}>
+          {item.name}
+        </div>
+        <div className="p-3">
+          <Badge
+            variant="outline"
+            className={cn(
+              "px-2 py-0.5 text-[0.5625rem] tracking-wider uppercase",
+              isKeep
+                ? "border-green-500/20 bg-green-500/10 text-green-600 dark:text-green-400"
+                : isDelete
+                  ? "border-red-500/20 bg-red-500/10 text-red-600 dark:text-red-400"
+                  : "border-border bg-muted text-muted-foreground"
+            )}
+          >
+            {item.currentDecision}
+          </Badge>
+        </div>
+        <div className="p-3 text-right">
+          <div className="flex items-center justify-end gap-1.5">
+            {!isKeep && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 rounded-full text-green-600 hover:bg-green-500/10 dark:text-green-400"
+                    onClick={() => onSingleAction(item.mediaId, "keep")}
+                  >
+                    <Bookmark className="h-3.5 w-3.5 fill-current" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">Change to Keep</TooltipContent>
+              </Tooltip>
+            )}
+            {!isDelete && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 rounded-full text-red-600 hover:bg-red-500/10 dark:text-red-400"
+                    onClick={() => onSingleAction(item.mediaId, "delete")}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">Change to Delete</TooltipContent>
+              </Tooltip>
+            )}
+          </div>
         </div>
       </div>
-    </div>
-  )
-})
+    )
+  }
+)
 
 interface MediaCullingHistoryDialogProps {
   isOpen: boolean
@@ -141,15 +153,12 @@ interface MediaCullingHistoryDialogProps {
   onSingleAction: (mediaId: string, action: "keep" | "delete") => Promise<void>
 }
 
-export const MediaCullingHistoryDialog: React.FC<MediaCullingHistoryDialogProps> = ({
-  isOpen,
-  onOpenChange,
-  items,
-  onBulkAction,
-  onSingleAction,
-}) => {
+export const MediaCullingHistoryDialog: React.FC<
+  MediaCullingHistoryDialogProps
+> = ({ isOpen, onOpenChange, items, onBulkAction, onSingleAction }) => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [scrollElement, setScrollElementState] = useState<HTMLDivElement | null>(null)
+  const [scrollElement, setScrollElementState] =
+    useState<HTMLDivElement | null>(null)
 
   const setScrollElement = useCallback((node: HTMLDivElement | null) => {
     setScrollElementState(node)
@@ -204,30 +213,36 @@ export const MediaCullingHistoryDialog: React.FC<MediaCullingHistoryDialogProps>
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent width="2xl" height="lg" className="flex flex-col p-6 gap-4 outline-none">
-        <DialogHeader className="shrink-0 border-b border-border pb-4 flex flex-row items-center justify-between">
+      <DialogContent
+        width="2xl"
+        height="lg"
+        className="flex flex-col gap-4 p-6 outline-none"
+      >
+        <DialogHeader className="flex shrink-0 flex-row items-center justify-between border-b border-border pb-4">
           <div className="space-y-1">
             <DialogTitle className="flex items-center gap-2 text-sm font-bold text-foreground">
               <History className="h-4.5 w-4.5 text-primary" />
               Decision History
             </DialogTitle>
             <DialogDescription className="text-[0.6875rem] text-muted-foreground">
-              Review your decisions in this session. Select multiple items to apply bulk actions.
+              Review your decisions in this session. Select multiple items to
+              apply bulk actions.
             </DialogDescription>
           </div>
         </DialogHeader>
 
         {/* Bulk operations bar */}
         {selectedIds.size > 0 && (
-          <div className="shrink-0 flex items-center justify-between bg-accent/40 border border-border p-3 rounded-lg transition-all duration-200 gap-3">
-            <span className="text-[0.6875rem] font-medium text-foreground px-1">
-              {selectedIds.size} {selectedIds.size === 1 ? "item" : "items"} selected
+          <div className="flex shrink-0 items-center justify-between gap-3 rounded-lg border border-border bg-accent/40 p-3 transition-all duration-200">
+            <span className="px-1 text-[0.6875rem] font-medium text-foreground">
+              {selectedIds.size} {selectedIds.size === 1 ? "item" : "items"}{" "}
+              selected
             </span>
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 gap-1.5 border-green-500/20 bg-green-500/5 text-green-600 dark:text-green-400 hover:bg-green-500/10 text-2xs font-medium"
+                className="h-8 gap-1.5 border-green-500/20 bg-green-500/5 text-2xs font-medium text-green-600 hover:bg-green-500/10 dark:text-green-400"
                 onClick={() => handleBulkApply("keep")}
               >
                 <Bookmark className="h-3.5 w-3.5" />
@@ -236,7 +251,7 @@ export const MediaCullingHistoryDialog: React.FC<MediaCullingHistoryDialogProps>
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 gap-1.5 border-red-500/20 bg-red-500/5 text-red-600 dark:text-red-400 hover:bg-red-500/10 text-2xs font-medium"
+                className="h-8 gap-1.5 border-red-500/20 bg-red-500/5 text-2xs font-medium text-red-600 hover:bg-red-500/10 dark:text-red-400"
                 onClick={() => handleBulkApply("delete")}
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -248,7 +263,7 @@ export const MediaCullingHistoryDialog: React.FC<MediaCullingHistoryDialogProps>
                 className="h-8 px-2 text-2xs text-muted-foreground hover:text-foreground"
                 onClick={() => setSelectedIds(new Set())}
               >
-                <X className="h-3.5 w-3.5 mr-1" />
+                <X className="mr-1 h-3.5 w-3.5" />
                 Clear Selection
               </Button>
             </div>
@@ -256,9 +271,9 @@ export const MediaCullingHistoryDialog: React.FC<MediaCullingHistoryDialogProps>
         )}
 
         {/* Content list */}
-        <div className="flex-1 min-h-0 flex flex-col rounded-lg border border-border bg-card/20">
+        <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-border bg-card/20">
           {items.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full py-12 text-muted-foreground text-xs gap-2 select-none">
+            <div className="flex h-full flex-col items-center justify-center gap-2 py-12 text-xs text-muted-foreground select-none">
               <History className="h-8 w-8 text-muted-foreground opacity-30" />
               <span>No decisions made in this session yet.</span>
             </div>
@@ -266,10 +281,10 @@ export const MediaCullingHistoryDialog: React.FC<MediaCullingHistoryDialogProps>
             <>
               {/* Header */}
               <div
-                className="bg-muted border-b border-border grid items-center text-[0.6875rem] font-semibold text-muted-foreground shrink-0 pr-[8px]"
+                className="grid shrink-0 items-center border-b border-border bg-muted pr-[8px] text-[0.6875rem] font-semibold text-muted-foreground"
                 style={{ gridTemplateColumns: "40px 56px 1fr 96px 80px" }}
               >
-                <div className="p-3 flex items-center justify-start">
+                <div className="flex items-center justify-start p-3">
                   <Checkbox
                     checked={isAllSelected}
                     onCheckedChange={toggleSelectAll}
@@ -285,10 +300,10 @@ export const MediaCullingHistoryDialog: React.FC<MediaCullingHistoryDialogProps>
               {/* Scroll Container */}
               <div
                 ref={setScrollElement}
-                className="flex-1 min-h-0 overflow-y-auto scrollbar-thin relative"
+                className="relative min-h-0 flex-1 scrollbar-thin overflow-y-auto"
               >
                 <div
-                  className="w-full relative"
+                  className="relative w-full"
                   style={{
                     height: `${rowVirtualizer.getTotalSize()}px`,
                   }}

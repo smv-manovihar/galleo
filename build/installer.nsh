@@ -1,7 +1,6 @@
 # 1. Force the installer to display the Component/Checkbox selection page
 !macro customHeader
   !define NTDDI_VERSION 0x06010000 ; Target Windows 7+
-  ShowInstDetails show
   ShowUninstDetails show
 
   # Declare custom sections at the top-level (so they are registered as components)

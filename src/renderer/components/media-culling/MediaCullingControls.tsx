@@ -3,8 +3,15 @@ import type { MediaItem } from "../../../shared/types/media"
 import type { UndoableAction } from "../../../shared/types/session"
 import { Button } from "@/components/ui/button"
 import { Undo2, History, Bookmark, Trash2 } from "lucide-react"
-import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
-import { MediaCullingHistoryDialog, type MediaCullingHistoryDialogItem } from "./MediaCullingHistoryDialog"
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip"
+import {
+  MediaCullingHistoryDialog,
+  type MediaCullingHistoryDialogItem,
+} from "./MediaCullingHistoryDialog"
 
 interface MediaCullingControlsProps {
   undoStack: UndoableAction[]
@@ -12,7 +19,10 @@ interface MediaCullingControlsProps {
   onUndo: () => void
   onDelete: () => void
   onKeep: () => void
-  onBulkChangeDecisions: (mediaIds: string[], decision: "keep" | "delete") => Promise<void>
+  onBulkChangeDecisions: (
+    mediaIds: string[],
+    decision: "keep" | "delete"
+  ) => Promise<void>
 }
 
 export const MediaCullingControls: React.FC<MediaCullingControlsProps> = ({
@@ -35,12 +45,16 @@ export const MediaCullingControls: React.FC<MediaCullingControlsProps> = ({
         name: item?.name ?? action.mediaId,
         thumbnailPath: item?.thumbnailPath,
         path: item?.path ?? "",
-        currentDecision: (action.type === "mark-keep" ? "keep" : "delete") as "keep" | "delete"
+        currentDecision: (action.type === "mark-keep" ? "keep" : "delete") as
+          "keep" | "delete",
       }
     })
   }, [undoStack, allItems])
 
-  const handleSingleAction = async (mediaId: string, action: "keep" | "delete") => {
+  const handleSingleAction = async (
+    mediaId: string,
+    action: "keep" | "delete"
+  ) => {
     await onBulkChangeDecisions([mediaId], action)
   }
 
@@ -62,9 +76,7 @@ export const MediaCullingControls: React.FC<MediaCullingControlsProps> = ({
                 <Undo2 className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="top">
-              Undo last action (Ctrl+Z)
-            </TooltipContent>
+            <TooltipContent side="top">Undo (↓ or Ctrl+Z)</TooltipContent>
           </Tooltip>
         </div>
 
@@ -100,45 +112,45 @@ export const MediaCullingControls: React.FC<MediaCullingControlsProps> = ({
             <TooltipTrigger asChild>
               <Button
                 variant="outline"
-                className="flex h-16 w-16 cursor-pointer items-center justify-center rounded-full border border-red-500/20 dark:border-red-500/30 bg-red-500/10 dark:bg-red-950/30 text-red-600 dark:text-red-400 shadow-md hover:bg-red-500/20 dark:hover:bg-red-900/45 transition-colors duration-200"
+                className="flex h-16 w-16 cursor-pointer items-center justify-center rounded-full border border-red-500/20 bg-red-500/10 text-red-600 shadow-md transition-colors duration-200 hover:bg-red-500/20 dark:border-red-500/30 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-900/45"
                 onClick={onDelete}
               >
                 <Trash2 className="h-6 w-6 fill-current" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="top">Delete (D or Left Arrow)</TooltipContent>
+            <TooltipContent side="top">Delete (← or D)</TooltipContent>
           </Tooltip>
 
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 variant="outline"
-                className="flex h-16 w-16 cursor-pointer items-center justify-center rounded-full border border-green-500/20 dark:border-green-500/30 bg-green-500/10 dark:bg-green-950/30 text-green-600 dark:text-green-400 shadow-md hover:bg-green-500/20 dark:hover:bg-green-900/45 transition-colors duration-200"
+                className="flex h-16 w-16 cursor-pointer items-center justify-center rounded-full border border-green-500/20 bg-green-500/10 text-green-600 shadow-md transition-colors duration-200 hover:bg-green-500/20 dark:border-green-500/30 dark:bg-green-950/30 dark:text-green-400 dark:hover:bg-green-900/45"
                 onClick={onKeep}
               >
                 <Bookmark className="h-6 w-6 fill-current" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="top">Keep (K or Right Arrow)</TooltipContent>
+            <TooltipContent side="top">Keep (→ or K)</TooltipContent>
           </Tooltip>
         </div>
       </div>
 
-      {/* Keyboard shortcuts hint */}
+      {/* Keyboard shortcuts & interaction hint */}
       <p className="shrink-0 text-center text-2xs text-muted-foreground">
-        Shortcuts:{" "}
-        <kbd className="rounded border border-border bg-muted px-1.5 py-0.5">
-          D
+        Swipe or use{" "}
+        <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono font-bold">
+          ←
         </kbd>{" "}
-        delete,{" "}
-        <kbd className="rounded border border-border bg-muted px-1.5 py-0.5">
-          K
+        Delete,{" "}
+        <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono font-bold">
+          →
         </kbd>{" "}
-        keep,{" "}
-        <kbd className="rounded border border-border bg-muted px-1.5 py-0.5">
-          Ctrl+Z
+        Keep,{" "}
+        <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono font-bold">
+          ↓
         </kbd>{" "}
-        undo
+        Undo
       </p>
     </>
   )

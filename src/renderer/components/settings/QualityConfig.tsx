@@ -1,54 +1,71 @@
-import React, { useState } from 'react';
-import { useSettingsStore } from '../../stores/settings-store';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Slider } from '@/components/ui/slider';
-import { Label } from '@/components/ui/label';
+import React, { useState } from "react"
+import { useSettingsStore } from "../../stores/settings-store"
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/card"
+import { Slider } from "@/components/ui/slider"
+import { Label } from "@/components/ui/label"
+import { toast } from "sonner"
 
 export const QualityConfig: React.FC = () => {
-  const { settings, saveSettings } = useSettingsStore();
+  const { settings, saveSettings } = useSettingsStore()
 
-  const [blurVal, setBlurVal] = useState(settings.quality.blurThreshold);
-  const [darkVal, setDarkVal] = useState(settings.quality.darknessThreshold);
+  const [blurVal, setBlurVal] = useState(settings.quality.blurThreshold)
+  const [darkVal, setDarkVal] = useState(settings.quality.darknessThreshold)
 
   const handleBlurCommit = async (val: number[]) => {
-    const newVal = val[0];
-    setBlurVal(newVal);
+    const newVal = val[0]
+    setBlurVal(newVal)
     await saveSettings({
       ...settings,
       quality: {
         ...settings.quality,
-        blurThreshold: newVal
-      }
-    });
-  };
+        blurThreshold: newVal,
+      },
+    })
+    toast.success("Quality thresholds updated successfully", {
+      description: `Blurry sensitivity set to ${newVal}.`,
+    })
+  }
 
   const handleDarkCommit = async (val: number[]) => {
-    const newVal = val[0];
-    setDarkVal(newVal);
+    const newVal = val[0]
+    setDarkVal(newVal)
     await saveSettings({
       ...settings,
       quality: {
         ...settings.quality,
-        darknessThreshold: newVal
-      }
-    });
-  };
+        darknessThreshold: newVal,
+      },
+    })
+    toast.success("Quality thresholds updated successfully", {
+      description: `Darkness exposure set to ${newVal}.`,
+    })
+  }
 
   return (
     <div className="space-y-6 font-sans text-xs select-none">
       <Card className="border-border bg-card/45">
-        <CardHeader className="pb-3 border-b border-border">
-          <CardTitle className="text-sm font-semibold text-foreground">Defect Thresholds</CardTitle>
-          <CardDescription className="text-xs mt-0.5 text-muted-foreground">
+        <CardHeader className="border-b border-border pb-3">
+          <CardTitle className="text-sm font-semibold text-foreground">
+            Defect Thresholds
+          </CardTitle>
+          <CardDescription className="mt-0.5 text-xs text-muted-foreground">
             Adjust sensitivity variables for quality flags.
           </CardDescription>
         </CardHeader>
-        <CardContent className="p-6 space-y-6">
+        <CardContent className="space-y-6 p-4">
           {/* Blur Score Slider */}
           <div className="space-y-2">
-            <div className="flex justify-between font-semibold text-xs uppercase text-muted-foreground">
-              <Label>Blurry Threshold</Label>
-              <span>{blurVal} (below = blurry)</span>
+            <div className="flex flex-col justify-between gap-1 text-xs font-semibold text-muted-foreground sm:flex-row sm:items-center">
+              <Label className="uppercase">Blurry Threshold</Label>
+              <span className="font-mono text-primary">
+                {blurVal} (below = blurry)
+              </span>
             </div>
             <Slider
               value={[blurVal]}
@@ -57,18 +74,20 @@ export const QualityConfig: React.FC = () => {
               min={10}
               max={80}
               step={1}
-              className="py-4"
+              className="py-3 sm:py-4"
             />
-            <p className="text-xs text-muted-foreground mt-1 leading-normal">
-              Higher value makes the blur detector more sensitive, flagging more photos as blurry.
+            <p className="text-xs leading-normal text-muted-foreground">
+              Higher values increase blur detection sensitivity.
             </p>
           </div>
 
           {/* Exposure Darkness Slider */}
           <div className="space-y-2">
-            <div className="flex justify-between font-semibold text-xs uppercase text-muted-foreground">
-              <Label>Darkness Threshold</Label>
-              <span>{darkVal} (0-255, below = dark)</span>
+            <div className="flex flex-col justify-between gap-1 text-xs font-semibold text-muted-foreground sm:flex-row sm:items-center">
+              <Label className="uppercase">Darkness Threshold</Label>
+              <span className="font-mono text-primary">
+                {darkVal} (0-255, below = dark)
+              </span>
             </div>
             <Slider
               value={[darkVal]}
@@ -77,14 +96,14 @@ export const QualityConfig: React.FC = () => {
               min={10}
               max={100}
               step={1}
-              className="py-4"
+              className="py-3 sm:py-4"
             />
-            <p className="text-xs text-muted-foreground mt-1 leading-normal">
-              Higher value flags more underexposed/dark photos as low quality.
+            <p className="text-xs leading-normal text-muted-foreground">
+              Higher values flag more underexposed photos as dark.
             </p>
           </div>
         </CardContent>
       </Card>
     </div>
-  );
-};
+  )
+}

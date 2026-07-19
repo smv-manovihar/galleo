@@ -1,9 +1,10 @@
-import { app } from 'electron';
+import { app } from "electron"
 
-import { type Result, ok, fail } from '../../shared/types/results';
-import type { UpdateCheckResult } from '../../shared/types/ipc';
+import { type Result, ok, fail } from "../../shared/types/results"
+import type { UpdateCheckResult } from "../../shared/types/ipc"
 
-const GITHUB_RELEASES_URL = 'https://api.github.com/repos/smv-manovihar/galleo/releases/latest';
+const GITHUB_RELEASES_URL =
+  "https://api.github.com/repos/smv-manovihar/galleo/releases/latest"
 
 export class UpdateService {
   /**
@@ -13,13 +14,13 @@ export class UpdateService {
    */
   public async checkForUpdates(): Promise<Result<UpdateCheckResult>> {
     try {
-      const currentVersion = app.getVersion();
+      const currentVersion = app.getVersion()
       const response = await fetch(GITHUB_RELEASES_URL, {
         headers: {
-          'User-Agent': 'galleo-update-checker',
-          'Accept': 'application/vnd.github.v3+json'
-        }
-      });
+          "User-Agent": "galleo-update-checker",
+          Accept: "application/vnd.github.v3+json",
+        },
+      })
 
       if (!response.ok) {
         if (response.status === 404) {
@@ -28,35 +29,35 @@ export class UpdateService {
             updateAvailable: false,
             currentVersion,
             latestVersion: currentVersion,
-            releaseUrl: 'https://github.com/smv-manovihar/galleo/releases',
-            downloadUrl: 'https://github.com/smv-manovihar/galleo/releases',
-          });
+            releaseUrl: "https://github.com/smv-manovihar/galleo/releases",
+            downloadUrl: "https://github.com/smv-manovihar/galleo/releases",
+          })
         }
         return fail({
-          code: 'UNKNOWN',
-          message: `Failed to fetch updates: ${response.statusText}`
-        });
+          code: "UNKNOWN",
+          message: `Failed to fetch updates: ${response.statusText}`,
+        })
       }
 
-      const releaseInfo = (await response.json()) as any;
-      const latestVersion = releaseInfo.tag_name?.replace(/^v/, '') || '';
-      
+      const releaseInfo = (await response.json()) as any
+      const latestVersion = releaseInfo.tag_name?.replace(/^v/, "") || ""
+
       if (!latestVersion) {
         return fail({
-          code: 'UNKNOWN',
-          message: 'GitHub response is missing tag_name'
-        });
+          code: "UNKNOWN",
+          message: "GitHub response is missing tag_name",
+        })
       }
 
-      const updateAvailable = this.isVersionNewer(currentVersion, latestVersion);
-      
-      const platform = process.platform;
-      let downloadUrl = releaseInfo.html_url;
+      const updateAvailable = this.isVersionNewer(currentVersion, latestVersion)
+
+      const platform = process.platform
+      let downloadUrl = releaseInfo.html_url
 
       if (releaseInfo.assets && Array.isArray(releaseInfo.assets)) {
-        const asset = this.findMatchingAsset(releaseInfo.assets, platform);
+        const asset = this.findMatchingAsset(releaseInfo.assets, platform)
         if (asset) {
-          downloadUrl = asset.browser_download_url;
+          downloadUrl = asset.browser_download_url
         }
       }
 
@@ -68,12 +69,12 @@ export class UpdateService {
         downloadUrl,
         releaseNotes: releaseInfo.body || undefined,
         releaseDate: releaseInfo.published_at || undefined,
-      });
+      })
     } catch (e: any) {
       return fail({
-        code: 'UNKNOWN',
-        message: e.message || 'Check for updates failed'
-      });
+        code: "UNKNOWN",
+        message: e.message || "Check for updates failed",
+      })
     }
   }
 
@@ -85,17 +86,17 @@ export class UpdateService {
    * @returns {boolean} True if latest is newer than current, false otherwise.
    */
   private isVersionNewer(current: string, latest: string): boolean {
-    const parse = (v: string) => v.replace(/^v/, '').split('.').map(Number);
-    const [cMajor = 0, cMinor = 0, cPatch = 0] = parse(current);
-    const [lMajor = 0, lMinor = 0, lPatch = 0] = parse(latest);
+    const parse = (v: string) => v.replace(/^v/, "").split(".").map(Number)
+    const [cMajor = 0, cMinor = 0, cPatch = 0] = parse(current)
+    const [lMajor = 0, lMinor = 0, lPatch = 0] = parse(latest)
 
     if (lMajor !== cMajor) {
-      return lMajor > cMajor;
+      return lMajor > cMajor
     }
     if (lMinor !== cMinor) {
-      return lMinor > cMinor;
+      return lMinor > cMinor
     }
-    return lPatch > cPatch;
+    return lPatch > cPatch
   }
 
   /**
@@ -106,19 +107,19 @@ export class UpdateService {
    * @returns {any | null} The matching asset object or null.
    */
   private findMatchingAsset(assets: any[], platform: string): any | null {
-    let patterns: RegExp[] = [];
-    if (platform === 'win32') {
-      patterns = [/\.exe$/i, /\.msi$/i];
-    } else if (platform === 'darwin') {
-      patterns = [/\.dmg$/i, /\.pkg$/i, /mac\.zip$/i, /darwin\.zip$/i];
-    } else if (platform === 'linux') {
-      patterns = [/\.appimage$/i, /\.deb$/i, /\.rpm$/i, /\.tar\.gz$/i];
+    let patterns: RegExp[] = []
+    if (platform === "win32") {
+      patterns = [/\.exe$/i, /\.msi$/i]
+    } else if (platform === "darwin") {
+      patterns = [/\.dmg$/i, /\.pkg$/i, /mac\.zip$/i, /darwin\.zip$/i]
+    } else if (platform === "linux") {
+      patterns = [/\.appimage$/i, /\.deb$/i, /\.rpm$/i, /\.tar\.gz$/i]
     }
 
     for (const pattern of patterns) {
-      const match = assets.find((asset: any) => pattern.test(asset.name));
-      if (match) return match;
+      const match = assets.find((asset: any) => pattern.test(asset.name))
+      if (match) return match
     }
-    return null;
+    return null
   }
 }

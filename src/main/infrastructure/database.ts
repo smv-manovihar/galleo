@@ -1,38 +1,38 @@
-import Database from 'better-sqlite3';
-import path from 'path';
-import fs from 'fs';
-import { app } from 'electron';
+import Database from "better-sqlite3"
+import path from "path"
+import fs from "fs"
+import { app } from "electron"
 
-let dbInstance: Database.Database | null = null;
+let dbInstance: Database.Database | null = null
 
 export function getDatabasePath(): string {
   // If app is not ready (e.g. running in test context), fallback to current directory
-  let userDataPath: string;
+  let userDataPath: string
   try {
-    userDataPath = app.getPath('userData');
+    userDataPath = app.getPath("userData")
   } catch (e) {
-    userDataPath = path.join(process.cwd(), 'data');
+    userDataPath = path.join(process.cwd(), "data")
   }
-  
+
   if (!fs.existsSync(userDataPath)) {
-    fs.mkdirSync(userDataPath, { recursive: true });
+    fs.mkdirSync(userDataPath, { recursive: true })
   }
-  
-  return path.join(userDataPath, 'galleo.db');
+
+  return path.join(userDataPath, "galleo.db")
 }
 
 export function initDatabase(): Database.Database {
   if (dbInstance) {
-    return dbInstance;
+    return dbInstance
   }
 
-  const dbPath = getDatabasePath();
-  const db = new Database(dbPath);
+  const dbPath = getDatabasePath()
+  const db = new Database(dbPath)
 
   // Enable WAL mode for concurrency, foreign keys, and synchronous safety
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
-  db.pragma('synchronous = NORMAL');
+  db.pragma("journal_mode = WAL")
+  db.pragma("foreign_keys = ON")
+  db.pragma("synchronous = NORMAL")
 
   // Create Schema Tables
   db.exec(`
@@ -112,22 +112,22 @@ export function initDatabase(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_media_review_state ON media_items(review_state);
     CREATE INDEX IF NOT EXISTS idx_session_decisions ON session_decisions(session_id);
     CREATE INDEX IF NOT EXISTS idx_undo_session ON undo_actions(session_id);
-  `);
+  `)
 
   // Backward-compatible migration: add date_modified column if it does not exist yet
   try {
-    db.exec(`ALTER TABLE media_items ADD COLUMN date_modified TEXT;`);
+    db.exec(`ALTER TABLE media_items ADD COLUMN date_modified TEXT;`)
   } catch {
     // Column already exists — safe to ignore
   }
 
-  dbInstance = db;
-  return db;
+  dbInstance = db
+  return db
 }
 
 export function closeDatabase(): void {
   if (dbInstance) {
-    dbInstance.close();
-    dbInstance = null;
+    dbInstance.close()
+    dbInstance = null
   }
 }

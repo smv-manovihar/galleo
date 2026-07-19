@@ -1,39 +1,52 @@
-import type { OrganizePreviewItem } from '../../shared/types/ipc';
-import type { MediaItem } from '../../shared/types/media';
-import { getNormalizedFilenameBase } from '../../shared/filename-utils';
+import type { OrganizePreviewItem } from "../../shared/types/ipc"
+import type { MediaItem } from "../../shared/types/media"
+import { getNormalizedFilenameBase } from "../../shared/filename-utils"
 
 const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'
-];
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+]
 
 /**
  * Builds the folder structure fragment based on a pattern and target date.
  * Supported tokens: YYYY (year), MM (2-digit month), MMMM (full month name), DD (2-digit day)
  */
-export function buildFolderPathFromPattern(pattern: string, date: Date): string {
-  const year = date.getFullYear().toString();
-  const monthVal = date.getMonth() + 1;
-  const MM = monthVal.toString().padStart(2, '0');
-  const MMMM = MONTH_NAMES[date.getMonth()];
-  const DD = date.getDate().toString().padStart(2, '0');
+export function buildFolderPathFromPattern(
+  pattern: string,
+  date: Date
+): string {
+  const year = date.getFullYear().toString()
+  const monthVal = date.getMonth() + 1
+  const MM = monthVal.toString().padStart(2, "0")
+  const MMMM = MONTH_NAMES[date.getMonth()]
+  const DD = date.getDate().toString().padStart(2, "0")
 
   let result = pattern
     .replace(/YYYY/g, year)
     .replace(/MMMM/g, MMMM)
     .replace(/MM/g, MM)
-    .replace(/DD/g, DD);
+    .replace(/DD/g, DD)
 
   // Normalize path separators (ensure forward/backward slashes match OS standard later)
-  result = result.replace(/\\/g, '/');
-  if (!result.endsWith('/')) {
-    result += '/';
+  result = result.replace(/\\/g, "/")
+  if (!result.endsWith("/")) {
+    result += "/"
   }
-  
+
   // Clean up any double slashes
-  result = result.replace(/\/+/g, '/');
-  
-  return result;
+  result = result.replace(/\/+/g, "/")
+
+  return result
 }
 
 /**
@@ -45,21 +58,22 @@ export function resolveFilenameConflict(
   existingNames: Set<string>
 ): string {
   if (!existingNames.has(originalName.toLowerCase())) {
-    return originalName;
+    return originalName
   }
 
-  const dotIndex = originalName.lastIndexOf('.');
-  const base = dotIndex !== -1 ? originalName.substring(0, dotIndex) : originalName;
-  const ext = dotIndex !== -1 ? originalName.substring(dotIndex) : '';
+  const dotIndex = originalName.lastIndexOf(".")
+  const base =
+    dotIndex !== -1 ? originalName.substring(0, dotIndex) : originalName
+  const ext = dotIndex !== -1 ? originalName.substring(dotIndex) : ""
 
-  let counter = 1;
-  let newName = `${base}_${counter}${ext}`;
+  let counter = 1
+  let newName = `${base}_${counter}${ext}`
   while (existingNames.has(newName.toLowerCase())) {
-    counter++;
-    newName = `${base}_${counter}${ext}`;
+    counter++
+    newName = `${base}_${counter}${ext}`
   }
 
-  return newName;
+  return newName
 }
 
 /**
@@ -67,49 +81,50 @@ export function resolveFilenameConflict(
  * Resolves naming conflicts among planned items and existing files.
  */
 export function planOrganization(params: {
-  items: MediaItem[];
-  destinationDir: string;
-  pattern: string;
+  items: MediaItem[]
+  destinationDir: string
+  pattern: string
   // A set of lowercase file paths that already exist on disk in the destination directory,
   // to avoid overwriting existing files.
-  existingFilePaths: Set<string>;
+  existingFilePaths: Set<string>
 }): OrganizePreviewItem[] {
-  const { items, destinationDir, pattern, existingFilePaths } = params;
-  const result: OrganizePreviewItem[] = [];
-  
+  const { items, destinationDir, pattern, existingFilePaths } = params
+  const result: OrganizePreviewItem[] = []
+
   // Normalize destinationDir
-  const normalizedDest = destinationDir.replace(/\\/g, '/').replace(/\/$/, '');
+  const normalizedDest = destinationDir.replace(/\\/g, "/").replace(/\/$/, "")
 
   // Keep track of target paths we have already assigned in THIS execution batch
   // to avoid internal conflicts.
-  const assignedLowerPaths = new Set<string>();
+  const assignedLowerPaths = new Set<string>()
 
   // Keep track of unique source file keys we have already planned to organize.
-  const seenSourceKeys = new Set<string>();
+  const seenSourceKeys = new Set<string>()
 
   for (const item of items) {
-    const date = new Date(item.dateTarget);
+    const date = new Date(item.dateTarget)
     if (isNaN(date.getTime())) {
-      continue; // Skip invalid dates
+      continue // Skip invalid dates
     }
 
-    const folderFragment = buildFolderPathFromPattern(pattern, date);
-    
+    const folderFragment = buildFolderPathFromPattern(pattern, date)
+
     // Check if filename conflict exists
     // Find all files already allocated in the target subfolder
     // Combine existing files on disk + files we just planned for this subfolder
-    const targetFolderLower = `${normalizedDest}/${folderFragment}`.toLowerCase();
-    
+    const targetFolderLower =
+      `${normalizedDest}/${folderFragment}`.toLowerCase()
+
     // We collect files that map to this folder
-    const siblingNames = new Set<string>();
-    
+    const siblingNames = new Set<string>()
+
     // 1. Scan existing file paths on disk for matches in this subfolder
     for (const diskPath of existingFilePaths) {
-      const normalizedDiskPath = diskPath.replace(/\\/g, '/');
+      const normalizedDiskPath = diskPath.replace(/\\/g, "/")
       if (normalizedDiskPath.toLowerCase().startsWith(targetFolderLower)) {
-        const name = normalizedDiskPath.substring(targetFolderLower.length);
-        if (name && !name.includes('/')) {
-          siblingNames.add(name.toLowerCase());
+        const name = normalizedDiskPath.substring(targetFolderLower.length)
+        if (name && !name.includes("/")) {
+          siblingNames.add(name.toLowerCase())
         }
       }
     }
@@ -117,50 +132,50 @@ export function planOrganization(params: {
     // 2. Scan already assigned paths in this dry-run
     for (const assignedPath of assignedLowerPaths) {
       if (assignedPath.startsWith(targetFolderLower)) {
-        const name = assignedPath.substring(targetFolderLower.length);
-        if (name && !name.includes('/')) {
-          siblingNames.add(name.toLowerCase());
+        const name = assignedPath.substring(targetFolderLower.length)
+        if (name && !name.includes("/")) {
+          siblingNames.add(name.toLowerCase())
         }
       }
     }
 
-    const sourceKey = `${getNormalizedFilenameBase(item.name)}_${item.hash || item.size}`;
-    const isDuplicateSource = seenSourceKeys.has(sourceKey);
+    const sourceKey = `${getNormalizedFilenameBase(item.name)}_${item.hash || item.size}`
+    const isDuplicateSource = seenSourceKeys.has(sourceKey)
     if (!isDuplicateSource) {
-      seenSourceKeys.add(sourceKey);
+      seenSourceKeys.add(sourceKey)
     }
 
     // Resolve conflict
-    const finalFilename = resolveFilenameConflict(item.name, siblingNames);
-    const relativePath = `${folderFragment}${finalFilename}`;
-    const targetPath = `${normalizedDest}/${relativePath}`;
+    const finalFilename = resolveFilenameConflict(item.name, siblingNames)
+    const relativePath = `${folderFragment}${finalFilename}`
+    const targetPath = `${normalizedDest}/${relativePath}`
 
     if (isDuplicateSource) {
       result.push({
         mediaId: item.id,
         sourcePath: item.path,
-        targetPath: targetPath.replace(/\//g, '\\'),
-        relativePath: relativePath.replace(/\//g, '\\'),
+        targetPath: targetPath.replace(/\//g, "\\"),
+        relativePath: relativePath.replace(/\//g, "\\"),
         conflict: true,
-        conflictReason: 'duplicate_source'
-      });
+        conflictReason: "duplicate_source",
+      })
     } else {
-      assignedLowerPaths.add(targetPath.toLowerCase());
+      assignedLowerPaths.add(targetPath.toLowerCase())
 
-      const isConflict = 
-        existingFilePaths.has(targetPath.toLowerCase()) || 
-        item.path.toLowerCase() === targetPath.toLowerCase();
+      const isConflict =
+        existingFilePaths.has(targetPath.toLowerCase()) ||
+        item.path.toLowerCase() === targetPath.toLowerCase()
 
       result.push({
         mediaId: item.id,
         sourcePath: item.path,
-        targetPath: targetPath.replace(/\//g, '\\'), // OS matching format
-        relativePath: relativePath.replace(/\//g, '\\'),
+        targetPath: targetPath.replace(/\//g, "\\"), // OS matching format
+        relativePath: relativePath.replace(/\//g, "\\"),
         conflict: isConflict,
-        conflictReason: isConflict ? 'already_exists' : undefined
-      });
+        conflictReason: isConflict ? "already_exists" : undefined,
+      })
     }
   }
 
-  return result;
+  return result
 }

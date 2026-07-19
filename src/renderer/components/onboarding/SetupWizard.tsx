@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react"
 import { useSettingsStore } from "../../stores/settings-store"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
-import { CullingAnimationDemo } from "../layout/help/review"
+import { CullingAnimationDemo } from "../layout/help/culling"
 import {
   Tooltip,
   TooltipTrigger,
@@ -438,9 +438,7 @@ export const SetupWizard: React.FC = () => {
                 beautifully structured.
               </h1>
               <p className="max-w-md text-2xs leading-relaxed text-muted-foreground">
-                Galleo is a local-first media organizer. Select a photo folder
-                to start scanning, audits for duplicates, sweeps away blurry
-                frames, and groups your files.
+                Local-first media organizer. Select a folder to scan, cull low-quality photos, remove duplicates, and organize files.
               </p>
             </div>
           </div>
@@ -456,8 +454,7 @@ export const SetupWizard: React.FC = () => {
                   Media culling
                 </h3>
                 <p className="text-[10px] leading-relaxed text-muted-foreground">
-                  Automatically flags blurry, dark, and poor quality files.
-                  Easily sweep away mistakes and reclaim gigabytes of storage.
+                  Flags blurry and low-quality photos to reclaim storage space.
                 </p>
               </div>
             </div>
@@ -471,8 +468,7 @@ export const SetupWizard: React.FC = () => {
                   Duplicate Finder
                 </h3>
                 <p className="text-[10px] leading-relaxed text-muted-foreground">
-                  Audits exact duplicates and groups visually similar shots.
-                  Select the best image to keep and delete the clutter.
+                  Finds exact duplicates and similar shots to remove clutter.
                 </p>
               </div>
             </div>
@@ -486,8 +482,7 @@ export const SetupWizard: React.FC = () => {
                   File Organizer
                 </h3>
                 <p className="text-[10px] leading-relaxed text-muted-foreground">
-                  Rename and structure your chaotic collection into clean
-                  directories categorized by EXIF year and month.
+                  Sorts files into clean folders by EXIF year and month.
                 </p>
               </div>
             </div>
@@ -523,15 +518,13 @@ export const SetupWizard: React.FC = () => {
                   <strong className="text-[10px] font-semibold text-foreground">
                     100% Offline & Private:
                   </strong>{" "}
-                  All scan analysis and EXIF indexing happen locally. Your media
-                  never leaves your PC.
+                  All analysis is local. Media never leaves your PC.
                 </span>
               </div>
             </div>
 
             <p className="text-center text-3xs text-muted-foreground">
-              You can configure additional folders, customize quality
-              thresholds, and change key shortcuts in Settings later.
+              Configure folders, quality rules, and shortcuts in Settings.
             </p>
           </div>
         </div>

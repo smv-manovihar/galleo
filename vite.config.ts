@@ -14,7 +14,7 @@ export default defineConfig({
         [
           "babel-plugin-react-compiler",
           {
-            target: "19", // Explicitly targeting React 19
+            target: "19",
           },
         ],
       ],
@@ -35,11 +35,11 @@ export default defineConfig({
                 "sharp",
                 "fluent-ffmpeg",
                 "ffmpeg-static",
-                "trash"
-              ]
-            }
-          }
-        }
+                "trash",
+              ],
+            },
+          },
+        },
       },
       {
         entry: "src/preload/index.ts",
@@ -52,12 +52,12 @@ export default defineConfig({
             lib: {
               entry: "src/preload/index.ts",
               formats: ["cjs"],
-              fileName: () => "index.js"
-            }
-          }
-        }
-      }
-    ])
+              fileName: () => "index.js",
+            },
+          },
+        },
+      },
+    ]),
   ],
   resolve: {
     alias: {
@@ -65,6 +65,6 @@ export default defineConfig({
     },
   },
   build: {
-    chunkSizeWarningLimit: 1000
-  }
+    chunkSizeWarningLimit: 1000,
+  },
 })

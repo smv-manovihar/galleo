@@ -3,6 +3,7 @@ import { useUIStore } from "../../stores/ui-store"
 import { useSettingsStore } from "../../stores/settings-store"
 import { useMediaStore } from "../../stores/media-store"
 import { useScanStore } from "../../stores/scan-store"
+import { getFileManagerName } from "../../lib/os"
 import { Button } from "@/components/ui/button"
 import {
   LayoutDashboard,
@@ -35,6 +36,12 @@ import {
   TooltipContent,
 } from "@/components/ui/tooltip"
 import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+} from "@/components/ui/context-menu"
+import {
   Sidebar,
   SidebarContent,
   SidebarHeader,
@@ -51,7 +58,15 @@ import {
 } from "@/components/ui/sidebar"
 
 export const AppSidebar: React.FC = () => {
-  const { currentView, setCurrentView, updateInfo, checkForUpdates, hasRunInitialUpdateCheck, dismissedVersion, dismissUpdate } = useUIStore()
+  const {
+    currentView,
+    setCurrentView,
+    updateInfo,
+    checkForUpdates,
+    hasRunInitialUpdateCheck,
+    dismissedVersion,
+    dismissUpdate,
+  } = useUIStore()
   const { settings, addRootFolder, removeRootFolder } = useSettingsStore()
 
   useEffect(() => {
@@ -66,6 +81,7 @@ export const AppSidebar: React.FC = () => {
 
   const [folderToDelete, setFolderToDelete] = useState<string | null>(null)
   const [showScanPrompt, setShowScanPrompt] = useState(false)
+  const isWizardState = settings.folders.roots.length === 0
 
   const navItems = [
     { view: "dashboard" as const, label: "Dashboard", icon: LayoutDashboard },
@@ -88,14 +104,20 @@ export const AppSidebar: React.FC = () => {
   }
 
   const handleFolderClick = async (path: string) => {
-    const mediaViews = ["browse", "review", "duplicates", "organize"]
+    const mediaViews = [
+      "dashboard",
+      "browse",
+      "review",
+      "duplicates",
+      "organize",
+    ]
     if (!mediaViews.includes(currentView)) {
       setCurrentView("browse")
     }
     await fetchMediaItems(path)
   }
 
-  const hasAnyScanned = settings.folders.roots.some(r => r.scanned)
+  const hasAnyScanned = settings.folders.roots.some((r) => r.scanned)
 
   const handleAllMediaClick = () => {
     handleFolderClick("all")
@@ -134,23 +156,37 @@ export const AppSidebar: React.FC = () => {
             {navItems.map((item) => {
               const Icon = item.icon
               const isActive = currentView === item.view
+              const isDashboardInWizard =
+                item.view === "dashboard" && isWizardState
+              const label = isDashboardInWizard ? "Setup Wizard" : item.label
               return (
                 <SidebarMenuItem key={item.view}>
                   <SidebarMenuButton
                     isActive={isActive}
+                    disabled={
+                      isWizardState &&
+                      item.view !== "settings" &&
+                      item.view !== "dashboard"
+                    }
                     onClick={() => {
                       setCurrentView(item.view)
-                      if (item.view === "settings" && updateInfo?.updateAvailable && updateInfo.latestVersion !== dismissedVersion) {
+                      if (
+                        item.view === "settings" &&
+                        updateInfo?.updateAvailable &&
+                        updateInfo.latestVersion !== dismissedVersion
+                      ) {
                         useUIStore.getState().setActiveSettingsTab("about")
                       }
                     }}
                     className="w-full justify-start gap-3 px-3 py-2 text-sm font-medium transition-colors"
                   >
                     <Icon className="h-4 w-4 shrink-0" />
-                    <span>{item.label}</span>
-                    {item.view === "settings" && updateInfo?.updateAvailable && updateInfo.latestVersion !== dismissedVersion && (
-                      <span className="ml-auto flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                    )}
+                    <span>{label}</span>
+                    {item.view === "settings" &&
+                      updateInfo?.updateAvailable &&
+                      updateInfo.latestVersion !== dismissedVersion && (
+                        <span className="ml-auto flex h-2 w-2 shrink-0 animate-pulse rounded-full bg-emerald-500" />
+                      )}
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               )
@@ -233,39 +269,51 @@ export const AppSidebar: React.FC = () => {
 
                   return (
                     <SidebarMenuItem key={root.path}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <SidebarMenuButton
-                            isActive={isSelected}
-                            onClick={() => {
-                              handleFolderClick(root.path)
+                      <ContextMenu>
+                        <ContextMenuTrigger className="block w-full">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <SidebarMenuButton
+                                isActive={isSelected}
+                                onClick={() => {
+                                  handleFolderClick(root.path)
+                                }}
+                                className="w-full justify-start gap-2.5 px-3 py-1.5"
+                              >
+                                <Folder
+                                  className={`h-4 w-4 shrink-0 ${
+                                    !isScanned
+                                      ? "text-amber-500/80"
+                                      : isSelected
+                                        ? "text-primary"
+                                        : "text-muted-foreground/75"
+                                  }`}
+                                />
+                                <span className="flex-1 truncate font-sans text-xs">
+                                  {label}
+                                </span>
+                                {!isScanned && (
+                                  <ScanSearch className="ml-auto h-3.5 w-3.5 shrink-0 text-amber-500/60" />
+                                )}
+                              </SidebarMenuButton>
+                            </TooltipTrigger>
+                            <TooltipContent side="right">
+                              {root.path} {!isScanned && " (Not Scanned)"}
+                            </TooltipContent>
+                          </Tooltip>
+                        </ContextMenuTrigger>
+                        <ContextMenuContent className="w-48 border-border bg-card font-sans text-xs text-foreground">
+                          <ContextMenuItem
+                            onClick={async () => {
+                              await window.api.openFile(root.path)
                             }}
-                            className="w-full justify-start gap-2.5 px-3 py-1.5"
+                            className="cursor-pointer gap-2"
                           >
-                            <Folder
-                              className={`h-4 w-4 shrink-0 ${
-                                !isScanned
-                                  ? "text-amber-500/80"
-                                  : isSelected
-                                    ? "text-primary"
-                                    : "text-muted-foreground/75"
-                              }`}
-                            />
-                            <span
-                              className="flex-1 truncate font-sans text-xs"
-                              title={root.path}
-                            >
-                              {label}
-                            </span>
-                            {!isScanned && (
-                              <ScanSearch className="ml-auto h-3.5 w-3.5 shrink-0 text-amber-500/60" />
-                            )}
-                          </SidebarMenuButton>
-                        </TooltipTrigger>
-                        <TooltipContent side="right">
-                          {label} {!isScanned && " (Not Scanned)"}
-                        </TooltipContent>
-                      </Tooltip>
+                            <FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />
+                            Open in {getFileManagerName()}
+                          </ContextMenuItem>
+                        </ContextMenuContent>
+                      </ContextMenu>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <SidebarMenuAction
@@ -292,52 +340,53 @@ export const AppSidebar: React.FC = () => {
         </SidebarGroup>
       </SidebarContent>
 
-      {updateInfo?.updateAvailable && updateInfo.latestVersion !== dismissedVersion && (
-        <SidebarFooter className="p-3 pt-0">
-          <div 
-            onClick={() => window.api.openExternal(updateInfo.downloadUrl)}
-            className="relative flex items-center justify-between gap-2.5 rounded-lg border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/15 px-3 py-2 text-2xs cursor-pointer transition-all select-none group/update"
-          >
-            <span 
-              className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-300"
-              title="Click to download new update"
+      {updateInfo?.updateAvailable &&
+        updateInfo.latestVersion !== dismissedVersion && (
+          <SidebarFooter className="p-3 pt-0">
+            <div
+              onClick={() => window.api.openExternal(updateInfo.downloadUrl)}
+              className="group/update relative flex cursor-pointer items-center justify-between gap-2.5 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-2xs transition-all select-none hover:bg-emerald-500/10 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/15"
             >
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-              Update v{updateInfo.latestVersion}
-            </span>
-            <div className="flex items-center gap-2">
               <span
-                onClick={(e) => {
-                  e.stopPropagation()
-                  window.api.openExternal(updateInfo.releaseUrl)
-                }}
-                className="font-semibold text-muted-foreground hover:text-foreground hover:underline transition-colors"
-                title="View release notes"
-              >
-                Notes
-              </span>
-              <span className="h-2.5 w-px bg-border/40" />
-              <span 
-                className="font-semibold text-emerald-600 dark:text-emerald-400 group-hover/update:underline"
+                className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-300"
                 title="Click to download new update"
               >
-                Download
+                <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-emerald-500" />
+                Update v{updateInfo.latestVersion}
               </span>
+              <div className="flex items-center gap-2">
+                <span
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    window.api.openExternal(updateInfo.releaseUrl)
+                  }}
+                  className="font-semibold text-muted-foreground transition-colors hover:text-foreground hover:underline"
+                  title="View release notes"
+                >
+                  Notes
+                </span>
+                <span className="h-2.5 w-px bg-border/40" />
+                <span
+                  className="font-semibold text-emerald-600 group-hover/update:underline dark:text-emerald-400"
+                  title="Click to download new update"
+                >
+                  Download
+                </span>
+              </div>
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  dismissUpdate()
+                }}
+                className="absolute -top-1.5 -right-1.5 cursor-pointer rounded-full border border-border bg-background p-0.5 text-muted-foreground opacity-0 shadow-xs transition-opacity group-hover/update:opacity-100 hover:bg-destructive/10 hover:text-destructive"
+                title="Dismiss update notifier"
+              >
+                <X className="h-2.5 w-2.5" />
+              </button>
             </div>
-            
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                dismissUpdate();
-              }}
-              className="absolute -top-1.5 -right-1.5 opacity-0 group-hover/update:opacity-100 transition-opacity bg-background hover:bg-destructive/10 text-muted-foreground hover:text-destructive p-0.5 rounded-full border border-border shadow-xs cursor-pointer"
-              title="Dismiss update notifier"
-            >
-              <X className="h-2.5 w-2.5" />
-            </button>
-          </div>
-        </SidebarFooter>
-      )}
+          </SidebarFooter>
+        )}
 
       {/* Scan prompt — shown when user clicks All Media with no indexed items */}
       <AlertDialog

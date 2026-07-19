@@ -1,50 +1,57 @@
 export interface RootFolder {
-  path: string;
-  enabled: boolean;
-  label?: string;
-  scanned?: boolean;
+  path: string
+  enabled: boolean
+  label?: string
+  scanned?: boolean
 }
+
+export type DuplicateStrategy =
+  | "keep_oldest"
+  | "keep_newest"
+  | "keep_most_grouped"
+  | "keep_shortest_path"
 
 export interface AppSettings {
   folders: {
-    roots: RootFolder[];
-    destination: string;
-    destinationMode: 'custom' | 'in-place';
-    trashMode: 'recycle-bin' | 'app-trash' | 'permanent';
-    appTrashPath?: string;
-  };
+    roots: RootFolder[]
+    destination: string
+    destinationMode: "custom" | "in-place"
+    trashMode: "recycle-bin" | "app-trash" | "permanent"
+    appTrashPath?: string
+  }
   scanning: {
-    includeSubfolders: boolean;
-    maxDepth: number;
-    excludePatterns: string[];
-    minFileSize: number; // bytes
-    maxFileSize: number; // bytes, 0 means unlimited
-    supportedExtensions: string[];
-  };
+    includeSubfolders: boolean
+    maxDepth: number
+    excludePatterns: string[]
+    minFileSize: number // bytes
+    maxFileSize: number // bytes, 0 means unlimited
+    supportedExtensions: string[]
+  }
   quality: {
-    blurThreshold: number; // 0-100 (below = blurry)
-    darknessThreshold: number; // 0-255 (below = dark)
-    duplicateHashDistance: number; // Hamming distance (default: 10)
-    screenshotDetection: boolean;
-    minResolution: number; // width * height, below = flagged as low res
-  };
+    blurThreshold: number // 0-100 (below = blurry)
+    darknessThreshold: number // 0-255 (below = dark)
+    duplicateHashDistance: number // Hamming distance (default: 10)
+    screenshotDetection: boolean
+    minResolution: number // width * height, below = flagged as low res
+  }
   organization: {
-    folderPattern: string; // e.g. "YYYY/MM/", "YYYY-MM-DD/", "YYYY/MM - MonthName/"
-    conflictResolution: 'rename' | 'skip' | 'overwrite';
-    preserveOriginals: boolean; // Copy instead of move
-  };
+    folderPattern: string // e.g. "YYYY/MM/", "YYYY-MM-DD/", "YYYY/MM - MonthName/"
+    conflictResolution: "rename" | "skip" | "overwrite"
+    preserveOriginals: boolean // Copy instead of move
+    duplicateStrategy: DuplicateStrategy // Which copy to keep when auto-cleaning exact duplicates
+  }
   ui: {
-    theme: 'dark' | 'light' | 'system';
-    fontSize?: 'sm' | 'md' | 'lg' | 'xl';
-    gridColumns: number;
-    thumbnailSize: 'sm' | 'md' | 'lg';
-    confirmBeforeDelete: boolean;
-    defaultView: 'grid' | 'list' | 'timeline';
-    reviewOrder: 'worst-first' | 'oldest-first' | 'newest-first' | 'random';
-  };
+    theme: "dark" | "light" | "system"
+    fontSize?: "sm" | "md" | "lg" | "xl"
+    gridColumns: number
+    thumbnailSize: "sm" | "md" | "lg"
+    confirmBeforeDelete: boolean
+    defaultView: "grid" | "list" | "timeline"
+    reviewOrder: "worst-first" | "oldest-first" | "newest-first" | "random"
+  }
   performance: {
-    thumbnailCacheMaxMB: number;
-    scanBatchSize: number;
-    maxConcurrentOps: number;
-  };
+    thumbnailCacheMaxMB: number
+    scanBatchSize: number
+    maxConcurrentOps: number
+  }
 }

@@ -1,18 +1,22 @@
-import type { Database } from 'better-sqlite3';
-import type { MediaItem, MediaType, QualityMetrics } from '../../shared/types/media';
-import { initDatabase } from '../infrastructure/database';
+import type { Database } from "better-sqlite3"
+import type {
+  MediaItem,
+  MediaType,
+  QualityMetrics,
+} from "../../shared/types/media"
+import { initDatabase } from "../infrastructure/database"
 
 export class MediaRepository {
   private getDb(): Database {
-    return initDatabase();
+    return initDatabase()
   }
 
   /**
    * Helper to map a database row to a MediaItem model object
    */
   private rowToMediaItem(row: any): MediaItem {
-    let quality: QualityMetrics | undefined = undefined;
-    
+    let quality: QualityMetrics | undefined = undefined
+
     if (row.blur_score !== null) {
       quality = {
         blurScore: row.blur_score,
@@ -22,7 +26,7 @@ export class MediaRepository {
         isScreenshot: Boolean(row.is_screenshot),
         isSmall: Boolean(row.is_small),
         compositeScore: row.composite_score,
-      };
+      }
     }
 
     return {
@@ -39,7 +43,8 @@ export class MediaRepository {
       dateInferred: row.date_inferred ?? undefined,
       dateFileSystem: row.date_filesystem,
       dateTarget: row.date_target,
-      dateTargetSource: row.date_target_source as 'exif' | 'filename' | 'filesystem',
+      dateTargetSource: row.date_target_source as
+        "exif" | "filename" | "filesystem",
       hash: row.hash ?? undefined,
       thumbnailPath: row.thumbnail_path ?? undefined,
       dateModified: row.date_modified ?? undefined,
@@ -47,17 +52,18 @@ export class MediaRepository {
       duplicateGroupId: row.duplicate_group_id ?? undefined,
       isDuplicate: Boolean(row.is_duplicate),
       isBestInDuplicateGroup: Boolean(row.is_best_in_duplicate_group),
-      reviewState: row.review_state as 'pending' | 'keep' | 'delete' | 'skipped',
+      reviewState: row.review_state as
+        "pending" | "keep" | "delete" | "skipped",
       reviewedAt: row.reviewed_at ?? undefined,
-    };
+    }
   }
 
   /**
    * Inserts or updates a list of MediaItems in a single fast database transaction.
    */
   public upsertMany(items: MediaItem[]): void {
-    const db = this.getDb();
-    
+    const db = this.getDb()
+
     const insertStmt = db.prepare(`
       INSERT INTO media_items (
         id, path, name, size, extension, media_type, width, height,
@@ -98,7 +104,7 @@ export class MediaRepository {
         duplicate_group_id = excluded.duplicate_group_id,
         is_duplicate = excluded.is_duplicate,
         is_best_in_duplicate_group = excluded.is_best_in_duplicate_group
-    `);
+    `)
 
     const transaction = db.transaction((batchItems: MediaItem[]) => {
       for (const item of batchItems) {
@@ -131,40 +137,40 @@ export class MediaRepository {
           isDuplicate: item.isDuplicate ? 1 : 0,
           isBestInDuplicateGroup: item.isBestInDuplicateGroup ? 1 : 0,
           reviewState: item.reviewState,
-          reviewedAt: item.reviewedAt ?? null
-        });
+          reviewedAt: item.reviewedAt ?? null,
+        })
       }
-    });
+    })
 
-    transaction(items);
+    transaction(items)
   }
 
   /**
    * Retrieves all scanned media items inside a target root directory path (including subdirectories).
    */
   public getByFolderPath(folderPath: string): MediaItem[] {
-    const db = this.getDb();
-    if (folderPath.toLowerCase() === 'all') {
+    const db = this.getDb()
+    if (folderPath.toLowerCase() === "all") {
       const stmt = db.prepare(`
         SELECT * FROM media_items 
         ORDER BY date_target DESC
-      `);
-      const rows = stmt.all();
-      return rows.map(row => this.rowToMediaItem(row));
+      `)
+      const rows = stmt.all()
+      return rows.map((row) => this.rowToMediaItem(row))
     }
-    
+
     // Normalize path separators to search standard path matching
-    const searchPath = folderPath.replace(/\\/g, '/').toLowerCase();
-    
+    const searchPath = folderPath.replace(/\\/g, "/").toLowerCase()
+
     // We match any item whose path starts with the folderPath
     const stmt = db.prepare(`
        SELECT * FROM media_items 
        WHERE LOWER(path) LIKE ? 
        ORDER BY date_target DESC
-     `);
-     
-     const rows = stmt.all(`${searchPath}%`);
-     return rows.map(row => this.rowToMediaItem(row));
+     `)
+
+    const rows = stmt.all(`${searchPath}%`)
+    return rows.map((row) => this.rowToMediaItem(row))
   }
 
   /**
@@ -172,91 +178,91 @@ export class MediaRepository {
    */
   public updateReviewState(
     mediaId: string,
-    state: 'pending' | 'keep' | 'delete' | 'skipped',
+    state: "pending" | "keep" | "delete" | "skipped",
     reviewedAt?: string
   ): void {
-    const db = this.getDb();
+    const db = this.getDb()
     const stmt = db.prepare(`
       UPDATE media_items 
       SET review_state = ?, reviewed_at = ? 
       WHERE id = ?
-    `);
-    stmt.run(state, reviewedAt ?? null, mediaId);
+    `)
+    stmt.run(state, reviewedAt ?? null, mediaId)
   }
 
   /**
    * Updates multiple review actions at once
    */
   public updateReviewStatesBatch(
-    updates: { mediaId: string; state: 'keep' | 'delete' | 'skipped' }[],
+    updates: { mediaId: string; state: "keep" | "delete" | "skipped" }[],
     reviewedAt?: string
   ): void {
-    const db = this.getDb();
+    const db = this.getDb()
     const stmt = db.prepare(`
       UPDATE media_items 
       SET review_state = ?, reviewed_at = ? 
       WHERE id = ?
-    `);
+    `)
 
     const transaction = db.transaction((batch: typeof updates) => {
       for (const update of batch) {
-        stmt.run(update.state, reviewedAt ?? null, update.mediaId);
+        stmt.run(update.state, reviewedAt ?? null, update.mediaId)
       }
-    });
-    
-    transaction(updates);
+    })
+
+    transaction(updates)
   }
 
   /**
    * Deletes scanned metadata for files that were physically removed/moved.
    */
   public deleteMany(paths: string[]): void {
-    const db = this.getDb();
-    const stmt = db.prepare('DELETE FROM media_items WHERE path = ?');
-    
+    const db = this.getDb()
+    const stmt = db.prepare("DELETE FROM media_items WHERE path = ?")
+
     const transaction = db.transaction((pathList: string[]) => {
       for (const p of pathList) {
-        stmt.run(p);
+        stmt.run(p)
       }
-    });
-    
-    transaction(paths);
+    })
+
+    transaction(paths)
   }
 
   /**
    * Clears database metadata for a folder path
    */
   public clearByFolder(folderPath: string): void {
-    const db = this.getDb();
-    if (folderPath.toLowerCase() === 'all') {
-      const stmt = db.prepare('DELETE FROM media_items');
-      stmt.run();
-      return;
+    const db = this.getDb()
+    if (folderPath.toLowerCase() === "all") {
+      const stmt = db.prepare("DELETE FROM media_items")
+      stmt.run()
+      return
     }
-    const searchPath = folderPath.replace(/\\/g, '/').toLowerCase();
-    const stmt = db.prepare('DELETE FROM media_items WHERE LOWER(path) LIKE ?');
-    stmt.run(`${searchPath}%`);
+    const searchPath = folderPath.replace(/\\/g, "/").toLowerCase()
+    const stmt = db.prepare("DELETE FROM media_items WHERE LOWER(path) LIKE ?")
+    stmt.run(`${searchPath}%`)
   }
 
   /**
    * Resets all review states in a folder to pending.
    */
   public resetReviewStatesByFolder(folderPath: string): void {
-    const db = this.getDb();
-    if (folderPath.toLowerCase() === 'all') {
+    const db = this.getDb()
+    if (folderPath.toLowerCase() === "all") {
       const stmt = db.prepare(`
         UPDATE media_items 
         SET review_state = 'pending', reviewed_at = NULL
-      `);
-      stmt.run();
-      return;
+      `)
+      stmt.run()
+      return
     }
-    const searchPath = folderPath.replace(/\\/g, '/').toLowerCase();
+    const searchPath = folderPath.replace(/\\/g, "/").toLowerCase()
     const stmt = db.prepare(`
       UPDATE media_items 
       SET review_state = 'pending', reviewed_at = NULL 
       WHERE LOWER(path) LIKE ?
-    `);
-    stmt.run(`${searchPath}%`);
+    `)
+    stmt.run(`${searchPath}%`)
   }
 }

@@ -1,12 +1,10 @@
 import React, { useEffect, useState, useRef, useMemo } from "react"
 import { useSessionStore } from "../../stores/session-store"
 import type { MediaItem } from "../../../shared/types/media"
-import { CheckCircle2 } from "lucide-react"
 import { MediaCullingProgress } from "./MediaCullingProgress"
 import { MediaCullingCard } from "./MediaCullingCard"
 import { MediaCullingControls } from "./MediaCullingControls"
 import { MediaPreview } from "../media/MediaPreview"
-import { Button } from "@/components/ui/button"
 
 interface MediaCullingModeProps {
   items: MediaItem[]
@@ -37,19 +35,60 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
   const [isVideoPlaying, setIsVideoPlaying] = useState(false)
   const videoPlayerRef = useRef<any>(null)
   const [recentlyUndoneIds, setRecentlyUndoneIds] = useState<string[]>([])
+  const pendingActionRef = useRef<{
+    timeoutId: ReturnType<typeof setTimeout>
+    targetId: string
+    state: "keep" | "delete"
+    item: MediaItem
+  } | null>(null)
 
+  const prevUnreviewedCountRef = useRef(0)
+
+  const filteredItems = useMemo(() => {
+    if (onlyShowFlagged) {
+      return items.filter(
+        (item) =>
+          item.isDuplicate ||
+          (item.quality !== undefined &&
+            (item.quality.isBlurry ||
+              item.quality.isDark ||
+              item.quality.isScreenshot ||
+              item.quality.isSmall))
+      )
+    }
+    return items
+  }, [items, onlyShowFlagged])
 
   const unreviewedItems = useMemo(() => {
-    const pending = items.filter(item => decisions[item.id] === undefined && item.reviewState === 'pending');
-    const undoneSet = new Set(recentlyUndoneIds);
+    const pending = filteredItems.filter(
+      (item) =>
+        decisions[item.id] === undefined &&
+        (!item.reviewState || item.reviewState === "pending")
+    )
+    const undoneSet = new Set(recentlyUndoneIds)
     const undoneItemsOrdered = recentlyUndoneIds
-      .map(id => pending.find(item => item.id === id))
-      .filter((item): item is MediaItem => !!item);
-    const otherPending = pending.filter(item => !undoneSet.has(item.id));
-    return [...undoneItemsOrdered, ...otherPending];
-  }, [items, decisions, recentlyUndoneIds]);
+      .map((id) => pending.find((item) => item.id === id))
+      .filter((item): item is MediaItem => !!item)
+    const otherPending = pending.filter((item) => !undoneSet.has(item.id))
+    return [...undoneItemsOrdered, ...otherPending]
+  }, [filteredItems, decisions, recentlyUndoneIds])
 
-  const currentItem = unreviewedItems.length > 0 ? unreviewedItems[0] : null
+  const lastReviewedItem = useMemo(() => {
+    const cullingActions = undoStack.filter(
+      (a) => a.newState.source === "culling"
+    )
+    if (cullingActions.length > 0) {
+      const lastAction = cullingActions[cullingActions.length - 1]
+      const found = filteredItems.find((i) => i.id === lastAction.mediaId)
+      if (found) return found
+    }
+    return filteredItems.length > 0
+      ? filteredItems[filteredItems.length - 1]
+      : items[items.length - 1] || null
+  }, [undoStack, items, filteredItems])
+
+  const currentItem =
+    unreviewedItems.length > 0 ? unreviewedItems[0] : lastReviewedItem
 
   useEffect(() => {
     setIsVideoPlaying(false)
@@ -68,20 +107,23 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
 
   // Deck: current + next few for stacked visuals
   const deckItems = useMemo(() => {
-    return unreviewedItems.slice(0, DECK_SIZE)
-  }, [unreviewedItems])
+    if (unreviewedItems.length > 0) {
+      return unreviewedItems.slice(0, DECK_SIZE)
+    }
+    return lastReviewedItem ? [lastReviewedItem] : []
+  }, [unreviewedItems, lastReviewedItem])
 
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
-      if (!currentItem || swipeClass !== "") return
-
       const key = e.key.toLowerCase()
-      if (key === "z" || (e.ctrlKey && key === "z")) {
+      if (key === "z" || e.key === "ArrowDown" || (e.ctrlKey && key === "z")) {
         e.preventDefault()
         await handleUndo()
         return
       }
+
+      if (!currentItem || swipeClass !== "") return
 
       if (key === "d" || e.key === "ArrowLeft") {
         e.preventDefault()
@@ -96,10 +138,28 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
     return () => {
       window.removeEventListener("keydown", handleKeyDown)
     }
-  }, [currentItem, swipeClass])
+  }, [currentItem, swipeClass, undoStack])
 
   const handleAction = async (state: "keep" | "delete") => {
     if (!currentItem) return
+
+    const isLastItem = unreviewedItems.length <= 1
+
+    // If there's a pending swipe timer running, commit it immediately before starting new action
+    if (pendingActionRef.current) {
+      clearTimeout(pendingActionRef.current.timeoutId)
+      const pending = pendingActionRef.current
+      pendingActionRef.current = null
+      await submitDecision(
+        pending.targetId,
+        pending.state,
+        pending.item,
+        "culling"
+      )
+      setRecentlyUndoneIds((prev) =>
+        prev.filter((id) => id !== pending.targetId)
+      )
+    }
 
     if (state === "keep") {
       setSwipeClass("slide-right")
@@ -107,16 +167,35 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
       setSwipeClass("slide-left")
     }
 
-    const targetId = currentItem.id;
-    setTimeout(async () => {
-      await submitDecision(targetId, state, currentItem, 'culling')
-      setRecentlyUndoneIds(prev => prev.filter(id => id !== targetId))
+    const targetId = currentItem.id
+    const targetItem = currentItem
+
+    const timeoutId = setTimeout(async () => {
+      pendingActionRef.current = null
+      await submitDecision(targetId, state, targetItem, "culling")
+      setRecentlyUndoneIds((prev) => prev.filter((id) => id !== targetId))
       setSwipeClass("")
+      if (isLastItem) {
+        onComplete()
+      }
     }, 400)
+
+    pendingActionRef.current = { timeoutId, targetId, state, item: targetItem }
   }
 
   const handleUndo = async () => {
-    const cullingActions = undoStack.filter(a => a.newState.source === 'culling');
+    // 1. If a card swipe animation is currently pending, cancel it immediately!
+    if (pendingActionRef.current) {
+      clearTimeout(pendingActionRef.current.timeoutId)
+      pendingActionRef.current = null
+      setSwipeClass("")
+      return
+    }
+
+    // 2. Otherwise pop the last committed action from sessionStore undoStack
+    const cullingActions = undoStack.filter(
+      (a) => a.newState.source === "culling"
+    )
     if (cullingActions.length === 0) return
 
     // Determine which direction the card should slide back from
@@ -125,15 +204,18 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
 
     setSwipeClass("")
 
-    const success = await undo('culling')
+    const success = await undo("culling")
     if (success) {
       setRestoringItem({ id: lastAction.mediaId, direction })
-      setRecentlyUndoneIds(prev => [lastAction.mediaId, ...prev])
+      setRecentlyUndoneIds((prev) => [lastAction.mediaId, ...prev])
     }
   }
 
   /** Override the decisions for past actions without undoing the stack position */
-  const handleBulkChangeDecisions = async (mediaIds: string[], newDecision: "keep" | "delete") => {
+  const handleBulkChangeDecisions = async (
+    mediaIds: string[],
+    newDecision: "keep" | "delete"
+  ) => {
     const store = useSessionStore.getState()
     const checkpoint = store.checkpoint
     if (!checkpoint) return
@@ -141,12 +223,15 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
     const decisions = { ...store.decisions }
     const mediaIdSet = new Set(mediaIds)
 
-    const updatedUndoStack = store.undoStack.map(a => {
+    const updatedUndoStack = store.undoStack.map((a) => {
       if (mediaIdSet.has(a.mediaId)) {
         decisions[a.mediaId] = newDecision
         return {
           ...a,
-          type: newDecision === "keep" ? ("mark-keep" as const) : ("mark-delete" as const),
+          type:
+            newDecision === "keep"
+              ? ("mark-keep" as const)
+              : ("mark-delete" as const),
           newState: { ...a.newState, reviewState: newDecision },
         }
       }
@@ -165,108 +250,82 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
       undoStack: updatedUndoStack,
     })
 
-    await window.api.saveSessionCheckpoint({ ...updatedCheckpoint, undoStack: updatedUndoStack })
-    
-    const reviewsToUpdate = mediaIds.map(mediaId => ({ mediaId, state: newDecision }))
+    await window.api.saveSessionCheckpoint({
+      ...updatedCheckpoint,
+      undoStack: updatedUndoStack,
+    })
+
+    const reviewsToUpdate = mediaIds.map((mediaId) => ({
+      mediaId,
+      state: newDecision,
+    }))
     await window.api.updateReviews(checkpoint.sessionId, reviewsToUpdate)
-    setRecentlyUndoneIds(prev => prev.filter(id => !mediaIdSet.has(id)))
+    setRecentlyUndoneIds((prev) => prev.filter((id) => !mediaIdSet.has(id)))
   }
+
+  // Initialize ref with initial count of unreviewed items upon mounting
+  useEffect(() => {
+    prevUnreviewedCountRef.current = unreviewedItems.length
+  }, [])
 
   useEffect(() => {
-    if (items.length > 0 && unreviewedItems.length === 0) {
+    // Only auto-complete if the count transitioned from > 0 to 0
+    if (
+      prevUnreviewedCountRef.current > 0 &&
+      unreviewedItems.length === 0 &&
+      items.length > 0
+    ) {
       onComplete()
     }
+    prevUnreviewedCountRef.current = unreviewedItems.length
   }, [unreviewedItems.length, items.length, onComplete])
 
-  if (!currentItem) {
-    const keptCount = Object.values(decisions).filter(s => s === 'keep').length;
-    const deletedCount = Object.values(decisions).filter(s => s === 'delete').length;
-
-    return (
-      <div className="flex h-full flex-col items-center justify-center font-sans select-none px-8 animate-in fade-in duration-400">
-        <div className="w-full max-w-sm border border-border bg-card rounded-2xl shadow-sm p-8 flex flex-col items-center gap-6 text-center">
-          {/* Icon */}
-          <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-green-500/30 bg-green-500/10">
-            <CheckCircle2 className="h-8 w-8 text-green-500" />
-          </div>
-
-          {/* Copy */}
-          <div className="space-y-1.5">
-            <h3 className="font-heading text-sm font-bold text-foreground tracking-tight">Culling complete</h3>
-            <p className="text-xs text-muted-foreground leading-relaxed max-w-[220px]">
-              Every file has been reviewed. Head to the summary to commit your decisions.
-            </p>
-          </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-2 gap-2 w-full text-xs">
-            <div className="rounded-xl border border-green-500/15 bg-green-500/5 py-3 text-center">
-              <div className="font-heading font-bold text-lg text-green-600 dark:text-green-400 tabular-nums">{keptCount}</div>
-              <div className="text-2xs text-green-600/60 dark:text-green-400/60 font-semibold uppercase tracking-wider mt-0.5">Kept</div>
-            </div>
-            <div className="rounded-xl border border-destructive/15 bg-destructive/5 py-3 text-center">
-              <div className="font-heading font-bold text-lg text-destructive tabular-nums">{deletedCount}</div>
-              <div className="text-2xs text-destructive/60 font-semibold uppercase tracking-wider mt-0.5">To Delete</div>
-            </div>
-          </div>
-
-          {/* CTA */}
-          <Button
-            size="sm"
-            className="w-full h-9 text-xs gap-1.5 cursor-pointer"
-            onClick={onComplete}
-          >
-            View Summary
-          </Button>
-        </div>
-      </div>
-    )
-  }
-
   const progress = useMemo(() => {
-    const cullingDecidedIds = new Set<string>();
-    const lastSourceMap = new Map<string, string>();
+    const cullingDecidedIds = new Set<string>()
+    const lastSourceMap = new Map<string, string>()
     for (const action of undoStack) {
-      const source = action.newState.source;
+      const source = action.newState.source
       if (source) {
-        lastSourceMap.set(action.mediaId, source);
+        lastSourceMap.set(action.mediaId, source)
       }
     }
 
     for (const [mediaId, decision] of Object.entries(decisions)) {
-      if (decision && lastSourceMap.get(mediaId) === 'culling') {
-        cullingDecidedIds.add(mediaId);
+      if (decision && lastSourceMap.get(mediaId) === "culling") {
+        cullingDecidedIds.add(mediaId)
       }
     }
 
-    const cullingItems = items.filter(item => {
-      const hasDecision = decisions[item.id] !== undefined || item.reviewState !== 'pending';
-      if (!hasDecision) return true;
-      return cullingDecidedIds.has(item.id);
-    });
+    const cullingItems = items.filter((item) => {
+      const hasDecision =
+        decisions[item.id] !== undefined || item.reviewState !== "pending"
+      if (!hasDecision) return true
+      return cullingDecidedIds.has(item.id)
+    })
 
-    const total = cullingItems.length;
-    const reviewed = cullingItems.filter(item => cullingDecidedIds.has(item.id)).length;
-    const percentage = total > 0 ? Math.round((reviewed / total) * 100) : 0;
+    const total = cullingItems.length
+    const reviewed = cullingItems.filter((item) =>
+      cullingDecidedIds.has(item.id)
+    ).length
+    const percentage = total > 0 ? Math.round((reviewed / total) * 100) : 0
 
-    return { reviewed, total, percentage };
-  }, [items, decisions, undoStack]);
+    return { reviewed, total, percentage }
+  }, [items, decisions, undoStack])
 
   return (
-    <div
-      className="flex h-full min-h-0 w-full flex-col gap-4 font-sans text-xs select-none"
-    >
+    <div className="flex h-full min-h-0 w-full flex-col gap-4 overflow-hidden px-6 pt-4 pb-6 font-sans text-xs select-none md:pb-8">
       <MediaCullingProgress
         reviewed={progress.reviewed}
         total={progress.total}
         percentage={progress.percentage}
         onlyShowFlagged={onlyShowFlagged}
         onOnlyShowFlaggedChange={onOnlyShowFlaggedChange}
+        onViewSummary={onComplete}
       />
 
-      {/* Swipeable Card Deck Viewport */}
+      {/* Swipeable Card Deck Viewport (Layered OVER controls) */}
       <div
-        className="relative flex min-h-0 w-full flex-1 items-center justify-center"
+        className="relative z-10 flex min-h-0 w-full flex-1 items-center justify-center py-2"
         style={{ overflow: "visible" }}
       >
         {[...deckItems].reverse().map((item, reverseIdx) => {
@@ -289,8 +348,14 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
               onFullscreen={() => setShowPreview(true)}
               onPlayStateChange={setIsVideoPlaying}
               onSwipeComplete={async (action) => {
-                await submitDecision(item.id, action, item, 'culling')
-                setRecentlyUndoneIds(prev => prev.filter(id => id !== item.id))
+                const isLastItem = unreviewedItems.length <= 1
+                await submitDecision(item.id, action, item, "culling")
+                setRecentlyUndoneIds((prev) =>
+                  prev.filter((id) => id !== item.id)
+                )
+                if (isLastItem) {
+                  onComplete()
+                }
               }}
             />
           )

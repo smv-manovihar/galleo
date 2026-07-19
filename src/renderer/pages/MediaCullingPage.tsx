@@ -1,82 +1,114 @@
-import React, { useState, useEffect } from 'react';
-import { useMediaStore } from '../stores/media-store';
-import { useSessionStore } from '../stores/session-store';
-import { useScanStore } from '../stores/scan-store';
-import { useSettingsStore } from '../stores/settings-store';
-import { FolderNotScanned } from '../components/media/FolderNotScanned';
-import { MediaCullingMode } from '../components/media-culling/MediaCullingMode';
-import { MediaCullingSummary } from '../components/media-culling/MediaCullingSummary';
-import { PageContainer } from '@/components/ui/page-layout';
-import { Button } from '@/components/ui/button';
+import React, { useState, useEffect } from "react"
+import { useMediaStore } from "../stores/media-store"
+import { useSessionStore } from "../stores/session-store"
+import { useScanStore } from "../stores/scan-store"
+import { useSettingsStore } from "../stores/settings-store"
+import { FolderNotScanned } from "../components/media/FolderNotScanned"
+import { MediaCullingMode } from "../components/media-culling/MediaCullingMode"
+import { MediaCullingSummary } from "../components/media-culling/MediaCullingSummary"
+import { PageContainer } from "@/components/ui/page-layout"
+import { Button } from "@/components/ui/button"
 
 export const MediaCullingPage: React.FC = () => {
-  const items = useMediaStore((s) => s.items);
-  const activeRootPath = useMediaStore((s) => s.activeRootPath);
-  const isScanning = useScanStore((s) => s.isScanning);
-  const { settings } = useSettingsStore();
-  const { initSession } = useSessionStore();
+  const items = useMediaStore((s) => s.items)
+  const activeRootPath = useMediaStore((s) => s.activeRootPath)
+  const isScanning = useScanStore((s) => s.isScanning)
+  const { settings } = useSettingsStore()
+  const { initSession } = useSessionStore()
 
   const isScanned = React.useMemo(() => {
-    if (!activeRootPath) return false;
+    if (!activeRootPath) return false
     if (activeRootPath === "all") {
-      return settings.folders.roots.some((r) => r.scanned);
+      return settings.folders.roots.some((r) => r.scanned)
     }
     return !!settings.folders.roots.find(
       (r) => r.path.toLowerCase() === activeRootPath.toLowerCase()
-    )?.scanned;
-  }, [activeRootPath, settings.folders.roots]);
+    )?.scanned
+  }, [activeRootPath, settings.folders.roots])
 
-  const [showSummary, setShowSummary] = useState(false);
-  const [onlyShowFlagged, setOnlyShowFlagged] = useState(false);
+  const [showSummary, setShowSummary] = useState(false)
+  const [onlyShowFlagged, setOnlyShowFlagged] = useState(false)
+  const decisions = useSessionStore((s) => s.decisions)
+
+  const isAllReviewed = React.useMemo(() => {
+    if (items.length === 0) return false
+    return items.every(
+      (item) =>
+        decisions[item.id] !== undefined ||
+        (item.reviewState && item.reviewState !== "pending")
+    )
+  }, [items, decisions])
+
+  const hasInitializedSummaryRef = React.useRef(false)
+  const lastRootPathRef = React.useRef<string | null>(null)
+
+  React.useEffect(() => {
+    if (activeRootPath !== lastRootPathRef.current) {
+      lastRootPathRef.current = activeRootPath
+      hasInitializedSummaryRef.current = false
+      setShowSummary(false)
+    } else if (isAllReviewed && !hasInitializedSummaryRef.current) {
+      setShowSummary(true)
+      hasInitializedSummaryRef.current = true
+    }
+  }, [isAllReviewed, activeRootPath])
 
   // Initialize review session
   useEffect(() => {
-    if (isScanning) return;
+    if (isScanning) return
     if (activeRootPath && items.length > 0) {
-      initSession(activeRootPath, items.length);
+      initSession(activeRootPath, items.length)
     }
-  }, [activeRootPath, items.length, isScanning, initSession]);
+  }, [activeRootPath, items.length, isScanning, initSession])
 
   const filteredItems = React.useMemo(() => {
     if (onlyShowFlagged) {
-      return items.filter(item => 
-        item.isDuplicate || 
-        (item.quality !== undefined && (
-          item.quality.isBlurry || 
-          item.quality.isDark || 
-          item.quality.isScreenshot || 
-          item.quality.isSmall
-        ))
-      );
+      return items.filter(
+        (item) =>
+          item.isDuplicate ||
+          (item.quality !== undefined &&
+            (item.quality.isBlurry ||
+              item.quality.isDark ||
+              item.quality.isScreenshot ||
+              item.quality.isSmall))
+      )
     }
-    return items;
-  }, [items, onlyShowFlagged]);
+    return items
+  }, [items, onlyShowFlagged])
 
   if (!activeRootPath) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-muted-foreground font-sans text-xs gap-2 select-none">
-        <span>Please select a folder from the sidebar directory listing to begin.</span>
+      <div className="flex h-full flex-col items-center justify-center gap-2 font-sans text-xs text-muted-foreground select-none">
+        <span>
+          Please select a folder from the sidebar directory listing to begin.
+        </span>
       </div>
-    );
+    )
   }
 
   if (!isScanned) {
     return (
-      <FolderNotScanned activeRootPath={activeRootPath} featureDescription="and access culling" />
-    );
+      <FolderNotScanned
+        activeRootPath={activeRootPath}
+        featureDescription="and access culling"
+      />
+    )
   }
 
   if (items.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-muted-foreground font-sans text-xs gap-2 select-none">
+      <div className="flex h-full flex-col items-center justify-center gap-2 font-sans text-xs text-muted-foreground select-none">
         <span>This folder contains no photos or videos.</span>
       </div>
-    );
+    )
   }
 
   return (
-    <PageContainer className="h-full select-none" maxWidth="xl">
-      <div className="flex-1 min-h-0 relative flex flex-col">
+    <PageContainer
+      className="h-full overflow-hidden p-0 select-none md:p-0"
+      maxWidth="xl"
+    >
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
         {!showSummary ? (
           filteredItems.length > 0 ? (
             <MediaCullingMode
@@ -87,25 +119,26 @@ export const MediaCullingPage: React.FC = () => {
             />
           ) : (
             <div className="flex h-96 flex-col items-center justify-center gap-3.5 font-sans text-xs select-none">
-              <span className="text-muted-foreground text-center">
-                No flagged low-quality or duplicate media items found in this directory.
+              <span className="text-center text-muted-foreground">
+                No flagged low-quality or duplicate media items found in this
+                directory.
               </span>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="sm"
                 onClick={() => setOnlyShowFlagged(false)}
-                className="h-8 text-2xs cursor-pointer border-border hover:bg-accent"
+                className="h-8 cursor-pointer border-border text-2xs hover:bg-accent"
               >
                 Switch to Cull All Media
               </Button>
             </div>
           )
         ) : (
-          <div className="flex-1 min-h-0 flex flex-col">
+          <div className="flex min-h-0 flex-1 flex-col px-6 pt-4 pb-6 md:pb-8">
             <MediaCullingSummary onBackToQueue={() => setShowSummary(false)} />
           </div>
         )}
       </div>
     </PageContainer>
-  );
-};
+  )
+}

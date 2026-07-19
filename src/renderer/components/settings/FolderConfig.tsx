@@ -1,10 +1,17 @@
-import React, { useState } from 'react';
-import { useSettingsStore } from '../../stores/settings-store';
-import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Switch } from '@/components/ui/switch';
-import { Plus, Trash2, Folder } from 'lucide-react';
-import { Label } from '@/components/ui/label';
+import React, { useState } from "react"
+import { useSettingsStore } from "../../stores/settings-store"
+import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/card"
+import { Switch } from "@/components/ui/switch"
+import { Plus, Trash2, Folder } from "lucide-react"
+import { Label } from "@/components/ui/label"
+import { toast } from "sonner"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,64 +29,94 @@ import {
 } from "@/components/ui/tooltip"
 
 export const FolderConfig: React.FC = () => {
-  const { settings, addRootFolder, removeRootFolder, toggleRootFolder } = useSettingsStore();
-  const [folderToDelete, setFolderToDelete] = useState<string | null>(null);
+  const { settings, addRootFolder, removeRootFolder, toggleRootFolder } =
+    useSettingsStore()
+  const [folderToDelete, setFolderToDelete] = useState<string | null>(null)
 
   const handleAddFolder = async () => {
     try {
-      const selected = await window.api.selectFolder();
+      const selected = await window.api.selectFolder()
       if (selected) {
-        await addRootFolder(selected);
+        await addRootFolder(selected)
+        const folderName = selected.split(/[\\/]/).pop() || selected
+        toast.success("Folder registered successfully", {
+          description: `${folderName} added to scan directories.`,
+        })
       }
     } catch (e) {
-      console.error('Add root folder selection failed:', e);
+      console.error("Add root folder selection failed:", e)
+      toast.error("Failed to register folder")
     }
-  };
+  }
 
   return (
     <div className="space-y-6 font-sans text-xs select-none">
       <Card className="border-border bg-card/45">
-        <CardHeader className="pb-3 border-b border-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <CardHeader className="flex flex-col gap-4 border-b border-border pb-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
-            <CardTitle className="text-sm font-semibold text-foreground">Scanned Roots</CardTitle>
-            <CardDescription className="text-xs text-muted-foreground leading-normal">
-              Manage directories that Galleo is allowed to scan. Disabled roots are ignored.
+            <CardTitle className="text-sm font-semibold text-foreground">
+              Scanned Roots
+            </CardTitle>
+            <CardDescription className="text-xs leading-normal text-muted-foreground">
+              Manage scanned folders. Disabled folders are skipped during scans.
             </CardDescription>
           </div>
-          <Button size="sm" className="w-full sm:w-auto rounded-lg gap-1.5 h-8 text-xs font-medium cursor-pointer shrink-0" onClick={handleAddFolder}>
-            <Plus className="w-3.5 h-3.5" />
+          <Button
+            size="sm"
+            className="h-8 w-full shrink-0 cursor-pointer gap-1.5 rounded-lg text-xs font-medium sm:w-auto"
+            onClick={handleAddFolder}
+          >
+            <Plus className="h-3.5 w-3.5" />
             Add Root Folder
           </Button>
         </CardHeader>
-        <CardContent className="p-4 space-y-3">
+        <CardContent className="space-y-3 p-3.5 sm:p-4">
           {settings.folders.roots.length === 0 ? (
-            <div className="text-center py-6 border border-dashed border-border rounded-lg text-muted-foreground">
+            <div className="rounded-lg border border-dashed border-border py-6 text-center text-muted-foreground">
               No root directories added yet. Click "Add Root Folder" to start.
             </div>
           ) : (
             settings.folders.roots.map((root) => (
               <div
                 key={root.path}
-                className="flex flex-col sm:flex-row sm:items-center justify-between border border-border rounded-lg p-3 bg-muted/10 hover:bg-muted/20 transition-colors gap-3"
+                className="flex min-w-0 flex-col justify-between gap-3 rounded-lg border border-border bg-muted/10 p-3 transition-colors hover:bg-muted/20 sm:flex-row sm:items-center"
               >
-                <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <Folder className="w-5 h-5 text-muted-foreground shrink-0" />
+                <div className="flex min-w-0 flex-1 items-center gap-3">
+                  <Folder className="h-5 w-5 shrink-0 text-muted-foreground" />
                   <div className="min-w-0 flex-1">
-                    <span className="font-semibold text-foreground truncate block">
+                    <span className="block truncate font-semibold text-foreground">
                       {root.label || root.path.split(/[\\/]/).pop()}
                     </span>
-                    <span className="text-xs text-muted-foreground truncate block" title={root.path}>{root.path}</span>
+                    <span
+                      className="block truncate text-xs text-muted-foreground"
+                      title={root.path}
+                    >
+                      {root.path}
+                    </span>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0 border-t border-border/50 sm:border-none pt-2.5 sm:pt-0">
+                <div className="flex shrink-0 items-center justify-between gap-4 border-t border-border/50 pt-2.5 sm:justify-end sm:border-none sm:pt-0">
                   <div className="flex items-center gap-2">
                     <Switch
                       id={`toggle-${root.path}`}
                       checked={root.enabled}
-                      onCheckedChange={(val: boolean) => toggleRootFolder(root.path, val)}
+                      onCheckedChange={async (val: boolean) => {
+                        await toggleRootFolder(root.path, val)
+                        const folderName =
+                          root.path.split(/[\\/]/).pop() || root.path
+                        toast.success(
+                          val ? "Scan folder enabled" : "Scan folder disabled",
+                          {
+                            description: `${folderName} will be ${val ? "included" : "ignored"} during scans.`,
+                          }
+                        )
+                      }}
                     />
-                    <Label htmlFor={`toggle-${root.path}`} className="text-xs text-muted-foreground font-medium cursor-pointer">
+                    <Label
+                      htmlFor={`toggle-${root.path}`}
+                      className="cursor-pointer text-xs font-medium text-muted-foreground select-none"
+                    >
                       Enabled
                     </Label>
                   </div>
@@ -88,15 +125,13 @@ export const FolderConfig: React.FC = () => {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="w-8 h-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+                        className="h-9 w-9 shrink-0 cursor-pointer text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                         onClick={() => setFolderToDelete(root.path)}
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="left">
-                      Remove Folder
-                    </TooltipContent>
+                    <TooltipContent side="left">Remove Folder</TooltipContent>
                   </Tooltip>
                 </div>
               </div>
@@ -110,20 +145,27 @@ export const FolderConfig: React.FC = () => {
         open={!!folderToDelete}
         onOpenChange={(open) => !open && setFolderToDelete(null)}
       >
-        <AlertDialogContent className="bg-card/95 border border-border text-foreground font-sans outline-none p-5 max-w-sm backdrop-blur-md">
+        <AlertDialogContent className="max-w-sm border border-border bg-card/95 p-5 font-sans text-foreground backdrop-blur-md outline-none">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-base font-bold text-foreground">
               Remove Folder from Galleo
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-xs text-muted-foreground leading-normal mt-1.5">
-              This removes <span className="font-semibold text-foreground break-all">{folderToDelete}</span> from Galleo. <span className="font-semibold text-foreground">Your actual files are completely safe.</span>
+            <AlertDialogDescription className="mt-1.5 text-xs leading-normal text-muted-foreground">
+              This removes{" "}
+              <span className="font-semibold break-all text-foreground">
+                {folderToDelete}
+              </span>{" "}
+              from Galleo.{" "}
+              <span className="font-semibold text-foreground">
+                Your actual files are completely safe.
+              </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="mt-4 gap-2">
             <AlertDialogCancel
               variant="outline"
               size="sm"
-              className="h-8 text-xs font-semibold cursor-pointer"
+              className="h-8 cursor-pointer text-xs font-semibold"
               onClick={() => setFolderToDelete(null)}
             >
               Cancel
@@ -131,11 +173,16 @@ export const FolderConfig: React.FC = () => {
             <AlertDialogAction
               variant="destructive"
               size="sm"
-              className="h-8 text-xs font-semibold cursor-pointer"
+              className="h-8 cursor-pointer text-xs font-semibold"
               onClick={async () => {
                 if (folderToDelete) {
-                  await removeRootFolder(folderToDelete);
-                  setFolderToDelete(null);
+                  const folderName =
+                    folderToDelete.split(/[\\/]/).pop() || folderToDelete
+                  await removeRootFolder(folderToDelete)
+                  toast.success("Folder removed successfully", {
+                    description: `${folderName} removed from scan directories.`,
+                  })
+                  setFolderToDelete(null)
                 }
               }}
             >
@@ -145,5 +192,5 @@ export const FolderConfig: React.FC = () => {
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  );
-};
+  )
+}

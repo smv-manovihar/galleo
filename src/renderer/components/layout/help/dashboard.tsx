@@ -1,103 +1,184 @@
-import React from 'react';
-import { DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { LayoutDashboard, Zap, Play, RefreshCw, Sparkles } from 'lucide-react';
+import React, { useState } from "react"
+import {
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog"
+import {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from "@/components/ui/collapsible"
+import {
+  LayoutDashboard,
+  Play,
+  RefreshCw,
+  Sparkles,
+  Zap,
+  BookOpen,
+  Code2,
+  ChevronDown,
+} from "lucide-react"
 
 export const DashboardHelp: React.FC = () => {
+  const [isTechOpen, setIsTechOpen] = useState(false)
+
   return (
     <>
       {/* Header */}
-      <DialogHeader className="border-b border-border pb-3 shrink-0">
+      <DialogHeader className="shrink-0 border-b border-border pb-3">
         <DialogTitle className="flex items-center gap-2.5 text-base font-bold text-foreground">
           <LayoutDashboard className="size-5 text-primary" />
           Dashboard Overview
         </DialogTitle>
-        <DialogDescription className="text-2xs text-muted-foreground leading-normal font-semibold mt-0.5 uppercase tracking-wider">
+        <DialogDescription className="mt-0.5 text-2xs leading-normal font-semibold tracking-wider text-muted-foreground uppercase">
           Your local library analytics and storage metrics.
         </DialogDescription>
       </DialogHeader>
 
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto space-y-5 min-h-0 pr-1 scrollbar-thin">
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          The dashboard is the central hub for monitoring your media library. It compiles scan statistics, estimates potentially wasted storage space, and offers suggestions to help you manage local disk space.
+      <div className="min-h-0 flex-1 scrollbar-thin space-y-4 overflow-y-auto pr-1">
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          Central hub for library stats, estimated wasted space, and storage suggestions.
         </p>
 
-        {/* Core Concepts */}
+        {/* 1. Key Terms */}
         <div className="space-y-2">
-          <h4 className="text-3xs font-extrabold uppercase text-primary tracking-wider">
-            Core Concepts
+          <h4 className="flex items-center gap-1.5 text-3xs font-extrabold tracking-wider text-primary uppercase">
+            <BookOpen className="size-3" />
+            Key Terms
           </h4>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="p-3 border border-border/60 bg-muted/10 rounded-xl flex flex-col gap-1 transition-all duration-200 hover:border-primary/20">
-              <span className="text-xs font-bold text-foreground">Wasted Space</span>
-              <span className="text-2xs text-muted-foreground leading-normal mt-0.5">
-                Storage occupied by duplicate files, screenshots, and low-quality photos (blurry, dark) that can be safely deleted.
+          <div className="grid grid-cols-1 gap-2.5 md:grid-cols-3">
+            <div className="flex flex-col gap-1 rounded-xl border border-border/60 bg-muted/10 p-2.5">
+              <span className="text-xs font-bold text-foreground">
+                Wasted Space
+              </span>
+              <span className="mt-0.5 text-2xs leading-normal text-muted-foreground">
+                Storage used by duplicates, low-quality photos, and screenshots.
               </span>
             </div>
-            <div className="p-3 border border-border/60 bg-muted/10 rounded-xl flex flex-col gap-1 transition-all duration-200 hover:border-primary/20">
-              <span className="text-xs font-bold text-foreground">Library Health</span>
-              <span className="text-2xs text-muted-foreground leading-normal mt-0.5">
-                A visual summary representing the ratio of high-quality assets to flagged candidates for deletion.
+            <div className="flex flex-col gap-1 rounded-xl border border-border/60 bg-muted/10 p-2.5">
+              <span className="text-xs font-bold text-foreground">
+                Library Health
+              </span>
+              <span className="mt-0.5 text-2xs leading-normal text-muted-foreground">
+                Ratio of clean media vs flagged defect candidates.
               </span>
             </div>
-            <div className="p-3 border border-border/60 bg-muted/10 rounded-xl flex flex-col gap-1 transition-all duration-200 hover:border-primary/20">
-              <span className="text-xs font-bold text-foreground">Folder Roots</span>
-              <span className="text-2xs text-muted-foreground leading-normal mt-0.5">
-                Directory paths registered in Settings that Galleo is permitted to scan and organize.
+            <div className="flex flex-col gap-1 rounded-xl border border-border/60 bg-muted/10 p-2.5">
+              <span className="text-xs font-bold text-foreground">
+                Folder Roots
+              </span>
+              <span className="mt-0.5 text-2xs leading-normal text-muted-foreground">
+                Local directories monitored and indexed by Galleo.
               </span>
             </div>
           </div>
         </div>
 
-        {/* Actions & Controls */}
+        {/* 2. Actions & Controls */}
         <div className="space-y-2">
-          <h4 className="text-3xs font-extrabold uppercase text-primary tracking-wider">
+          <h4 className="text-3xs font-extrabold tracking-wider text-primary uppercase">
             Actions & Controls
           </h4>
-          <div className="border border-border/60 rounded-xl overflow-hidden divide-y divide-border/40 bg-muted/5">
-            <div className="flex flex-col sm:grid sm:grid-cols-[180px_1fr] p-3 gap-1 sm:gap-4 text-2xs hover:bg-muted/10 transition-colors items-start sm:items-center">
-              <div className="flex items-center gap-2 shrink-0">
-                <Play className="size-3.5 text-primary shrink-0" />
-                <span className="font-semibold text-foreground">Scan Folders</span>
+          <div className="divide-y divide-border/40 overflow-hidden rounded-xl border border-border/60 bg-muted/5">
+            <div className="flex flex-col items-start gap-1 p-3 text-2xs transition-colors hover:bg-muted/10 sm:grid sm:grid-cols-[180px_1fr] sm:items-center sm:gap-4">
+              <div className="flex shrink-0 items-center gap-2">
+                <Play className="size-3.5 shrink-0 text-primary" />
+                <span className="font-semibold text-foreground">
+                  Scan Folders
+                </span>
               </div>
               <span className="text-muted-foreground">
-                Runs an incremental scan on all enabled root folders, scanning only for new or modified files.
+                Scans enabled folders for new or modified files.
               </span>
             </div>
-            <div className="flex flex-col sm:grid sm:grid-cols-[180px_1fr] p-3 gap-1 sm:gap-4 text-2xs hover:bg-muted/10 transition-colors items-start sm:items-center">
-              <div className="flex items-center gap-2 shrink-0">
-                <RefreshCw className="size-3.5 text-primary shrink-0" />
-                <span className="font-semibold text-foreground">Force Rescan</span>
+            <div className="flex flex-col items-start gap-1 p-3 text-2xs transition-colors hover:bg-muted/10 sm:grid sm:grid-cols-[180px_1fr] sm:items-center sm:gap-4">
+              <div className="flex shrink-0 items-center gap-2">
+                <RefreshCw className="size-3.5 shrink-0 text-primary" />
+                <span className="font-semibold text-foreground">
+                  Force Rescan
+                </span>
               </div>
               <span className="text-muted-foreground">
-                Accessed from the dropdown next to the Scan button. Wipes metadata cache and re-analyzes every file from scratch.
+                Wipes metadata cache and rescans all files from scratch.
               </span>
             </div>
-            <div className="flex flex-col sm:grid sm:grid-cols-[180px_1fr] p-3 gap-1 sm:gap-4 text-2xs hover:bg-muted/10 transition-colors items-start sm:items-center">
-              <div className="flex items-center gap-2 shrink-0">
-                <Sparkles className="size-3.5 text-primary shrink-0" />
-                <span className="font-semibold text-foreground">Quick Suggestions</span>
+            <div className="flex flex-col items-start gap-1 p-3 text-2xs transition-colors hover:bg-muted/10 sm:grid sm:grid-cols-[180px_1fr] sm:items-center sm:gap-4">
+              <div className="flex shrink-0 items-center gap-2">
+                <Sparkles className="size-3.5 shrink-0 text-primary" />
+                <span className="font-semibold text-foreground">
+                  Quick Suggestions
+                </span>
               </div>
               <span className="text-muted-foreground">
-                Clicking any warning card or cleanup suggestion card redirects you to the Browse page with those specific defect filters pre-applied.
+                Click any metric tile to filter matching files in Browse.
               </span>
             </div>
           </div>
         </div>
+
+        {/* 3. Collapsible Under the Hood Technical Concepts */}
+        <Collapsible open={isTechOpen} onOpenChange={setIsTechOpen} className="space-y-2">
+          <CollapsibleTrigger asChild>
+            <button className="flex w-full cursor-pointer items-center justify-between rounded-xl border border-border/60 bg-muted/20 px-3 py-2 text-2xs font-semibold text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground">
+              <div className="flex items-center gap-2 text-3xs font-extrabold tracking-wider text-primary uppercase">
+                <Code2 className="size-3.5" />
+                Under the Hood & Technical Concepts
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] font-normal text-muted-foreground">
+                  {isTechOpen ? "Hide details" : "Learn how it works"}
+                </span>
+                <ChevronDown className={`size-3.5 text-muted-foreground transition-transform duration-200 ${isTechOpen ? "rotate-180" : ""}`} />
+              </div>
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="space-y-2 pt-1">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="flex flex-col gap-1 rounded-xl border border-border/50 bg-muted/10 p-2.5">
+                <span className="text-2xs font-bold text-foreground">
+                  Incremental mtime Indexing
+                </span>
+                <span className="text-[11px] leading-relaxed text-muted-foreground">
+                  Compares filesystem modification timestamps against SQLite records to skip parsing unchanged files.
+                </span>
+              </div>
+              <div className="flex flex-col gap-1 rounded-xl border border-border/50 bg-muted/10 p-2.5">
+                <span className="text-2xs font-bold text-foreground">
+                  SQLite FTS Storage
+                </span>
+                <span className="text-[11px] leading-relaxed text-muted-foreground">
+                  Metadata, EXIF tags, and quality flags store in a local indexed database powering sub-millisecond queries.
+                </span>
+              </div>
+              <div className="flex flex-col gap-1 rounded-xl border border-border/50 bg-muted/10 p-2.5">
+                <span className="text-2xs font-bold text-foreground">
+                  Worker Thread Hashing
+                </span>
+                <span className="text-[11px] leading-relaxed text-muted-foreground">
+                  Perceptual hashing and thumbnail extraction execute across multi-threaded Node.js worker pools to keep the UI responsive.
+                </span>
+              </div>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
       </div>
 
-      {/* Tip Banner */}
-      <div className="border-t border-border pt-3.5 mt-auto flex flex-row items-start gap-3 shrink-0">
-        <div className="p-1.5 rounded-lg bg-primary/10 text-primary border border-primary/20 shrink-0">
+      {/* Pro Tip Banner */}
+      <div className="mt-auto flex shrink-0 flex-row items-start gap-3 border-t border-border pt-3.5">
+        <div className="shrink-0 rounded-lg border border-primary/20 bg-primary/10 p-1.5 text-primary">
           <Zap className="size-4" />
         </div>
-        <div className="flex-1 min-w-0">
-          <span className="text-2xs font-extrabold uppercase text-primary tracking-wider block">PRO TIP</span>
-          <span className="text-2xs text-muted-foreground leading-relaxed mt-0.5 block">
-            Incremental scans are standard. If you adjust defect sensitivity thresholds in settings, perform a "Force Rescan" from the scan dropdown to re-evaluate all existing files on disk.
+        <div className="min-w-0 flex-1">
+          <span className="block text-2xs font-extrabold tracking-wider text-primary uppercase">
+            PRO TIP
+          </span>
+          <span className="mt-0.5 block text-2xs leading-relaxed text-muted-foreground">
+            Click any metric tile to open the Browse page filtered to that category.
           </span>
         </div>
       </div>
     </>
-  );
-};
+  )
+}

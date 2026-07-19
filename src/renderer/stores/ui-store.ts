@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import type { UpdateCheckResult } from "../../shared/types/ipc"
+import { withViewTransition } from "../lib/view-transition"
 
 type ViewMode =
   "dashboard" | "browse" | "review" | "duplicates" | "organize" | "settings"
@@ -43,7 +44,12 @@ export const useUIStore = create<UIState>((set, get) => ({
       ? localStorage.getItem("galleo_dismissed_update")
       : null,
 
-  setCurrentView: (currentView) => set({ currentView }),
+  setCurrentView: (currentView) => {
+    if (get().currentView === currentView) return
+    withViewTransition(() => {
+      set({ currentView })
+    })
+  },
   setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
   setKeyboardShortcutsOpen: (keyboardShortcutsOpen) =>
     set({ keyboardShortcutsOpen }),

@@ -12,8 +12,9 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { PageContainer } from "@/components/ui/page-layout"
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 import { Progress } from "@/components/ui/progress"
+import { useSettingsStore } from "../stores/settings-store"
+import { useScanStore } from "../stores/scan-store"
 import {
   Sparkles,
   FolderOpen,
@@ -35,16 +36,32 @@ import {
   Clock,
   Bookmark,
   Minimize,
+  Play,
+  Loader2,
 } from "lucide-react"
 import { formatBytes } from "../lib/format"
 
 export const DashboardPage: React.FC = () => {
   const items = useMediaStore((s) => s.items)
+  const activeRootPath = useMediaStore((s) => s.activeRootPath)
   const setFilterQuality = useMediaStore((s) => s.setFilterQuality)
   const setFilterType = useMediaStore((s) => s.setFilterType)
   const setSortBy = useMediaStore((s) => s.setSortBy)
   const setFilterReviewState = useMediaStore((s) => s.setFilterReviewState)
   const { setCurrentView, setActiveSettingsTab } = useUIStore()
+  const { settings } = useSettingsStore()
+  const startScan = useScanStore((s) => s.startScan)
+  const isScanning = useScanStore((s) => s.isScanning)
+
+  const isScanned = React.useMemo(() => {
+    if (!activeRootPath) return false
+    if (activeRootPath === "all") {
+      return settings.folders.roots.some((r) => r.scanned)
+    }
+    return !!settings.folders.roots.find(
+      (r) => r.path.toLowerCase() === activeRootPath.toLowerCase()
+    )?.scanned
+  }, [activeRootPath, settings.folders.roots])
 
   const totalFiles = items.length
   const photoCount = items.filter((i) => i.mediaType === "photo").length
@@ -101,36 +118,70 @@ export const DashboardPage: React.FC = () => {
     setCurrentView("browse")
   }
 
+  const folderLabel = activeRootPath === "all" || !activeRootPath
+    ? "root folders"
+    : `"${activeRootPath.split(/[\\/]/).pop() || activeRootPath}"`
+
   return (
     <PageContainer className="font-sans text-xs select-none" maxWidth="xl">
-      {totalFiles === 0 && (
-        <Alert className="border-amber-500/25 bg-amber-500/5 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400">
-          <AlertCircle className="size-4 shrink-0 text-amber-500" />
-          <div className="flex-1">
-            <AlertTitle className="text-sm font-semibold text-foreground">
-              No media scanned yet
-            </AlertTitle>
-            <AlertDescription className="mt-1 text-xs leading-relaxed text-muted-foreground">
-              To build your local dashboard and start culling duplicates, click
-              the <strong className="text-foreground">Scan Folders</strong>{" "}
-              button in the top header. If you need to manage your library
-              folders first, select{" "}
-              <strong className="text-foreground">Settings</strong> in the
-              sidebar.
-            </AlertDescription>
+      {(!isScanned || totalFiles === 0) && (
+        <div className="mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-xl border border-amber-500/25 bg-amber-500/5 dark:bg-amber-500/10 p-3.5 px-4 text-foreground">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500">
+              <AlertCircle className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <h4 className="text-xs font-semibold text-foreground tracking-tight">
+                {!isScanned ? "Folder not scanned yet" : "No media found"}
+              </h4>
+              <p className="text-2xs text-muted-foreground truncate">
+                {!isScanned
+                  ? `Scan ${folderLabel} to analyze quality, detect duplicates, and populate dashboard statistics.`
+                  : "Scan your library folders to index media and populate analytics."}
+              </p>
+            </div>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            className="shrink-0 cursor-pointer border-amber-500/30 text-xs hover:bg-amber-500/10"
-            onClick={() => {
-              setActiveSettingsTab("folders")
-              setCurrentView("settings")
-            }}
-          >
-            Manage Folders
-          </Button>
-        </Alert>
+          <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+            <Button
+              size="sm"
+              className="h-7 cursor-pointer gap-1.5 px-3 text-2xs font-semibold"
+              disabled={isScanning}
+              onClick={() => {
+                const enabledRoots = settings.folders.roots
+                  .filter((r) => r.enabled)
+                  .map((r) => r.path)
+                if (activeRootPath && activeRootPath !== "all") {
+                  startScan([activeRootPath])
+                } else if (enabledRoots.length > 0) {
+                  startScan(enabledRoots)
+                }
+              }}
+            >
+              {isScanning ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Scanning...
+                </>
+              ) : (
+                <>
+                  <Play className="h-3 w-3 fill-current" />
+                  Scan Now
+                </>
+              )}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 cursor-pointer px-3 text-2xs font-semibold border-border hover:bg-accent"
+              onClick={() => {
+                setActiveSettingsTab("folders")
+                setCurrentView("settings")
+              }}
+            >
+              Manage Folders
+            </Button>
+          </div>
+        </div>
       )}
 
       {/* 1. Stat Cards Grid: Strict "Label ------ Icon" Consistency */}

@@ -8,6 +8,7 @@ import { MediaCullingMode } from "../components/media-culling/MediaCullingMode"
 import { MediaCullingSummary } from "../components/media-culling/MediaCullingSummary"
 import { PageContainer } from "@/components/ui/page-layout"
 import { Button } from "@/components/ui/button"
+import { withViewTransition } from "../lib/view-transition"
 
 export const MediaCullingPage: React.FC = () => {
   const items = useMediaStore((s) => s.items)
@@ -26,7 +27,6 @@ export const MediaCullingPage: React.FC = () => {
     )?.scanned
   }, [activeRootPath, settings.folders.roots])
 
-  const [showSummary, setShowSummary] = useState(false)
   const [onlyShowFlagged, setOnlyShowFlagged] = useState(false)
   const decisions = useSessionStore((s) => s.decisions)
 
@@ -39,19 +39,13 @@ export const MediaCullingPage: React.FC = () => {
     )
   }, [items, decisions])
 
-  const hasInitializedSummaryRef = React.useRef(false)
-  const lastRootPathRef = React.useRef<string | null>(null)
+  const [showSummary, setShowSummary] = useState<boolean>(() => isAllReviewed)
+  const prevRootPathRef = React.useRef<string | null>(activeRootPath)
 
-  React.useEffect(() => {
-    if (activeRootPath !== lastRootPathRef.current) {
-      lastRootPathRef.current = activeRootPath
-      hasInitializedSummaryRef.current = false
-      setShowSummary(false)
-    } else if (isAllReviewed && !hasInitializedSummaryRef.current) {
-      setShowSummary(true)
-      hasInitializedSummaryRef.current = true
-    }
-  }, [isAllReviewed, activeRootPath])
+  if (activeRootPath !== prevRootPathRef.current) {
+    prevRootPathRef.current = activeRootPath
+    setShowSummary(isAllReviewed)
+  }
 
   // Initialize review session
   useEffect(() => {
@@ -113,7 +107,7 @@ export const MediaCullingPage: React.FC = () => {
           filteredItems.length > 0 ? (
             <MediaCullingMode
               items={filteredItems}
-              onComplete={() => setShowSummary(true)}
+              onComplete={() => withViewTransition(() => setShowSummary(true))}
               onlyShowFlagged={onlyShowFlagged}
               onOnlyShowFlaggedChange={setOnlyShowFlagged}
             />
@@ -135,7 +129,9 @@ export const MediaCullingPage: React.FC = () => {
           )
         ) : (
           <div className="flex min-h-0 flex-1 flex-col px-6 pt-4 pb-6 md:pb-8">
-            <MediaCullingSummary onBackToQueue={() => setShowSummary(false)} />
+            <MediaCullingSummary
+              onBackToQueue={() => withViewTransition(() => setShowSummary(false))}
+            />
           </div>
         )}
       </div>

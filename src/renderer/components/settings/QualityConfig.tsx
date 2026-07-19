@@ -10,6 +10,7 @@ import {
 import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
+import { SlidersHorizontal, Focus, Moon } from "lucide-react"
 
 export const QualityConfig: React.FC = () => {
   const { settings, saveSettings } = useSettingsStore()
@@ -48,22 +49,26 @@ export const QualityConfig: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6 font-sans text-xs select-none">
-      <Card className="border-border bg-card/45">
-        <CardHeader className="border-b border-border pb-3">
-          <CardTitle className="text-sm font-semibold text-foreground">
+    <div className="space-y-4 font-sans text-xs select-none">
+      <Card className="border-border/60 bg-card/50 shadow-xs">
+        <CardHeader className="border-b border-border/40 px-4 py-3">
+          <CardTitle className="flex items-center gap-2 text-xs font-bold text-foreground uppercase tracking-wide">
+            <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
             Defect Thresholds
           </CardTitle>
-          <CardDescription className="mt-0.5 text-xs text-muted-foreground">
-            Adjust sensitivity variables for quality flags.
+          <CardDescription className="text-2xs text-muted-foreground">
+            Configure sensitivity parameters for automated photo quality flags.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6 p-4">
+        <CardContent className="space-y-4 p-4">
           {/* Blur Score Slider */}
-          <div className="space-y-2">
-            <div className="flex flex-col justify-between gap-1 text-xs font-semibold text-muted-foreground sm:flex-row sm:items-center">
-              <Label className="uppercase">Blurry Threshold</Label>
-              <span className="font-mono text-primary">
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <Label className="flex items-center gap-1.5 text-2xs font-bold text-muted-foreground uppercase tracking-wider">
+                <Focus className="h-3.5 w-3.5 text-sky-500 dark:text-sky-400" />
+                Blurry Threshold
+              </Label>
+              <span className="font-mono text-2xs font-semibold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
                 {blurVal} (below = blurry)
               </span>
             </div>
@@ -74,18 +79,23 @@ export const QualityConfig: React.FC = () => {
               min={10}
               max={80}
               step={1}
-              className="py-3 sm:py-4"
+              className="py-1"
             />
-            <p className="text-xs leading-normal text-muted-foreground">
-              Higher values increase blur detection sensitivity.
+            <p className="text-2xs text-muted-foreground leading-relaxed">
+              Higher values increase blur detection sensitivity during library scanning.
             </p>
           </div>
 
+          <div className="h-px bg-border/40" />
+
           {/* Exposure Darkness Slider */}
-          <div className="space-y-2">
-            <div className="flex flex-col justify-between gap-1 text-xs font-semibold text-muted-foreground sm:flex-row sm:items-center">
-              <Label className="uppercase">Darkness Threshold</Label>
-              <span className="font-mono text-primary">
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <Label className="flex items-center gap-1.5 text-2xs font-bold text-muted-foreground uppercase tracking-wider">
+                <Moon className="h-3.5 w-3.5 text-indigo-500 dark:text-indigo-400" />
+                Darkness Threshold
+              </Label>
+              <span className="font-mono text-2xs font-semibold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
                 {darkVal} (0-255, below = dark)
               </span>
             </div>
@@ -96,10 +106,10 @@ export const QualityConfig: React.FC = () => {
               min={10}
               max={100}
               step={1}
-              className="py-3 sm:py-4"
+              className="py-1"
             />
-            <p className="text-xs leading-normal text-muted-foreground">
-              Higher values flag more underexposed photos as dark.
+            <p className="text-2xs text-muted-foreground leading-relaxed">
+              Higher values flag more underexposed photos as dark in quality review.
             </p>
           </div>
         </CardContent>

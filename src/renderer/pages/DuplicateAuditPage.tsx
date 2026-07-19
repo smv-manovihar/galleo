@@ -15,6 +15,7 @@ import { useUIStore } from "../stores/ui-store"
 import type { MediaItem } from "../../shared/types/media"
 import type { DuplicateStrategy } from "../../shared/types/settings"
 import { getNormalizedFilenameBase } from "../../shared/filename-utils"
+import { withViewTransition } from "../lib/view-transition"
 
 export const DuplicateAuditPage: React.FC = () => {
   const items = useMediaStore((s) => s.items)
@@ -34,18 +35,8 @@ export const DuplicateAuditPage: React.FC = () => {
   }, [activeRootPath, settings.folders.roots])
 
   const { activeDuplicatesTab: activeTab, setActiveDuplicatesTab: setActiveTab } = useUIStore()
-  const [showSummary, setShowSummary] = useState(false)
+  const decisions = useSessionStore((s) => s.decisions)
   const [manualGroupIndex, setManualGroupIndex] = useState(0)
-
-  const lastLoadedFolderRef = React.useRef<string | null>(null)
-
-  // Initialize review session when activeRootPath changes or is loaded
-  React.useEffect(() => {
-    if (isScanning) return
-    if (activeRootPath && items.length > 0) {
-      initSession(activeRootPath, items.length)
-    }
-  }, [activeRootPath, items.length, isScanning, initSession])
 
   const strategy: DuplicateStrategy =
     settings.organization.duplicateStrategy ?? "keep_most_grouped"
@@ -191,6 +182,35 @@ export const DuplicateAuditPage: React.FC = () => {
     return manualReviewGroups.flat()
   }, [manualReviewGroups])
 
+  const isAllManualReviewed = React.useMemo(() => {
+    if (manualReviewGroups.length === 0) return false
+    return manualReviewGroups.every((group) =>
+      group.every(
+        (item) =>
+          decisions[item.id] !== undefined ||
+          (item.reviewState && item.reviewState !== "pending")
+      )
+    )
+  }, [manualReviewGroups, decisions])
+
+  const [showSummary, setShowSummary] = useState<boolean>(() => isAllManualReviewed)
+  const prevRootPathRef = React.useRef<string | null>(activeRootPath)
+
+  if (activeRootPath !== prevRootPathRef.current) {
+    prevRootPathRef.current = activeRootPath
+    setShowSummary(isAllManualReviewed)
+  }
+
+  const lastLoadedFolderRef = React.useRef<string | null>(null)
+
+  // Initialize review session when activeRootPath changes or is loaded
+  React.useEffect(() => {
+    if (isScanning) return
+    if (activeRootPath && items.length > 0) {
+      initSession(activeRootPath, items.length)
+    }
+  }, [activeRootPath, items.length, isScanning, initSession])
+
   // Restore and initialize local tab/index states when activeRootPath changes or items load
   React.useEffect(() => {
     if (
@@ -229,21 +249,20 @@ export const DuplicateAuditPage: React.FC = () => {
       // Fallback: find the first group that has at least one pending item to review
       const firstUncompleted = manualReviewGroups.findIndex((group) =>
         group.some(
-          (item) => !item.reviewState || item.reviewState === "pending"
+          (item) =>
+            decisions[item.id] === undefined &&
+            (!item.reviewState || item.reviewState === "pending")
         )
       )
       if (firstUncompleted !== -1) {
         setManualGroupIndex(firstUncompleted)
-        setShowSummary(false)
       } else if (manualReviewGroups.length > 0) {
         setManualGroupIndex(manualReviewGroups.length - 1)
-        setShowSummary(true)
       } else {
         setManualGroupIndex(0)
-        setShowSummary(false)
       }
     }
-  }, [activeRootPath, items.length, manualReviewGroups, setActiveTab])
+  }, [activeRootPath, items.length, manualReviewGroups, setActiveTab, decisions])
 
   const handleTabChange = (tab: "auto" | "manual") => {
     setActiveTab(tab)
@@ -295,9 +314,12 @@ export const DuplicateAuditPage: React.FC = () => {
         {showSummary ? (
           <div className="flex min-h-0 flex-1 flex-col">
             <DuplicateAuditSummary
+              similarMediaItems={manualReviewItems}
               onBackToQueue={() => {
-                setShowSummary(false)
-                setManualGroupIndex(Math.max(0, manualReviewGroups.length - 1))
+                withViewTransition(() => {
+                  setShowSummary(false)
+                  setManualGroupIndex(Math.max(0, manualReviewGroups.length - 1))
+                })
               }}
             />
           </div>
@@ -359,7 +381,7 @@ export const DuplicateAuditPage: React.FC = () => {
                 {manualReviewItems.length > 0 ? (
                   <DuplicateAuditReview
                     items={manualReviewItems}
-                    onComplete={() => setShowSummary(true)}
+                    onComplete={() => withViewTransition(() => setShowSummary(true))}
                     activeGroupIndex={manualGroupIndex}
                     onGroupIndexChange={handleGroupIndexChange}
                   />

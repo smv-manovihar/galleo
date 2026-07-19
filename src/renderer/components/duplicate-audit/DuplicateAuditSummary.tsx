@@ -14,12 +14,16 @@ import {
 } from "lucide-react"
 import { formatBytes } from "../../lib/format"
 import { toast } from "sonner"
+import type { MediaItem } from "../../../shared/types/media"
+import { withViewTransition } from "../../lib/view-transition"
 
 interface DuplicateAuditSummaryProps {
+  similarMediaItems?: MediaItem[]
   onBackToQueue: () => void
 }
 
 export const DuplicateAuditSummary: React.FC<DuplicateAuditSummaryProps> = ({
+  similarMediaItems,
   onBackToQueue,
 }) => {
   const { decisions, commitDeletions, isCommitting } = useSessionStore()
@@ -28,11 +32,21 @@ export const DuplicateAuditSummary: React.FC<DuplicateAuditSummaryProps> = ({
 
   const itemMap = useMemo(() => new Map(items.map((i) => [i.id, i])), [items])
 
+  const similarItemIds = useMemo(() => {
+    if (!similarMediaItems || similarMediaItems.length === 0) return null
+    return new Set(similarMediaItems.map((i) => i.id))
+  }, [similarMediaItems])
+
   const details = useMemo(() => {
     const keepList: string[] = []
     const deleteList: string[] = []
     let deleteBytes = 0
+
     for (const [mediaId, state] of Object.entries(decisions)) {
+      // Filter to only include decisions belonging to similar media items
+      if (similarItemIds && !similarItemIds.has(mediaId)) {
+        continue
+      }
       const item = itemMap.get(mediaId)
       if (!item) continue
       if (state === "keep") keepList.push(mediaId)
@@ -47,12 +61,10 @@ export const DuplicateAuditSummary: React.FC<DuplicateAuditSummaryProps> = ({
       reclaimableSize: deleteBytes,
       deleteIds: deleteList,
     }
-  }, [decisions, itemMap])
+  }, [decisions, itemMap, similarItemIds])
 
   const handleCommit = async () => {
-    const deleteIds = Object.entries(decisions)
-      .filter(([_, s]) => s === "delete")
-      .map(([id]) => id)
+    const deleteIds = details.deleteIds
     const size = details.reclaimableSize
     const count = deleteIds.length
     if (count > 0) {
@@ -75,7 +87,7 @@ export const DuplicateAuditSummary: React.FC<DuplicateAuditSummaryProps> = ({
           </div>
           <div className="space-y-1">
             <h2 className="font-heading text-sm font-bold tracking-tight text-foreground">
-              Duplicate audit complete
+              Similar media audit complete
             </h2>
           </div>
           {/* Stat tiles */}
@@ -113,14 +125,12 @@ export const DuplicateAuditSummary: React.FC<DuplicateAuditSummaryProps> = ({
           )}
         </div>
 
-
-
         {/* Actions */}
         <div className="flex gap-2">
           <Button
             variant="ghost"
             className="h-9 flex-1 cursor-pointer gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-            onClick={onBackToQueue}
+            onClick={() => withViewTransition(onBackToQueue)}
             disabled={isCommitting}
           >
             <ChevronLeft className="h-4 w-4" />

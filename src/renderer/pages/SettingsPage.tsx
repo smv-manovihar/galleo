@@ -122,7 +122,7 @@ export const SettingsPage: React.FC = () => {
               <TabsTrigger
                 key={tab.value}
                 value={tab.value}
-                className="h-9 w-full cursor-pointer justify-start gap-2 rounded-lg px-3.5 text-xs font-medium whitespace-nowrap transition-all data-active:bg-background data-active:shadow-xs"
+                className="h-10 w-full cursor-pointer justify-start gap-2.5 rounded-lg px-3.5 text-xs font-medium whitespace-nowrap transition-all group-data-vertical/tabs:py-2 data-active:bg-background data-active:shadow-xs"
               >
                 <Icon className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-data-active:text-primary" />
                 <span className="truncate">{tab.label}</span>

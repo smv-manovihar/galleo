@@ -49,12 +49,15 @@ export const AppShell: React.FC = () => {
     document.documentElement.style.setProperty("--font-scale", scaleValue)
   }, [settings.ui.fontSize])
 
+  const activeRootPath = useMediaStore((s) => s.activeRootPath)
+
   useEffect(() => {
-    // Auto-scan or load items for all root paths combined on startup
-    if (settings.folders.roots.length > 0 && !hasItems) {
+    // Auto-load all items on startup only — do not re-fetch when a folder
+    // is explicitly selected (even if it returns 0 items, e.g. unscanned).
+    if (settings.folders.roots.length > 0 && !hasItems && activeRootPath === null) {
       fetchMediaItems("all")
     }
-  }, [settings.folders.roots, fetchMediaItems, hasItems])
+  }, [settings.folders.roots, fetchMediaItems, hasItems, activeRootPath])
 
   const isElectron = typeof window !== "undefined" && window.api !== undefined
 
@@ -113,7 +116,7 @@ export const AppShell: React.FC = () => {
                 </span>
               </div>
             )}
-            <main className="relative flex-1 overflow-x-hidden overflow-y-auto bg-background/50 contain-strict">
+            <main className="page-transition-main relative flex-1 overflow-x-hidden overflow-y-auto bg-background/50 contain-strict">
               {renderContent()}
             </main>
             <StatusBar />

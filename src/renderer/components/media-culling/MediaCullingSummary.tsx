@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 import { formatBytes } from "../../lib/format"
 import { toast } from "sonner"
+import { withViewTransition } from "../../lib/view-transition"
 
 interface MediaCullingSummaryProps {
   onBackToQueue: () => void
@@ -121,7 +122,7 @@ export const MediaCullingSummary: React.FC<MediaCullingSummaryProps> = ({
           <Button
             variant="ghost"
             className="h-9 flex-1 cursor-pointer gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-            onClick={onBackToQueue}
+            onClick={() => withViewTransition(onBackToQueue)}
             disabled={isCommitting}
           >
             <ChevronLeft className="h-4 w-4" />

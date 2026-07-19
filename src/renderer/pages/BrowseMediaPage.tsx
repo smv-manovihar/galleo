@@ -35,6 +35,7 @@ import {
   CalendarClock,
 } from "lucide-react"
 import { formatBytes } from "../lib/format"
+import { storage } from "../lib/storage"
 
 export const BrowseMediaPage: React.FC = () => {
   const items = useMediaStore((s) => s.items)
@@ -71,8 +72,12 @@ export const BrowseMediaPage: React.FC = () => {
     isCommitting,
   } = useSessionStore()
 
-  const [layoutMode, setLayoutMode] = useState<"card" | "list">("card")
-  const [groupMode, setGroupMode] = useState<"normal" | "date">("normal")
+  const [layoutMode, setLayoutMode] = useState<"card" | "list">(
+    () => (storage.get("browse_layout") as "card" | "list") || "card"
+  )
+  const [groupMode, setGroupMode] = useState<"normal" | "date">(
+    () => (storage.get("browse_group") as "normal" | "date") || "normal"
+  )
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [previewItem, setPreviewItem] = useState<MediaItem | null>(null)
   const [infoItem, setInfoItem] = useState<MediaItem | null>(null)
@@ -101,6 +106,13 @@ export const BrowseMediaPage: React.FC = () => {
       initSession(activeRootPath, items.length)
     }
   }, [activeRootPath, items.length, isScanning, initSession])
+
+  useEffect(() => {
+    storage.set("browse_layout", layoutMode)
+  }, [layoutMode])
+  useEffect(() => {
+    storage.set("browse_group", groupMode)
+  }, [groupMode])
 
   const filteredItems = React.useMemo(() => {
     return getFilteredItems()

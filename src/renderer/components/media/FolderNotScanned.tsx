@@ -41,7 +41,7 @@ export const FolderNotScanned: React.FC<FolderNotScannedProps> = ({
           </p>
         </div>
         <Button
-          className="h-9 w-full cursor-pointer gap-1.5 text-xs font-semibold"
+          className="h-9 px-6 cursor-pointer gap-1.5 text-xs font-semibold"
           onClick={handleScanClick}
           disabled={isScanning}
         >

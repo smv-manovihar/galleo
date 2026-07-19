@@ -1,6 +1,6 @@
 {
   "name": "galleo",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "main": "dist-electron/main/index.js",
   "description": "Smart desktop app for cleaning up and organizing local photo and video libraries.",
   "author": {

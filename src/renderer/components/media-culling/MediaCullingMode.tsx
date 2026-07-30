@@ -5,6 +5,7 @@ import { MediaCullingProgress } from "./MediaCullingProgress"
 import { MediaCullingCard } from "./MediaCullingCard"
 import { MediaCullingControls } from "./MediaCullingControls"
 import { MediaPreview } from "../media/MediaPreview"
+import { getSimilaritySortedItems } from "../../lib/similarity"
 
 interface MediaCullingModeProps {
   items: MediaItem[]
@@ -15,55 +16,6 @@ interface MediaCullingModeProps {
 
 /** How many stacked cards visible behind the top card */
 const DECK_SIZE = 3
-
-/** Inline Hamming distance on hex pHash strings (renderer cannot import from main). */
-function hammingDistance(a: string, b: string): number {
-  if (a.length !== b.length) return Infinity
-  const NIBBLE = new Uint8Array([0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4])
-  let d = 0
-  for (let i = 0; i < a.length; i++) {
-    d += NIBBLE[parseInt(a[i], 16) ^ parseInt(b[i], 16)]
-  }
-  return d
-}
-
-/**
- * Greedy nearest-neighbor sort: re-orders items so that each consecutive pair
- * has the smallest possible Hamming distance. Items without a hash are appended
- * at the end in their original relative order. This creates a smooth visual
- * gradient through the queue — no threshold, no hard groups.
- */
-function sortBySimilarity(items: MediaItem[]): MediaItem[] {
-  const hashed = items.filter((i) => !!i.hash)
-  const unhashed = items.filter((i) => !i.hash)
-  if (hashed.length === 0) return items
-
-  const visited = new Uint8Array(hashed.length)
-  const result: MediaItem[] = []
-
-  let currentIdx = 0
-  visited[currentIdx] = 1
-  result.push(hashed[currentIdx])
-
-  for (let step = 1; step < hashed.length; step++) {
-    const currentHash = hashed[currentIdx].hash!
-    let bestIdx = -1
-    let bestDist = Infinity
-    for (let j = 0; j < hashed.length; j++) {
-      if (visited[j]) continue
-      const dist = hammingDistance(currentHash, hashed[j].hash!)
-      if (dist < bestDist) {
-        bestDist = dist
-        bestIdx = j
-      }
-    }
-    currentIdx = bestIdx
-    visited[currentIdx] = 1
-    result.push(hashed[currentIdx])
-  }
-
-  return [...result, ...unhashed]
-}
 
 export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
   items,
@@ -94,18 +46,19 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
   const prevUnreviewedCountRef = useRef(0)
 
   const filteredItems = useMemo(() => {
-    const base = onlyShowFlagged
-      ? items.filter(
-          (item) =>
-            item.isDuplicate ||
-            (item.quality !== undefined &&
-              (item.quality.isBlurry ||
-                item.quality.isDark ||
-                item.quality.isScreenshot ||
-                item.quality.isSmall))
-        )
-      : items
-    return sortBySimilarity(base)
+    const sortedAll = getSimilaritySortedItems(items)
+    if (onlyShowFlagged) {
+      return sortedAll.filter(
+        (item) =>
+          item.isDuplicate ||
+          (item.quality !== undefined &&
+            (item.quality.isBlurry ||
+              item.quality.isDark ||
+              item.quality.isScreenshot ||
+              item.quality.isSmall))
+      )
+    }
+    return sortedAll
   }, [items, onlyShowFlagged])
 
   const unreviewedItems = useMemo(() => {
@@ -166,7 +119,14 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
   useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
       const key = e.key.toLowerCase()
-      if (key === "z" || e.key === "ArrowDown" || (e.ctrlKey && key === "z")) {
+
+      // Undo: ↓ / S / Ctrl+Z / Backspace
+      if (
+        e.key === "ArrowDown" ||
+        key === "s" ||
+        (e.ctrlKey && key === "z") ||
+        e.key === "Backspace"
+      ) {
         e.preventDefault()
         await handleUndo()
         return
@@ -174,12 +134,25 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
 
       if (!currentItem || swipeClass !== "") return
 
-      if (key === "d" || e.key === "ArrowLeft") {
+      // Preview: ↑ / W
+      if (e.key === "ArrowUp" || key === "w") {
+        e.preventDefault()
+        setShowPreview(true)
+        return
+      }
+
+      // Delete: ← / A / Del
+      if (e.key === "ArrowLeft" || key === "a" || e.key === "Delete") {
         e.preventDefault()
         await handleAction("delete")
-      } else if (key === "k" || e.key === "ArrowRight") {
+        return
+      }
+
+      // Keep: → / D / Enter
+      if (e.key === "ArrowRight" || key === "d" || e.key === "Enter") {
         e.preventDefault()
         await handleAction("keep")
+        return
       }
     }
 

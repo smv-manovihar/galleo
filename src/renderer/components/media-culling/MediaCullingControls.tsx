@@ -76,7 +76,7 @@ export const MediaCullingControls: React.FC<MediaCullingControlsProps> = ({
                 <Undo2 className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="top">Undo (↓ or Ctrl+Z)</TooltipContent>
+            <TooltipContent side="top">Undo (↓ / S / Ctrl+Z / Backspace)</TooltipContent>
           </Tooltip>
         </div>
 
@@ -118,7 +118,7 @@ export const MediaCullingControls: React.FC<MediaCullingControlsProps> = ({
                 <Trash2 className="h-6 w-6 fill-current" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="top">Delete (← or D)</TooltipContent>
+            <TooltipContent side="top">Delete (← / A / Del)</TooltipContent>
           </Tooltip>
 
           <Tooltip>
@@ -131,7 +131,7 @@ export const MediaCullingControls: React.FC<MediaCullingControlsProps> = ({
                 <Bookmark className="h-6 w-6 fill-current" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="top">Keep (→ or K)</TooltipContent>
+            <TooltipContent side="top">Keep (→ / D / Enter)</TooltipContent>
           </Tooltip>
         </div>
       </div>
@@ -139,17 +139,13 @@ export const MediaCullingControls: React.FC<MediaCullingControlsProps> = ({
       {/* Keyboard shortcuts & interaction hint */}
       <p className="shrink-0 text-center text-2xs text-muted-foreground">
         Swipe or use{" "}
-        <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono font-bold">
-          ←
-        </kbd>{" "}
-        Delete,{" "}
-        <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono font-bold">
-          →
-        </kbd>{" "}
-        Keep,{" "}
-        <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono font-bold">
-          ↓
-        </kbd>{" "}
+        <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono font-bold">←</kbd>{" "}
+        Delete —{" "}
+        <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono font-bold">→</kbd>{" "}
+        Keep —{" "}
+        <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono font-bold">↑</kbd>{" "}
+        Preview —{" "}
+        <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono font-bold">↓</kbd>{" "}
         Undo
       </p>
     </>

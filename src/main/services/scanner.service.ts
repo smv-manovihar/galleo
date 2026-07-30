@@ -8,10 +8,13 @@ import { MetadataService, type ScanFileData } from "./metadata.service"
 import { QualityService } from "./quality.service"
 import { ThumbnailService } from "./thumbnail.service"
 import { DuplicateService } from "./duplicate.service"
+import { SimilarityService } from "./similarity.service"
 import { analyzeImage } from "../infrastructure/image-processor"
 import { type Result, ok, fail } from "../../shared/types/results"
 import type { MediaItem } from "../../shared/types/media"
 import { IPC_CHANNELS, type ScanProgressPayload } from "../../shared/types/ipc"
+
+import { aiIndexerService } from "./ai-indexer.service"
 
 export class ScannerService {
   private mediaRepository = new MediaRepository()
@@ -20,6 +23,8 @@ export class ScannerService {
   private qualityService = new QualityService()
   private thumbnailService = new ThumbnailService()
   private duplicateService = new DuplicateService()
+  private similarityService = new SimilarityService()
+  private aiIndexerService = aiIndexerService
 
   private isScanning = false
   private isCancelled = false
@@ -27,6 +32,7 @@ export class ScannerService {
   public cancelScan(): void {
     if (this.isScanning) {
       this.isCancelled = true
+      this.aiIndexerService.stopIndexing()
     }
   }
 
@@ -44,6 +50,9 @@ export class ScannerService {
 
     this.isScanning = true
     this.isCancelled = false
+
+    // Trigger background AI indexing queue in parallel with scanning
+    this.aiIndexerService.startIndexing(window, () => this.isScanning).catch(() => {})
 
     try {
       const settings = this.settingsService.getSettings()
@@ -213,6 +222,7 @@ export class ScannerService {
                 }
 
                 processedItems.push(item)
+
                 scannedCount++
 
                 window.webContents.send(IPC_CHANNELS.SCAN_PROGRESS, {
@@ -276,15 +286,21 @@ export class ScannerService {
         settings.quality.duplicateHashDistance
       )
 
+      // 6. Pre-calculate similarity sorting index for all scanned folders during indexing
+      this.similarityService.resolveSimilarityInFolders(
+        allEnabledRoots.length > 0 ? allEnabledRoots : rootPaths
+      )
+
       window.webContents.send(IPC_CHANNELS.SCAN_COMPLETE)
 
       this.isScanning = false
+
       return ok(undefined)
-    } catch (e: any) {
+    } catch (e: unknown) {
       this.isScanning = false
       return fail({
         code: "UNKNOWN",
-        message: e.message || "Scanning process crashed",
+        message: e instanceof Error ? e.message : "Scanning process crashed",
       })
     }
   }

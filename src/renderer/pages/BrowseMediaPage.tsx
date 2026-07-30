@@ -2,14 +2,13 @@ import React, { useState, useEffect } from "react"
 import { useMediaStore } from "../stores/media-store"
 import { useSessionStore } from "../stores/session-store"
 import { useScanStore } from "../stores/scan-store"
-import { useSettingsStore } from "../stores/settings-store"
-import { FolderNotScanned } from "../components/media/FolderNotScanned"
 import { MediaGrid } from "../components/media/MediaGrid"
 import { MediaTimeline } from "../components/media/MediaTimeline"
 import { MediaList } from "../components/media/MediaList"
 import { MediaPreview } from "../components/media/MediaPreview"
 import { MediaInfoDialog } from "../components/media/MediaInfoDialog"
 import type { MediaItem } from "../../shared/types/media"
+import type { SearchResultItem } from "../../main/services/search-engine.service"
 import { Button } from "@/components/ui/button"
 import { PageContainer } from "@/components/ui/page-layout"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -52,17 +51,6 @@ export const BrowseMediaPage: React.FC = () => {
   const searchQuery = useMediaStore((s) => s.searchQuery)
   const getFilteredItems = useMediaStore((s) => s.getFilteredItems)
 
-  const { settings } = useSettingsStore()
-
-  const isScanned = React.useMemo(() => {
-    if (!activeRootPath) return false
-    if (activeRootPath === "all") {
-      return settings.folders.roots.some((r) => r.scanned)
-    }
-    return !!settings.folders.roots.find(
-      (r) => r.path.toLowerCase() === activeRootPath.toLowerCase()
-    )?.scanned
-  }, [activeRootPath, settings.folders.roots])
 
   const {
     initSession,
@@ -114,9 +102,72 @@ export const BrowseMediaPage: React.FC = () => {
     storage.set("browse_group", groupMode)
   }, [groupMode])
 
+  const [searchResults, setSearchResults] = useState<SearchResultItem[] | null>(
+    null
+  )
+
+  // Hybrid Semantic Search Effect
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults(null)
+      return
+    }
+
+    let isMounted = true
+
+    const timer = setTimeout(async () => {
+      try {
+        if (typeof window !== "undefined" && window.api?.search) {
+          const results = await window.api.search.query({
+            query: searchQuery,
+            mediaType: filterType,
+            folderPath:
+              activeRootPath && activeRootPath !== "all"
+                ? activeRootPath
+                : undefined,
+          })
+          if (isMounted) {
+            setSearchResults(results)
+          }
+        }
+      } catch {
+        if (isMounted) setSearchResults(null)
+      }
+    }, 250)
+
+    return () => {
+      isMounted = false
+      clearTimeout(timer)
+    }
+  }, [searchQuery, filterType, activeRootPath])
+
+  const handleFindSimilar = async (mediaId: string) => {
+    try {
+      if (typeof window !== "undefined" && window.api?.search) {
+        const results = await window.api.search.findSimilar(mediaId, 24)
+        setSearchResults(results)
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  const searchResultsMap = React.useMemo(() => {
+    if (!searchResults) return undefined
+    const map = new Map<string, SearchResultItem>()
+    for (const res of searchResults) {
+      map.set(res.mediaId, res)
+    }
+    return map
+  }, [searchResults])
+
   const filteredItems = React.useMemo(() => {
-    return getFilteredItems()
-  }, [items, searchQuery, filterType, filterReviewState, filterQuality, sortBy])
+    const base = getFilteredItems()
+    if (searchResults) {
+      return searchResults.map((r) => r.item)
+    }
+    return base
+  }, [getFilteredItems, searchResults])
 
   const handleSelectToggle = React.useCallback(
     (id: string, _e: React.MouseEvent) => {
@@ -188,19 +239,8 @@ export const BrowseMediaPage: React.FC = () => {
     )
   }
 
-  if (!isScanned) {
-    return (
-      <PageContainer className="h-full select-none" maxWidth="xl">
-        <FolderNotScanned
-          activeRootPath={activeRootPath}
-          featureDescription="and access the catalog"
-        />
-      </PageContainer>
-    )
-  }
-
   return (
-    <PageContainer className="h-full select-none" maxWidth="full">
+    <PageContainer className="h-full select-none gap-3 md:gap-3.5" maxWidth="full">
       {/* Filters & Toolbar Header */}
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2.5 rounded-lg border border-border bg-card/45 p-2.5 backdrop-blur-md">
         {/* Group 1: Tabs (Type & Review State) - stays in one line */}
@@ -459,6 +499,8 @@ export const BrowseMediaPage: React.FC = () => {
             onInfoOpen={handleSetInfoItem}
             onReviewAction={handleReviewAction}
             columns={4}
+            searchResultsMap={searchResultsMap}
+            onFindSimilar={handleFindSimilar}
           />
         )}
         {layoutMode === "card" && groupMode === "date" && (

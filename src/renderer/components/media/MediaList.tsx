@@ -4,8 +4,10 @@ import type { MediaItem } from "../../../shared/types/media"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { formatBytes, formatShortDate, formatDate } from "../../lib/format"
-import { Play, FileImage, Trash2, Check, Eye, ChevronRight } from "lucide-react"
+import { Play, FileImage, Trash2, Check, Eye, ChevronRight, FolderSearch } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useMediaStore } from "../../stores/media-store"
+import { useSettingsStore } from "../../stores/settings-store"
 import {
   Tooltip,
   TooltipTrigger,
@@ -55,7 +57,7 @@ const MediaListRow = React.memo<MediaListRowProps>(
         key={virtualRowKey}
         ref={measureRef}
         data-index={virtualIndex}
-        className={`absolute top-0 left-0 grid h-[38px] w-full cursor-pointer items-center border-b border-border/40 text-xs transition-colors duration-150 will-change-transform hover:bg-accent/40 ${
+        className={`absolute top-0 left-0 grid h-10 w-full cursor-pointer items-center border-b border-border/40 text-xs transition-colors duration-150 will-change-transform hover:bg-accent/40 ${
           isSelected ? "bg-primary/5 hover:bg-primary/10" : ""
         }`}
         style={{
@@ -372,7 +374,7 @@ export const MediaList: React.FC<MediaListProps> = ({
   const rowVirtualizer = useVirtualizer({
     count: flatRows.length,
     getScrollElement: () => containerRef.current,
-    estimateSize: (index) => {
+estimateSize: (index) => {
       const row = flatRows[index]
       return row?.type === "header" ? 36 : 38
     },
@@ -387,6 +389,37 @@ export const MediaList: React.FC<MediaListProps> = ({
     [widths]
   )
 
+  const activeRootPath = useMediaStore((s) => s.activeRootPath)
+  const { settings } = useSettingsStore()
+
+  const isScanned = useMemo(() => {
+    if (!activeRootPath || activeRootPath === "all") {
+      return settings.folders.roots.some((r) => r.enabled && r.scanned)
+    }
+    return !!settings.folders.roots.find(
+      (r) => r.path.toLowerCase() === activeRootPath.toLowerCase()
+    )?.scanned
+  }, [activeRootPath, settings.folders.roots])
+
+  if (items.length === 0) {
+    return (
+      <div className="flex h-full w-full flex-1 flex-col items-center justify-center py-16 font-sans text-xs text-muted-foreground select-none">
+        {!isScanned ? (
+          <>
+            <FolderSearch className="h-8 w-8 text-amber-500/80 mb-1" />
+            <span className="text-sm font-medium text-foreground">Folder not scanned</span>
+            <span className="mt-1 text-2xs text-muted-foreground">Use the Scan Folders button above to index media files.</span>
+          </>
+        ) : (
+          <>
+            <span className="text-sm font-medium text-foreground">No items match current filters</span>
+            <span className="mt-1 text-2xs text-muted-foreground">Try clearing filters or search terms.</span>
+          </>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="h-full w-full overflow-hidden rounded-xl border border-border bg-card/40 select-none">
       <div
@@ -395,7 +428,7 @@ export const MediaList: React.FC<MediaListProps> = ({
       >
         {/* Table Header Row (sticky top to remain visible on scroll) */}
         <div
-          className="sticky top-0 z-20 grid h-[36px] w-full shrink-0 items-center border-b border-border bg-muted/90 py-2.5 font-sans text-[0.6875rem] font-medium text-muted-foreground backdrop-blur-xs select-none"
+          className="sticky top-0 z-20 grid h-9 w-full shrink-0 items-center border-b border-border bg-muted/90 py-2.5 font-sans text-[0.6875rem] font-medium text-muted-foreground backdrop-blur-xs select-none"
           style={gridStyle}
         >
           <div className="flex h-full items-center justify-center border-r border-border/40 text-center"></div>
@@ -521,12 +554,6 @@ export const MediaList: React.FC<MediaListProps> = ({
               )
             }
           })}
-
-          {items.length === 0 && (
-            <div className="py-8 text-center text-muted-foreground">
-              No items match current filters
-            </div>
-          )}
         </div>
       </div>
     </div>

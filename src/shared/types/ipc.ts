@@ -26,6 +26,14 @@ export const IPC_CHANNELS = {
   MEDIA_CLEAR_INDEX: "media:clear-index",
   APP_CHECK_UPDATE: "app:check-update",
   URL_OPEN: "url:open",
+  SEARCH_SEMANTIC: "search:semantic",
+  SEARCH_FIND_SIMILAR: "search:find-similar",
+  AI_MODEL_STATUS: "ai:model-status",
+  AI_DOWNLOAD_MODEL: "ai:download-model",
+  AI_DOWNLOAD_PROGRESS: "ai:download-progress",
+  AI_PURGE_CACHE: "ai:purge-cache",
+  AI_INDEXING_PROGRESS: "ai:indexing-progress",
+  AI_START_INDEXING: "ai:start-indexing",
 } as const
 
 export interface UpdateCheckResult {
@@ -60,6 +68,15 @@ export interface OrganizePreviewItem {
   relativePath: string
   conflict: boolean
   conflictReason?: "already_exists" | "duplicate_target" | "duplicate_source"
+}
+
+import type { SearchQuery, SearchResultItem } from "../../main/services/search-engine.service"
+
+export interface AIIndexingProgressPayload {
+  isIndexing: boolean
+  processedCount: number
+  totalCount: number
+  currentFile?: string
 }
 
 export interface GalleoAPI {
@@ -113,6 +130,28 @@ export interface GalleoAPI {
   clearFolderIndex: (folderPath: string) => Promise<Result<void>>
   checkForUpdates: () => Promise<Result<UpdateCheckResult>>
   openExternal: (url: string) => Promise<Result<void>>
+
+  // AI Visual Search APIs
+  search: {
+    query: (params: SearchQuery) => Promise<SearchResultItem[]>
+    findSimilar: (
+      mediaId: string,
+      limit?: number
+    ) => Promise<SearchResultItem[]>
+  }
+  ai: {
+    getStatus: () => Promise<{
+      isDownloaded: boolean
+      stats: { mediaEmbeddingCount: number; videoFrameEmbeddingCount: number }
+    }>
+    downloadModel: () => Promise<Result<void>>
+    onDownloadProgress: (callback: (progress: number) => void) => () => void
+    onIndexingProgress: (
+      callback: (payload: AIIndexingProgressPayload) => void
+    ) => () => void
+    purgeCache: (options?: { deleteModel?: boolean }) => Promise<Result<void>>
+    startIndexing: () => Promise<Result<void>>
+  }
 }
 
 // Global declaration to typed window

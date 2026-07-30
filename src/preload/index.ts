@@ -80,6 +80,33 @@ const api: GalleoAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.MEDIA_CLEAR_INDEX, folderPath),
   checkForUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.APP_CHECK_UPDATE),
   openExternal: (url) => ipcRenderer.invoke(IPC_CHANNELS.URL_OPEN, url),
+
+  search: {
+    query: (params) => ipcRenderer.invoke(IPC_CHANNELS.SEARCH_SEMANTIC, params),
+    findSimilar: (mediaId, limit) =>
+      ipcRenderer.invoke(IPC_CHANNELS.SEARCH_FIND_SIMILAR, { mediaId, limit }),
+  },
+
+  ai: {
+    getStatus: () => ipcRenderer.invoke(IPC_CHANNELS.AI_MODEL_STATUS),
+    downloadModel: () => ipcRenderer.invoke(IPC_CHANNELS.AI_DOWNLOAD_MODEL),
+    onDownloadProgress: (callback) => {
+      const listener = (_event: any, progress: number) => callback(progress)
+      ipcRenderer.on(IPC_CHANNELS.AI_DOWNLOAD_PROGRESS, listener)
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.AI_DOWNLOAD_PROGRESS, listener)
+      }
+    },
+    onIndexingProgress: (callback) => {
+      const listener = (_event: any, payload: any) => callback(payload)
+      ipcRenderer.on(IPC_CHANNELS.AI_INDEXING_PROGRESS, listener)
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.AI_INDEXING_PROGRESS, listener)
+      }
+    },
+    purgeCache: (options) => ipcRenderer.invoke(IPC_CHANNELS.AI_PURGE_CACHE, options),
+    startIndexing: () => ipcRenderer.invoke(IPC_CHANNELS.AI_START_INDEXING),
+  },
 }
 
 contextBridge.exposeInMainWorld("api", api)

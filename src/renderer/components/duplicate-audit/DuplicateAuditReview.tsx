@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useCallback } from "react"
 import type { MediaItem } from "../../../shared/types/media"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import {
   ShieldAlert,
   Sparkles,
@@ -37,6 +38,7 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
   activeGroupIndex,
   onGroupIndexChange,
 }) => {
+  const [slideDirection, setSlideDirection] = useState<"left" | "right">("right")
   // Extract and group duplicates
   const duplicateGroups = useMemo(() => {
     const groups: Record<string, MediaItem[]> = {}
@@ -435,6 +437,7 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
 
   const handleKeepBest = async () => {
     if (!currentGroup) return
+    setSlideDirection("right")
     const batchId = `manual_keep_best_${Date.now()}`
     const bestItem = determineBestItem(currentGroup) || currentGroup[0]
 
@@ -449,6 +452,7 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
 
   const handleKeepAll = async () => {
     if (!currentGroup) return
+    setSlideDirection("right")
     const batchId = `manual_keep_all_${Date.now()}`
 
     const newDecisions: Record<string, "keep" | "delete"> = {}
@@ -462,6 +466,7 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
 
   const handleDeleteAll = async () => {
     if (!currentGroup) return
+    setSlideDirection("right")
     const batchId = `manual_delete_all_${Date.now()}`
 
     const newDecisions: Record<string, "keep" | "delete"> = {}
@@ -474,6 +479,7 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
   }
 
   const nextGroup = async () => {
+    setSlideDirection("right")
     if (currentGroup && !isCurrentGroupCommitted) {
       const batchId = `auto_recommend_${Date.now()}`
       await commitGroupDecisions(temporaryDecisions, batchId)
@@ -482,6 +488,7 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
   }
 
   const prevGroup = async () => {
+    setSlideDirection("left")
     if (currentGroup && !isCurrentGroupCommitted) {
       const batchId = `auto_recommend_${Date.now()}`
       await commitGroupDecisions(temporaryDecisions, batchId)
@@ -514,10 +521,10 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
     await commitGroupDecisions(newDecisions, batchId)
   }
 
-  const openPreview = (item: MediaItem, withAutoPlay = false) => {
+  const openPreview = useCallback((item: MediaItem, withAutoPlay = false) => {
     setAutoPlay(withAutoPlay)
     setPreviewItem(item)
-  }
+  }, [])
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -533,43 +540,60 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
 
       const key = e.key.toLowerCase()
 
-      // Undo: z or Ctrl+Z
-      if (key === "z") {
+      // Undo: ↓ / S / Ctrl+Z / Backspace
+      if (
+        e.key === "ArrowDown" ||
+        key === "s" ||
+        (e.ctrlKey && key === "z") ||
+        e.key === "Backspace"
+      ) {
         e.preventDefault()
         handleUndo()
         return
       }
 
-      // Group navigation: Left / Right arrows or H / L keys
-      if (e.key === "ArrowLeft" || key === "h") {
+      // Preview best: ↑ / W
+      if (e.key === "ArrowUp" || key === "w") {
+        e.preventDefault()
+        if (currentGroup) {
+          const best = determineBestItem(currentGroup)
+          if (best) openPreview(best)
+        }
+        return
+      }
+
+      // Previous group: ← / A
+      if (e.key === "ArrowLeft" || key === "a") {
         e.preventDefault()
         prevGroup()
         return
       }
-      if (e.key === "ArrowRight" || key === "l") {
+
+      // Next group: → / D
+      if (e.key === "ArrowRight" || key === "d") {
         e.preventDefault()
         nextGroup()
         return
       }
 
-      // Keep All: k
+      // Auto-Keep Best: Space / Enter
+      if (e.key === " " || e.key === "Enter") {
+        e.preventDefault()
+        handleKeepBest()
+        return
+      }
+
+      // Keep All: K
       if (key === "k") {
         e.preventDefault()
         handleKeepAll()
         return
       }
 
-      // Delete All: d
-      if (key === "d") {
+      // Delete All: Del / X
+      if (e.key === "Delete" || key === "x") {
         e.preventDefault()
         handleDeleteAll()
-        return
-      }
-
-      // Auto-Keep Best: b, Space or Enter
-      if (key === "b" || e.key === " " || e.key === "Enter") {
-        e.preventDefault()
-        handleKeepBest()
         return
       }
 
@@ -598,6 +622,8 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
     handleDeleteAll,
     handleKeepBest,
     handleToggleKeep,
+    determineBestItem,
+    openPreview,
   ])
 
   React.useEffect(() => {
@@ -649,7 +675,13 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
       {/* Cards Grid */}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <div
-          className="grid min-h-0 flex-1 gap-3"
+          key={activeGroupIndex}
+          className={cn(
+            "grid min-h-0 flex-1 gap-3 duration-200 ease-out animate-in fade-in-0",
+            slideDirection === "right"
+              ? "slide-in-from-right-6"
+              : "slide-in-from-left-6"
+          )}
           style={{
             gridTemplateColumns: `repeat(${Math.min(3, currentGroup.length)}, minmax(0, 1fr))`,
           }}
@@ -689,7 +721,7 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
                 <Undo2 />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="top">Undo (Z)</TooltipContent>
+            <TooltipContent side="top">Undo (↓ / S / Ctrl+Z / Backspace)</TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -725,7 +757,7 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
                 Delete All
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="top">Delete All (D)</TooltipContent>
+            <TooltipContent side="top">Delete All (Del / X)</TooltipContent>
           </Tooltip>
 
           <Tooltip>
@@ -749,7 +781,7 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
                 Auto-Keep Best
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="top">Auto-Keep Best (B, Space, or Enter)</TooltipContent>
+            <TooltipContent side="top">Auto-Keep Best (Space / Enter)</TooltipContent>
           </Tooltip>
         </div>
 
@@ -770,7 +802,7 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
                 <ChevronLeft />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="top">Previous Group (← or H)</TooltipContent>
+            <TooltipContent side="top">Previous Group (← / A)</TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -787,7 +819,7 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
             <TooltipContent side="top">
               {activeGroupIndex === duplicateGroups.length - 1
                 ? "Finish & View Summary"
-                : "Next Group (→ or L)"}
+                : "Next Group (→ / D)"}
             </TooltipContent>
           </Tooltip>
         </div>

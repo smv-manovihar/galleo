@@ -38,6 +38,7 @@ export interface MediaItem {
   duplicateGroupId?: string
   isDuplicate: boolean
   isBestInDuplicateGroup: boolean
+  similarityIndex?: number
 
   // User review state
   reviewState: "pending" | "keep" | "delete" | "skipped"

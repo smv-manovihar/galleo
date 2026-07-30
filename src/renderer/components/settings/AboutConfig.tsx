@@ -23,14 +23,14 @@ export const AboutConfig: React.FC = () => {
     useUIStore()
 
   return (
-    <div className="space-y-6 font-sans text-xs select-none">
-      <Card className="border-border bg-card/45 shadow-xs">
-        <CardHeader className="border-b border-border pb-3">
-          <CardTitle className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <Info className="h-4 w-4 text-primary" />
+    <div className="space-y-4 font-sans text-xs select-none">
+      <Card className="border-border/60 bg-card/50 shadow-xs">
+        <CardHeader className="border-b border-border/40 px-4 py-3">
+          <CardTitle className="flex items-center gap-2 text-xs font-bold text-foreground">
+            <Info className="h-3.5 w-3.5 text-primary" />
             About Galleo
           </CardTitle>
-          <CardDescription className="mt-0.5 text-xs text-muted-foreground">
+          <CardDescription className="text-2xs text-muted-foreground">
             Current version and application updates.
           </CardDescription>
         </CardHeader>
@@ -43,7 +43,7 @@ export const AboutConfig: React.FC = () => {
               <div className="text-2xs text-muted-foreground">
                 Current Version:{" "}
                 <span className="rounded-md border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-mono font-semibold text-primary">
-                  v{updateInfo?.currentVersion || "0.1.1"}
+                  v{updateInfo?.currentVersion || "0.2.0"}
                 </span>
               </div>
             </div>

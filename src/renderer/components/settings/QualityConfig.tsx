@@ -52,7 +52,7 @@ export const QualityConfig: React.FC = () => {
     <div className="space-y-4 font-sans text-xs select-none">
       <Card className="border-border/60 bg-card/50 shadow-xs">
         <CardHeader className="border-b border-border/40 px-4 py-3">
-          <CardTitle className="flex items-center gap-2 text-xs font-bold text-foreground uppercase tracking-wide">
+          <CardTitle className="flex items-center gap-2 text-xs font-bold text-foreground">
             <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
             Defect Thresholds
           </CardTitle>
@@ -64,7 +64,7 @@ export const QualityConfig: React.FC = () => {
           {/* Blur Score Slider */}
           <div className="space-y-2.5">
             <div className="flex items-center justify-between gap-2">
-              <Label className="flex items-center gap-1.5 text-2xs font-bold text-muted-foreground uppercase tracking-wider">
+              <Label className="flex items-center gap-1.5 text-2xs font-bold text-muted-foreground">
                 <Focus className="h-3.5 w-3.5 text-sky-500 dark:text-sky-400" />
                 Blurry Threshold
               </Label>
@@ -91,7 +91,7 @@ export const QualityConfig: React.FC = () => {
           {/* Exposure Darkness Slider */}
           <div className="space-y-2.5">
             <div className="flex items-center justify-between gap-2">
-              <Label className="flex items-center gap-1.5 text-2xs font-bold text-muted-foreground uppercase tracking-wider">
+              <Label className="flex items-center gap-1.5 text-2xs font-bold text-muted-foreground">
                 <Moon className="h-3.5 w-3.5 text-indigo-500 dark:text-indigo-400" />
                 Darkness Threshold
               </Label>

@@ -6,19 +6,26 @@ import { app } from "electron"
 let dbInstance: Database.Database | null = null
 
 export function getDatabasePath(): string {
-  // If app is not ready (e.g. running in test context), fallback to current directory
-  let userDataPath: string
   try {
-    userDataPath = app.getPath("userData")
-  } catch (e) {
-    userDataPath = path.join(process.cwd(), "data")
+    const isDev = !app.isPackaged || process.env.NODE_ENV === "development"
+    let targetDir: string
+    if (isDev) {
+      targetDir = path.join(process.cwd(), ".data")
+    } else {
+      targetDir = app.getPath("userData")
+    }
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true })
+    }
+    return path.join(targetDir, "galleo.db")
+  } catch {
+    // If app is not ready (e.g. running in unit test runner), fallback to .data/galleo.db
+    const fallbackDir = path.join(process.cwd(), ".data")
+    if (!fs.existsSync(fallbackDir)) {
+      fs.mkdirSync(fallbackDir, { recursive: true })
+    }
+    return path.join(fallbackDir, "galleo.db")
   }
-
-  if (!fs.existsSync(userDataPath)) {
-    fs.mkdirSync(userDataPath, { recursive: true })
-  }
-
-  return path.join(userDataPath, "galleo.db")
 }
 
 export function initDatabase(): Database.Database {
@@ -73,6 +80,7 @@ export function initDatabase(): Database.Database {
       duplicate_group_id TEXT,
       is_duplicate INTEGER DEFAULT 0,
       is_best_in_duplicate_group INTEGER DEFAULT 0,
+      similarity_index INTEGER,
       review_state TEXT DEFAULT 'pending',
       reviewed_at TEXT
     );
@@ -104,6 +112,25 @@ export function initDatabase(): Database.Database {
       FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE
     );
 
+    -- Image embeddings (1 vector per media item)
+    CREATE TABLE IF NOT EXISTS media_embeddings (
+      media_id TEXT PRIMARY KEY,
+      embedding BLOB NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (media_id) REFERENCES media_items(id) ON DELETE CASCADE
+    );
+
+    -- Video frame embeddings (multiple vectors per video)
+    CREATE TABLE IF NOT EXISTS video_frame_embeddings (
+      id TEXT PRIMARY KEY,
+      media_id TEXT NOT NULL,
+      timestamp_seconds REAL NOT NULL,
+      frame_index INTEGER NOT NULL,
+      embedding BLOB NOT NULL,
+      thumbnail_path TEXT,
+      FOREIGN KEY (media_id) REFERENCES media_items(id) ON DELETE CASCADE
+    );
+
     -- Create Indexes to optimize queries
     CREATE INDEX IF NOT EXISTS idx_media_path ON media_items(path);
     CREATE INDEX IF NOT EXISTS idx_media_target_date ON media_items(date_target);
@@ -112,11 +139,18 @@ export function initDatabase(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_media_review_state ON media_items(review_state);
     CREATE INDEX IF NOT EXISTS idx_session_decisions ON session_decisions(session_id);
     CREATE INDEX IF NOT EXISTS idx_undo_session ON undo_actions(session_id);
+    CREATE INDEX IF NOT EXISTS idx_video_frames_media ON video_frame_embeddings(media_id);
   `)
 
   // Backward-compatible migration: add date_modified column if it does not exist yet
   try {
     db.exec(`ALTER TABLE media_items ADD COLUMN date_modified TEXT;`)
+  } catch {
+    // Column already exists — safe to ignore
+  }
+
+  try {
+    db.exec(`ALTER TABLE media_items ADD COLUMN similarity_index INTEGER;`)
   } catch {
     // Column already exists — safe to ignore
   }

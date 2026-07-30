@@ -30,13 +30,22 @@ export default defineConfig({
           build: {
             outDir: "dist-electron/main",
             rollupOptions: {
+              input: {
+                index: "src/main/index.ts",
+                "ai-worker": "src/main/workers/ai-worker.ts",
+              },
               external: [
                 "better-sqlite3",
                 "sharp",
                 "fluent-ffmpeg",
                 "ffmpeg-static",
                 "trash",
+                "onnxruntime-node",
+                "@huggingface/transformers",
               ],
+              output: {
+                entryFileNames: "[name].js",
+              },
             },
           },
         },

@@ -109,20 +109,19 @@ export const ResetConfig: React.FC = () => {
   const hasSelection = Object.values(options).some(Boolean)
 
   return (
-    <div className="space-y-6 font-sans text-xs select-none">
-      <Card className="border-border bg-card/45">
-        <CardHeader className="border-b border-border pb-3">
-          <CardTitle className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <RefreshCcw className="h-4 w-4 text-primary" />
+    <div className="space-y-4 font-sans text-xs select-none">
+      <Card className="border-border/60 bg-card/50 shadow-xs">
+        <CardHeader className="border-b border-border/40 px-4 py-3">
+          <CardTitle className="flex items-center gap-2 text-xs font-bold text-foreground">
+            <RefreshCcw className="h-3.5 w-3.5 text-primary" />
             Reset Application Data
           </CardTitle>
-          <CardDescription className="mt-0.5 text-xs text-muted-foreground">
-            Clear locally cached index databases, review sessions checkpoint
-            logs, or restore defaults.
+          <CardDescription className="text-2xs text-muted-foreground">
+            Clear locally cached index databases, review sessions checkpoint logs, or restore defaults.
           </CardDescription>
         </CardHeader>
 
-        <CardContent className="space-y-6 p-4 sm:p-6">
+        <CardContent className="space-y-4 p-4">
           <Alert
             variant="destructive"
             className="flex gap-3 border-destructive/20 bg-destructive/5 p-3.5 sm:p-4"
@@ -141,8 +140,8 @@ export const ResetConfig: React.FC = () => {
             </div>
           </Alert>
 
-          <div className="space-y-4">
-            <Label className="text-xs font-semibold text-muted-foreground uppercase">
+          <div className="space-y-3">
+            <Label className="text-2xs font-semibold text-muted-foreground">
               Granular Reset Options
             </Label>
 

@@ -1,6 +1,7 @@
 import React, { useState } from "react"
 import { useMediaStore } from "../../stores/media-store"
 import { useSessionStore } from "../../stores/session-store"
+import { useScanStore } from "../../stores/scan-store"
 import {
   HardDrive,
   ListX,
@@ -8,6 +9,7 @@ import {
   Trash2,
   ShieldCheck,
   Loader2,
+  Sparkles,
 } from "lucide-react"
 import { formatBytes } from "../../lib/format"
 import { Button } from "@/components/ui/button"
@@ -34,6 +36,7 @@ export const StatusBar: React.FC = () => {
   const decisions = useSessionStore((s) => s.decisions)
   const commitDeletions = useSessionStore((s) => s.commitDeletions)
   const isCommitting = useSessionStore((s) => s.isCommitting)
+  const aiIndexingProgress = useScanStore((s) => s.aiIndexingProgress)
 
   const [showConfirm, setShowConfirm] = useState(false)
 
@@ -117,6 +120,15 @@ export const StatusBar: React.FC = () => {
                 </span>
               </>
             )}
+            {aiIndexingProgress?.isIndexing && (
+              <>
+                <span className="mx-2 text-muted-foreground/30">|</span>
+                <span className="flex items-center gap-1.5 font-medium text-amber-500">
+                  <Sparkles className="h-3.5 w-3.5 animate-pulse shrink-0" />
+                  AI Indexing: {aiIndexingProgress.processedCount}/{aiIndexingProgress.totalCount}
+                </span>
+              </>
+            )}
           </div>
         </div>
 
@@ -133,7 +145,7 @@ export const StatusBar: React.FC = () => {
               >
                 <ListX className="h-3.5 w-3.5" />
                 {isCommitting ? "Committing…" : "Commit"}
-                <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-white/20 px-1 text-[10px] font-semibold tabular-nums">
+                <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-white/20 px-1 text-2xs font-semibold tabular-nums">
                   {deleteDetails.count}
                 </span>
               </Button>

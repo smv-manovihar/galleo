@@ -2,9 +2,27 @@ import { create } from "zustand"
 import { useMediaStore } from "./media-store"
 import { useSettingsStore } from "./settings-store"
 import { toast } from "sonner"
+import { ENABLE_AI_FEATURES } from "../../shared/constants"
 
 interface ScanProgress {
   scannedCount: number
+  totalCount: number
+  currentFile?: string
+}
+
+interface PendingScan {
+  rootPaths: string[]
+  forceRescan?: boolean
+}
+
+export interface AIStatus {
+  isDownloaded: boolean
+  stats: { mediaEmbeddingCount: number; videoFrameEmbeddingCount: number }
+}
+
+export interface AIIndexingProgress {
+  isIndexing: boolean
+  processedCount: number
   totalCount: number
   currentFile?: string
 }
@@ -13,12 +31,22 @@ interface ScanState {
   isScanning: boolean
   isStopping: boolean
   scanProgress: ScanProgress
+  pendingScan: PendingScan | null
+  showAIConsentDialog: boolean
+  aiStatus: AIStatus | null
+  isDownloadingAI: boolean
+  aiDownloadProgress: number
+  aiIndexingProgress: AIIndexingProgress
+
+  checkAIStatus: () => Promise<void>
   startScan: (rootPaths: string[], forceRescan?: boolean) => Promise<void>
+  executeScan: (rootPaths: string[], forceRescan?: boolean) => Promise<void>
+  confirmScanWithAIDownload: () => Promise<void>
+  confirmScanWithoutAI: () => Promise<void>
+  dismissAIConsentDialog: () => void
   cancelScan: () => Promise<void>
 }
 
-// Module-level cleanup refs so stale listeners from prior invocations are
-// always removed before a new scan registers fresh ones.
 let _cleanupProgress: (() => void) | null = null
 let _cleanupComplete: (() => void) | null = null
 
@@ -29,11 +57,110 @@ export const useScanStore = create<ScanState>((set, get) => ({
     scannedCount: 0,
     totalCount: 0,
   },
+  pendingScan: null,
+  showAIConsentDialog: false,
+  aiStatus: null,
+  isDownloadingAI: false,
+  aiDownloadProgress: 0,
+  aiIndexingProgress: {
+    isIndexing: false,
+    processedCount: 0,
+    totalCount: 0,
+  },
+
+  checkAIStatus: async () => {
+    if (!ENABLE_AI_FEATURES) {
+      set({ aiStatus: null })
+      return
+    }
+    if (typeof window !== "undefined" && window.api?.ai) {
+      try {
+        const status = await window.api.ai.getStatus()
+        set({ aiStatus: status })
+      } catch {
+        set({ aiStatus: null })
+      }
+    }
+  },
 
   startScan: async (rootPaths: string[], forceRescan: boolean = false) => {
     if (rootPaths.length === 0) return
 
-    // Tear down any stale listeners from a previous scan before registering new ones.
+    if (!ENABLE_AI_FEATURES) {
+      // AI features disabled via feature flag — execute standard scan immediately
+      await get().executeScan(rootPaths, forceRescan)
+      return
+    }
+
+    // Fetch latest AI model status
+    await get().checkAIStatus()
+    const { aiStatus, isDownloadingAI } = get()
+
+    if (aiStatus?.isDownloaded || isDownloadingAI) {
+      // Model is already downloaded or currently downloading asynchronously — execute scan immediately
+      await get().executeScan(rootPaths, forceRescan)
+    } else {
+      // Prompt user for AI model consent before scanning
+      set({
+        pendingScan: { rootPaths, forceRescan },
+        showAIConsentDialog: true,
+        aiDownloadProgress: 0,
+      })
+    }
+  },
+
+  confirmScanWithAIDownload: async () => {
+    const { pendingScan } = get()
+    
+    // Close dialog and show AI model download progress in TopBar
+    set({
+      showAIConsentDialog: false,
+      isDownloadingAI: true,
+      aiDownloadProgress: 0,
+    })
+
+    try {
+      if (typeof window !== "undefined" && window.api?.ai) {
+        const cleanup = window.api.ai.onDownloadProgress((progress) => {
+          set({ aiDownloadProgress: progress })
+        })
+        await window.api.ai.downloadModel()
+        cleanup()
+      }
+      await get().checkAIStatus()
+      toast.success("Visual AI model downloaded successfully", {
+        description: "Starting library scan with visual search active...",
+      })
+    } catch (e: unknown) {
+      toast.error("AI model download failed", {
+        description: e instanceof Error ? e.message : "Proceeding with standard scan.",
+      })
+    } finally {
+      set({ isDownloadingAI: false })
+      if (pendingScan) {
+        await get().executeScan(pendingScan.rootPaths, pendingScan.forceRescan)
+        set({ pendingScan: null })
+      }
+    }
+  },
+
+  confirmScanWithoutAI: async () => {
+    const { pendingScan } = get()
+    set({ showAIConsentDialog: false })
+    if (pendingScan) {
+      await get().executeScan(pendingScan.rootPaths, pendingScan.forceRescan)
+      set({ pendingScan: null })
+    }
+  },
+
+  dismissAIConsentDialog: () => {
+    set({
+      showAIConsentDialog: false,
+      pendingScan: null,
+    })
+  },
+
+  executeScan: async (rootPaths: string[], forceRescan: boolean = false) => {
     _cleanupProgress?.()
     _cleanupComplete?.()
     _cleanupProgress = null
@@ -49,9 +176,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
       },
     })
 
-    // Register IPC listener callbacks
     _cleanupProgress = window.api.onScanProgress((payload) => {
-      // 1. Update progress in scan store
       set({
         scanProgress: {
           scannedCount: payload.scannedCount,
@@ -60,7 +185,6 @@ export const useScanStore = create<ScanState>((set, get) => ({
         },
       })
 
-      // 2. Only update media store if there are actually items to merge
       if (payload.items && payload.items.length > 0) {
         useMediaStore.setState((mediaState) => {
           const itemMap = new Map(mediaState.items.map((i) => [i.id, i]))
@@ -77,7 +201,6 @@ export const useScanStore = create<ScanState>((set, get) => ({
     _cleanupComplete = window.api.onScanComplete(async () => {
       const isWasStopping = get().isStopping
 
-      // Remove listeners immediately so this fires exactly once.
       _cleanupProgress?.()
       _cleanupComplete?.()
       _cleanupProgress = null
@@ -90,7 +213,6 @@ export const useScanStore = create<ScanState>((set, get) => ({
         return
       }
 
-      // Mark the scanned folders as scanned: true in settings
       const settingsStore = useSettingsStore.getState()
       const updatedRoots = settingsStore.settings.folders.roots.map((r) => {
         if (rootPaths.some((p) => p.toLowerCase() === r.path.toLowerCase())) {
@@ -106,11 +228,12 @@ export const useScanStore = create<ScanState>((set, get) => ({
         },
       })
 
-      // Refresh current folder items to load newly populated EXIF/duplicates
       const activeRootPath = useMediaStore.getState().activeRootPath
       if (activeRootPath) {
         await useMediaStore.getState().fetchMediaItems(activeRootPath)
       }
+
+      await get().checkAIStatus()
 
       const folderNames = rootPaths
         .map((p) => p.split(/[\\/]/).pop() || p)
@@ -143,7 +266,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
         } else if ("path" in err) {
           errMsg = `Failed for file: ${err.path} (${err.code})`
         } else {
-          errMsg = `Error code: ${(err as any).code}`
+          errMsg = `Error code: ${String((err as Record<string, unknown>).code)}`
         }
       }
       toast.error("Folder scan failed", {
@@ -158,3 +281,12 @@ export const useScanStore = create<ScanState>((set, get) => ({
     await window.api.cancelScan()
   },
 }))
+
+if (ENABLE_AI_FEATURES && typeof window !== "undefined" && window.api?.ai?.onIndexingProgress) {
+  window.api.ai.onIndexingProgress((payload) => {
+    useScanStore.setState({ aiIndexingProgress: payload })
+    if (!payload.isIndexing) {
+      useScanStore.getState().checkAIStatus()
+    }
+  })
+}

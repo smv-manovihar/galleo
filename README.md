@@ -186,7 +186,7 @@ pnpm test
 
 ## Roadmap ideas
 
-This is early-stage software (`v0.1.2`). Planned direction:
+This is early-stage software (`v0.2.0`). Planned direction:
 
 - **AI assistant integration** — An embedded automation agent with tools to execute complex media library operations from natural language requests.
 - **Semantic search** — Local vector embedding index to search photos and videos using natural text descriptions.

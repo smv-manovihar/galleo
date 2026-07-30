@@ -3,29 +3,18 @@ import { useMediaStore } from "../stores/media-store"
 import { useSessionStore } from "../stores/session-store"
 import { useScanStore } from "../stores/scan-store"
 import { useSettingsStore } from "../stores/settings-store"
-import { FolderNotScanned } from "../components/media/FolderNotScanned"
 import { MediaCullingMode } from "../components/media-culling/MediaCullingMode"
 import { MediaCullingSummary } from "../components/media-culling/MediaCullingSummary"
 import { PageContainer } from "@/components/ui/page-layout"
 import { Button } from "@/components/ui/button"
 import { withViewTransition } from "../lib/view-transition"
+import { FolderSearch } from "lucide-react"
 
 export const MediaCullingPage: React.FC = () => {
   const items = useMediaStore((s) => s.items)
   const activeRootPath = useMediaStore((s) => s.activeRootPath)
   const isScanning = useScanStore((s) => s.isScanning)
-  const { settings } = useSettingsStore()
   const { initSession } = useSessionStore()
-
-  const isScanned = React.useMemo(() => {
-    if (!activeRootPath) return false
-    if (activeRootPath === "all") {
-      return settings.folders.roots.some((r) => r.scanned)
-    }
-    return !!settings.folders.roots.find(
-      (r) => r.path.toLowerCase() === activeRootPath.toLowerCase()
-    )?.scanned
-  }, [activeRootPath, settings.folders.roots])
 
   const [onlyShowFlagged, setOnlyShowFlagged] = useState(false)
   const decisions = useSessionStore((s) => s.decisions)
@@ -40,10 +29,10 @@ export const MediaCullingPage: React.FC = () => {
   }, [items, decisions])
 
   const [showSummary, setShowSummary] = useState<boolean>(() => isAllReviewed)
-  const prevRootPathRef = React.useRef<string | null>(activeRootPath)
+  const [prevRootPath, setPrevRootPath] = useState<string | null>(activeRootPath)
 
-  if (activeRootPath !== prevRootPathRef.current) {
-    prevRootPathRef.current = activeRootPath
+  if (activeRootPath !== prevRootPath) {
+    setPrevRootPath(activeRootPath)
     setShowSummary(isAllReviewed)
   }
 
@@ -80,20 +69,40 @@ export const MediaCullingPage: React.FC = () => {
     )
   }
 
-  if (!isScanned) {
-    return (
-      <FolderNotScanned
-        activeRootPath={activeRootPath}
-        featureDescription="and access culling"
-      />
-    )
-  }
+  const { settings } = useSettingsStore()
+
+  const isScanned = React.useMemo(() => {
+    if (!activeRootPath || activeRootPath === "all") {
+      return settings.folders.roots.some((r) => r.enabled && r.scanned)
+    }
+    return !!settings.folders.roots.find(
+      (r) => r.path.toLowerCase() === activeRootPath.toLowerCase()
+    )?.scanned
+  }, [activeRootPath, settings.folders.roots])
 
   if (items.length === 0) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 font-sans text-xs text-muted-foreground select-none">
-        <span>This folder contains no photos or videos.</span>
-      </div>
+      <PageContainer
+        className="h-full overflow-hidden p-0 select-none md:p-0"
+        maxWidth="xl"
+      >
+        <div className="relative flex min-h-0 flex-1 flex-col p-4 overflow-hidden">
+          <div className="flex flex-1 flex-col items-center justify-center gap-1.5 font-sans text-xs text-muted-foreground select-none">
+            {!isScanned ? (
+              <>
+                <FolderSearch className="h-8 w-8 text-amber-500/80 mb-1" />
+                <span className="text-sm font-medium text-foreground">Folder not scanned</span>
+                <span className="text-2xs text-muted-foreground">Use the Scan Folders button above to index media files.</span>
+              </>
+            ) : (
+              <>
+                <span className="text-sm font-medium text-foreground">No photos or videos found</span>
+                <span className="text-2xs text-muted-foreground">This folder contains no media files for review.</span>
+              </>
+            )}
+          </div>
+        </div>
+      </PageContainer>
     )
   }
 
@@ -106,7 +115,7 @@ export const MediaCullingPage: React.FC = () => {
         {!showSummary ? (
           filteredItems.length > 0 ? (
             <MediaCullingMode
-              items={filteredItems}
+              items={items}
               onComplete={() => withViewTransition(() => setShowSummary(true))}
               onlyShowFlagged={onlyShowFlagged}
               onOnlyShowFlaggedChange={setOnlyShowFlagged}

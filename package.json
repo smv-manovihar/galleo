@@ -1,6 +1,6 @@
 {
   "name": "galleo",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "main": "dist-electron/main/index.js",
   "description": "Smart desktop app for cleaning up and organizing local photo and video libraries.",
   "author": {
@@ -26,6 +26,7 @@
     "@base-ui/react": "^1.6.0",
     "@fontsource-variable/manrope": "^5.2.8",
     "@fontsource-variable/merriweather": "^5.2.6",
+    "@huggingface/transformers": "^4.2.0",
     "@shadcn/react": "^0.1.0",
     "@tailwindcss/vite": "^4",
     "@tanstack/react-virtual": "^3.14.4",

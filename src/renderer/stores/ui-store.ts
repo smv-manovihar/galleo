@@ -10,7 +10,13 @@ interface UIState {
   sidebarOpen: boolean
   keyboardShortcutsOpen: boolean
   activeSettingsTab:
-    "folders" | "scan" | "quality" | "appearance" | "reset" | "about"
+    | "folders"
+    | "scan"
+    | "quality"
+    | "appearance"
+    | "ai"
+    | "reset"
+    | "about"
   activeDuplicatesTab: "auto" | "manual"
   updateInfo: UpdateCheckResult | null
   isCheckingUpdate: boolean
@@ -22,7 +28,14 @@ interface UIState {
   setSidebarOpen: (open: boolean) => void
   setKeyboardShortcutsOpen: (open: boolean) => void
   setActiveSettingsTab: (
-    tab: "folders" | "scan" | "quality" | "appearance" | "reset" | "about"
+    tab:
+      | "folders"
+      | "scan"
+      | "quality"
+      | "appearance"
+      | "ai"
+      | "reset"
+      | "about"
   ) => void
   setActiveDuplicatesTab: (tab: "auto" | "manual") => void
   checkForUpdates: () => Promise<void>

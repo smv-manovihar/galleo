@@ -133,6 +133,7 @@ Integrations, category/label tags, tier/rank (gold/blue/slate), and chart series
 
 * **Semantic Variables First:** Reach for semantic primitives (foreground, muted, background) before legacy or custom variables. Keep primary styles for actions, and accent styles for subtle hovers/surfaces.
 * **Do Not Mix Aliases:** Never use raw color utilities or legacy text aliases in new or edited components. Stick strictly to the defined status semantics.
+* **Strict Typography Scale & Avoid Overusing `text-2xs`:** Do not use arbitrary font-size utilities like `text-[10px]`, `text-[12px]`, or `text-[14px]`. Select exclusively from the standard design system scale (`text-xs`, `text-sm`, `text-base`, `text-lg`, `text-xl`, etc.). Avoid overusing `text-2xs` (0.65rem/10px) — reserve `text-2xs` strictly for tight metadata badges or dense table sub-labels. Default to `text-xs` or `text-sm` for readable body text, modal content, and action controls.
 * **No "AI Default / Vivid Glow / Aurora" Styling:** Keep the UI clean and flat (Notion-like). Do **not** use neon/luminous highlights, glowing box-shadows, iridescent multi-stop gradients, or decorative blurred gradient "blobs". Use solid token surfaces, thin borders, and standard subtle shadows.
 
 ### UI Microcopy & Progressive Disclosure

@@ -127,7 +127,7 @@ export const SettingsHelp: React.FC = () => {
                 Under the Hood & Technical Concepts
               </div>
               <div className="flex items-center gap-1">
-                <span className="text-[10px] font-normal text-muted-foreground">
+                <span className="text-2xs font-normal text-muted-foreground">
                   {isTechOpen ? "Hide details" : "Learn how it works"}
                 </span>
                 <ChevronDown className={`size-3.5 text-muted-foreground transition-transform duration-200 ${isTechOpen ? "rotate-180" : ""}`} />

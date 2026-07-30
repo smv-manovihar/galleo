@@ -8,6 +8,8 @@ import { AppSidebar } from "./AppSidebar"
 import { TopBar } from "./TopBar"
 import { StatusBar } from "./StatusBar"
 import { SetupWizard } from "../onboarding/SetupWizard"
+import { ScanAIConsentDialog } from "../scan/ScanAIConsentDialog"
+import { FolderNotScanned } from "../media/FolderNotScanned"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/sonner"
 
@@ -25,6 +27,18 @@ export const AppShell: React.FC = () => {
   const { settings, fetchSettings, isInitialized } = useSettingsStore()
   const hasItems = useMediaStore((s) => s.items.length > 0)
   const fetchMediaItems = useMediaStore((s) => s.fetchMediaItems)
+  const activeRootPath = useMediaStore((s) => s.activeRootPath)
+
+  const isScanned = React.useMemo(() => {
+    if (settings.folders.roots.length === 0) return true
+    if (!activeRootPath || activeRootPath === "all") {
+      return settings.folders.roots.some((r) => r.enabled && r.scanned)
+    }
+    const root = settings.folders.roots.find(
+      (r) => r.path.toLowerCase() === activeRootPath.toLowerCase()
+    )
+    return root ? !!root.scanned : false
+  }, [activeRootPath, settings.folders.roots])
 
   useEffect(() => {
     // Initial settings load from database
@@ -48,8 +62,6 @@ export const AppShell: React.FC = () => {
     const scaleValue = scaleMap[fontSize] || "100%"
     document.documentElement.style.setProperty("--font-scale", scaleValue)
   }, [settings.ui.fontSize])
-
-  const activeRootPath = useMediaStore((s) => s.activeRootPath)
 
   useEffect(() => {
     // Auto-load all items on startup only — do not re-fetch when a folder
@@ -116,6 +128,9 @@ export const AppShell: React.FC = () => {
                 </span>
               </div>
             )}
+            {!isScanned && currentView !== "settings" && settings.folders.roots.length > 0 && (
+              <FolderNotScanned activeRootPath={activeRootPath || "all"} />
+            )}
             <main className="page-transition-main relative flex-1 overflow-x-hidden overflow-y-auto bg-background/50 contain-strict">
               {renderContent()}
             </main>
@@ -123,6 +138,7 @@ export const AppShell: React.FC = () => {
           </SidebarInset>
         </div>
       </SidebarProvider>
+      <ScanAIConsentDialog />
       <Toaster />
     </div>
   )

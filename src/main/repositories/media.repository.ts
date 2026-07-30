@@ -52,10 +52,37 @@ export class MediaRepository {
       duplicateGroupId: row.duplicate_group_id ?? undefined,
       isDuplicate: Boolean(row.is_duplicate),
       isBestInDuplicateGroup: Boolean(row.is_best_in_duplicate_group),
+      similarityIndex: row.similarity_index ?? undefined,
       reviewState: row.review_state as
         "pending" | "keep" | "delete" | "skipped",
       reviewedAt: row.reviewed_at ?? undefined,
     }
+  }
+
+  /**
+   * Updates similarity_index for a batch of media items in a single transaction.
+   */
+  public updateSimilarityIndexes(
+    updates: { id: string; similarityIndex: number }[]
+  ): void {
+    if (updates.length === 0) return
+    const db = this.getDb()
+    const stmt = db.prepare(`
+      UPDATE media_items
+      SET similarity_index = $similarityIndex
+      WHERE id = $id
+    `)
+
+    const transaction = db.transaction((itemsToUpdate) => {
+      for (const item of itemsToUpdate) {
+        stmt.run({
+          id: item.id,
+          similarityIndex: item.similarityIndex,
+        })
+      }
+    })
+
+    transaction(updates)
   }
 
   /**
@@ -70,13 +97,13 @@ export class MediaRepository {
         date_added, date_original, date_inferred, date_filesystem,
         date_target, date_target_source, hash, thumbnail_path, date_modified,
         blur_score, brightness, is_dark, is_blurry, is_screenshot, is_small, composite_score,
-        duplicate_group_id, is_duplicate, is_best_in_duplicate_group, review_state, reviewed_at
+        duplicate_group_id, is_duplicate, is_best_in_duplicate_group, similarity_index, review_state, reviewed_at
       ) VALUES (
         $id, $path, $name, $size, $extension, $mediaType, $width, $height,
         $dateAdded, $dateOriginal, $dateInferred, $dateFileSystem,
         $dateTarget, $dateTargetSource, $hash, $thumbnailPath, $dateModified,
         $blurScore, $brightness, $isDark, $isBlurry, $isScreenshot, $isSmall, $compositeScore,
-        $duplicateGroupId, $isDuplicate, $isBestInDuplicateGroup, $reviewState, $reviewedAt
+        $duplicateGroupId, $isDuplicate, $isBestInDuplicateGroup, $similarityIndex, $reviewState, $reviewedAt
       )
       ON CONFLICT(id) DO UPDATE SET
         path = excluded.path,
@@ -103,7 +130,8 @@ export class MediaRepository {
         composite_score = excluded.composite_score,
         duplicate_group_id = excluded.duplicate_group_id,
         is_duplicate = excluded.is_duplicate,
-        is_best_in_duplicate_group = excluded.is_best_in_duplicate_group
+        is_best_in_duplicate_group = excluded.is_best_in_duplicate_group,
+        similarity_index = COALESCE(excluded.similarity_index, media_items.similarity_index)
     `)
 
     const transaction = db.transaction((batchItems: MediaItem[]) => {
@@ -136,6 +164,7 @@ export class MediaRepository {
           duplicateGroupId: item.duplicateGroupId ?? null,
           isDuplicate: item.isDuplicate ? 1 : 0,
           isBestInDuplicateGroup: item.isBestInDuplicateGroup ? 1 : 0,
+          similarityIndex: item.similarityIndex ?? null,
           reviewState: item.reviewState,
           reviewedAt: item.reviewedAt ?? null,
         })
@@ -143,6 +172,24 @@ export class MediaRepository {
     })
 
     transaction(items)
+  }
+
+  /**
+   * Retrieves all scanned media items across all library folders.
+   */
+  public getAll(): MediaItem[] {
+    return this.getByFolderPath("all")
+  }
+
+  /**
+   * Retrieves a single MediaItem by its unique ID.
+   */
+  public getById(id: string): MediaItem | null {
+    const db = this.getDb()
+    const stmt = db.prepare(`SELECT * FROM media_items WHERE id = ?`)
+    const row = stmt.get(id)
+    if (!row) return null
+    return this.rowToMediaItem(row)
   }
 
   /**

@@ -7,13 +7,16 @@ import { ScannerService } from "./services/scanner.service"
 import { FileOpsService } from "./services/file-ops.service"
 import { SessionService } from "./services/session.service"
 import { UpdateService } from "./services/update.service"
+import { aiService } from "./services/ai.service"
+import { aiIndexerService } from "./services/ai-indexer.service"
+import { SearchEngineService } from "./services/search-engine.service"
 import { MediaRepository } from "./repositories/media.repository"
 import { planOrganization } from "./core/organization"
 import { type Result, ok, fail } from "../shared/types/results"
-import { DEFAULT_SETTINGS } from "../shared/constants"
+import { DEFAULT_SETTINGS, ENABLE_AI_FEATURES } from "../shared/constants"
 import { initDatabase } from "./infrastructure/database"
 import { getThumbnailCacheDir } from "./infrastructure/image-processor"
-
+ 
 export function registerIpcHandlers(window: BrowserWindow): void {
   const settingsService = new SettingsService()
   const scannerService = new ScannerService()
@@ -21,6 +24,7 @@ export function registerIpcHandlers(window: BrowserWindow): void {
   const sessionService = new SessionService()
   const mediaRepository = new MediaRepository()
   const updateService = new UpdateService()
+  const searchEngineService = new SearchEngineService()
 
   // Settings
   ipcMain.handle(IPC_CHANNELS.SETTINGS_GET, () => {
@@ -218,6 +222,83 @@ export function registerIpcHandlers(window: BrowserWindow): void {
       return fail({
         code: "UNKNOWN",
         message: e.message || "Opening URL failed",
+      })
+    }
+  })
+
+  // AI & Visual Search IPC Handlers
+  ipcMain.handle(IPC_CHANNELS.SEARCH_SEMANTIC, async (_, params) => {
+    return await searchEngineService.search(params)
+  })
+
+  ipcMain.handle(
+    IPC_CHANNELS.SEARCH_FIND_SIMILAR,
+    async (_, { mediaId, limit }) => {
+      return await searchEngineService.findSimilar(mediaId, limit)
+    }
+  )
+
+  ipcMain.handle(IPC_CHANNELS.AI_MODEL_STATUS, () => {
+    if (!ENABLE_AI_FEATURES) {
+      return { isDownloaded: false, stats: { mediaEmbeddingCount: 0, videoFrameEmbeddingCount: 0 } }
+    }
+    return aiService.getStatus()
+  })
+
+  ipcMain.handle(IPC_CHANNELS.AI_DOWNLOAD_MODEL, async (event) => {
+    if (!ENABLE_AI_FEATURES) {
+      return fail({
+        code: "UNKNOWN",
+        message: "AI features are disabled via feature flag.",
+      })
+    }
+    const win = BrowserWindow.fromWebContents(event.sender)
+    try {
+      await aiService.downloadModel((progress) => {
+        if (win && !win.isDestroyed()) {
+          win.webContents.send(IPC_CHANNELS.AI_DOWNLOAD_PROGRESS, progress)
+        }
+      })
+      return ok(undefined)
+    } catch (e: unknown) {
+      return fail({
+        code: "UNKNOWN",
+        message: e instanceof Error ? e.message : "Downloading AI model failed",
+      })
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.AI_PURGE_CACHE, async (_, options?: { deleteModel?: boolean }) => {
+    if (!ENABLE_AI_FEATURES) {
+      return ok(undefined)
+    }
+    try {
+      aiIndexerService.stopIndexing()
+      await aiService.purgeEmbeddings(options)
+      return ok(undefined)
+    } catch (e: unknown) {
+      return fail({
+        code: "UNKNOWN",
+        message: e instanceof Error ? e.message : "Purging AI index failed",
+      })
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.AI_START_INDEXING, async (event) => {
+    if (!ENABLE_AI_FEATURES) {
+      return fail({
+        code: "UNKNOWN",
+        message: "AI features are disabled via feature flag.",
+      })
+    }
+    const win = BrowserWindow.fromWebContents(event.sender)
+    try {
+      aiIndexerService.startIndexing(win || window).catch(() => {})
+      return ok(undefined)
+    } catch (e: unknown) {
+      return fail({
+        code: "UNKNOWN",
+        message: e instanceof Error ? e.message : "Starting indexing failed",
       })
     }
   })

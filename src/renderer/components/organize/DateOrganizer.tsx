@@ -38,6 +38,7 @@ import {
   FileText,
   Eye,
   ChevronRight,
+  SlidersHorizontal,
 } from "lucide-react"
 import type {
   OrganizePreviewItem,
@@ -370,10 +371,11 @@ export const DateOrganizer: React.FC = () => {
       {/* Left Column: Configuration Form */}
       <div className="flex w-full shrink-0 flex-col gap-4 pr-1 lg:w-80">
         <Card className="flex shrink-0 flex-col border-border bg-card/65 shadow-sm">
-          <CardContent className="space-y-4 p-4 pt-5">
+          <CardContent className="space-y-4 p-4">
             {/* Top Helper Header with Dialog Link */}
             <div className="mb-2 flex items-center justify-between border-b border-border pb-2">
-              <span className="text-xs font-semibold tracking-wider text-foreground uppercase">
+              <span className="flex items-center gap-2 text-xs font-bold text-foreground">
+                <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
                 Settings
               </span>
               <Button

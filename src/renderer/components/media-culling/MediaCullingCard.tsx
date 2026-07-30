@@ -280,9 +280,9 @@ export const MediaCullingCard: React.FC<MediaCullingCardProps> = ({
         1
       )
     }
-  } else if (swipeOutAction === "keep" || swipeClass === "slide-right") {
+  } else if (swipeOutAction === "keep") {
     computedKeepOpacity = 1
-  } else if (swipeOutAction === "delete" || swipeClass === "slide-left") {
+  } else if (swipeOutAction === "delete") {
     computedDeleteOpacity = 1
   }
 
@@ -384,19 +384,19 @@ export const MediaCullingCard: React.FC<MediaCullingCardProps> = ({
                         <div className="font-semibold text-foreground">
                           Score: {item.quality.blurScore}
                         </div>
-                        <div className="text-[10px] text-muted-foreground">
+                        <div className="text-2xs text-muted-foreground">
                           Threshold: {blurThreshold}
                         </div>
                       </div>
                     </div>
                     <div className="pl-5">
                       {item.quality.isBlurry ? (
-                        <span className="flex items-center gap-1 text-[10px] font-medium text-rose-500">
+                        <span className="flex items-center gap-1 text-2xs font-medium text-rose-500">
                           <AlertTriangle className="h-3 w-3 shrink-0" /> Blurry
                           Photo (Flagged Defect)
                         </span>
                       ) : (
-                        <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-500">
+                        <span className="flex items-center gap-1 text-2xs font-medium text-emerald-500">
                           <Check className="h-3 w-3 shrink-0" /> Sharp & Focused
                         </span>
                       )}
@@ -414,19 +414,19 @@ export const MediaCullingCard: React.FC<MediaCullingCardProps> = ({
                         <div className="font-semibold text-foreground">
                           Value: {Math.round(item.quality.brightness)}
                         </div>
-                        <div className="text-[10px] text-muted-foreground">
+                        <div className="text-2xs text-muted-foreground">
                           Threshold: {darknessThreshold}
                         </div>
                       </div>
                     </div>
                     <div className="pl-5">
                       {item.quality.isDark ? (
-                        <span className="flex items-center gap-1 text-[10px] font-medium text-rose-500">
+                        <span className="flex items-center gap-1 text-2xs font-medium text-rose-500">
                           <AlertTriangle className="h-3 w-3 shrink-0" />{" "}
                           Under-exposed / Dark (Flagged Defect)
                         </span>
                       ) : (
-                        <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-500">
+                        <span className="flex items-center gap-1 text-2xs font-medium text-emerald-500">
                           <Check className="h-3 w-3 shrink-0" /> Well Exposed
                         </span>
                       )}
@@ -446,7 +446,7 @@ export const MediaCullingCard: React.FC<MediaCullingCardProps> = ({
                             ? `${item.width} × ${item.height}`
                             : "N/A"}
                         </div>
-                        <div className="text-[10px] text-muted-foreground">
+                        <div className="text-2xs text-muted-foreground">
                           {item.width && item.height
                             ? `${((item.width * item.height) / 1000000).toFixed(1)} MP`
                             : ""}
@@ -455,12 +455,12 @@ export const MediaCullingCard: React.FC<MediaCullingCardProps> = ({
                     </div>
                     <div className="pl-5">
                       {item.quality.isSmall ? (
-                        <span className="flex items-center gap-1 text-[10px] font-medium text-rose-500">
+                        <span className="flex items-center gap-1 text-2xs font-medium text-rose-500">
                           <AlertTriangle className="h-3 w-3 shrink-0" /> Low
                           Resolution / Small File
                         </span>
                       ) : (
-                        <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-500">
+                        <span className="flex items-center gap-1 text-2xs font-medium text-emerald-500">
                           <Check className="h-3 w-3 shrink-0" /> High Resolution
                           Pass
                         </span>
@@ -474,7 +474,7 @@ export const MediaCullingCard: React.FC<MediaCullingCardProps> = ({
                           <Monitor className="h-3.5 w-3.5 text-purple-400" />
                           <span>File Type Check</span>
                         </div>
-                        <div className="flex items-center gap-1 pl-5 text-[10px] font-medium text-amber-500">
+                        <div className="flex items-center gap-1 pl-5 text-2xs font-medium text-amber-500">
                           <AlertTriangle className="h-3 w-3 shrink-0" />{" "}
                           Screenshot (Likely Clutter)
                         </div>

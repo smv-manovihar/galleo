@@ -11,6 +11,7 @@ import {
   Info,
   FolderOpen,
   MoreVertical,
+  Sparkles,
 } from "lucide-react"
 import { formatBytes } from "../../lib/format"
 import { getFileManagerName } from "../../lib/os"
@@ -42,6 +43,12 @@ interface MediaCardProps {
   onPreviewOpen: (item: MediaItem) => void
   onInfoOpen: (item: MediaItem) => void
   onReviewAction: (id: string, state: "keep" | "delete" | "skipped") => void
+  matchingFrame?: {
+    timestampSeconds: number
+    thumbnailPath?: string
+  }
+  searchScore?: number
+  onFindSimilar?: (mediaId: string) => void
 }
 
 const MediaCardInner: React.FC<MediaCardProps> = ({
@@ -51,6 +58,9 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
   onPreviewOpen,
   onInfoOpen,
   onReviewAction,
+  matchingFrame,
+  searchScore,
+  onFindSimilar,
 }) => {
   const isVideo = item.mediaType === "video"
   const hasQuality = item.quality !== undefined
@@ -190,6 +200,25 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
               </div>
             )}
 
+            {/* Matching Video Timestamp Badge */}
+            {isVideo && matchingFrame && (
+              <div className="absolute top-2 left-2 z-20 flex items-center gap-1 rounded-md bg-purple-600/90 px-2 py-0.5 text-2xs font-semibold text-white shadow-md backdrop-blur-sm">
+                <span>
+                  ⏱{" "}
+                  {`${Math.floor(matchingFrame.timestampSeconds / 60)}:${
+                    Math.floor(matchingFrame.timestampSeconds % 60) < 10 ? "0" : ""
+                  }${Math.floor(matchingFrame.timestampSeconds % 60)}`}
+                </span>
+              </div>
+            )}
+
+            {/* Search Match Confidence Score Badge */}
+            {searchScore !== undefined && searchScore > 0 && (
+              <div className="absolute top-2 right-2 z-20 flex items-center gap-1 rounded-md bg-blue-600/90 px-2 py-0.5 text-2xs font-semibold text-white shadow-md backdrop-blur-sm">
+                <span>{Math.round(searchScore * 100)}% match</span>
+              </div>
+            )}
+
             {/* Video Play Indicator */}
             {isVideo && (
               <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center transition-opacity duration-200 group-hover:opacity-0">
@@ -286,6 +315,15 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
                       <Info className="h-3.5 w-3.5" />
                       File Info
                     </DropdownMenuItem>
+                    {onFindSimilar && (
+                      <DropdownMenuItem
+                        onClick={() => onFindSimilar(item.id)}
+                        className="cursor-pointer gap-2.5 text-primary"
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
+                        Find Similar
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       onClick={handleOpenFile}
@@ -322,6 +360,15 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
           <Info className="h-3.5 w-3.5" />
           File Info
         </ContextMenuItem>
+        {onFindSimilar && (
+          <ContextMenuItem
+            onClick={() => onFindSimilar(item.id)}
+            className="gap-2.5 text-primary focus:text-primary"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            Find Similar
+          </ContextMenuItem>
+        )}
         <ContextMenuSeparator />
         <ContextMenuItem
           onClick={() => onReviewAction(item.id, "keep")}

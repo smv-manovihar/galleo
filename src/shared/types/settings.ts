@@ -53,5 +53,6 @@ export interface AppSettings {
     thumbnailCacheMaxMB: number
     scanBatchSize: number
     maxConcurrentOps: number
+    aiEmbeddingConcurrency: number
   }
 }

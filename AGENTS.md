@@ -63,11 +63,15 @@ Behavioral and architectural contract for AI agents. This document governs **cod
 ```text
 1. [Step] → verify: [check]
 2. [Step] → verify: [check]
-
 ```
-
-
 * Strong success criteria let you loop independently. Weak criteria ("make it work") require constant user clarification.
+
+### 1.6 Package Management & Code Verification
+
+**Strict pnpm usage & mandatory verification.**
+
+* **Exclusive Package Manager:** Always use `pnpm` (`pnpm add`, `pnpm test`, `pnpm run typecheck`, `pnpm run lint`). Do not use `npm` or `yarn`.
+* **Mandatory Verification:** Always verify changes by running `pnpm run typecheck` and `pnpm run lint` before completing tasks. Never leave lint or type errors unaddressed.
 
 ---
 
@@ -125,7 +129,7 @@ Maintain a predictable structural lifecycle inside all React components:
 
 ### 4.3 Network & Data Integrity
 
-* **Contract Synchronization:** Ensure frontend TypeScript interfaces/types exactly mirror backend API response models. Run `npm run typecheck` to verify changes.
+* **Contract Synchronization:** Ensure frontend TypeScript interfaces/types exactly mirror backend API response models. Run `pnpm run typecheck` to verify changes and `pnpm run lint` to check for ESLint violations.
 * **Decoupled Network Requests:** Components must never execute network requests (`fetch`, `axios`) directly. Encapsulate network orchestration within abstract API modules, custom hooks, or state-management layers.
 * **Schema-Driven Forms:** Couple form states with declarative Zod schemas via `react-hook-form`. Infer TypeScript types directly from these schemas.
 
@@ -139,3 +143,6 @@ Maintain a predictable structural lifecycle inside all React components:
 4. **Out-of-Sync Models:** Never modify backend API schemas without making corresponding adjustments to the frontend type definitions.
 5. **Out-of-Sync Tests:** Never submit working code changes while leaving the corresponding test files outdated, skipped, or broken.
 6. **Rogue Styling:** Never introduce arbitrary hex codes, custom Tailwind configuration extensions, or inline styles without consulting `DESIGN.md`.
+7. **Arbitrary Pixel Typography (`text-[px]`) & Overuse of `text-2xs`:** Never use arbitrary pixel text utilities like `text-[10px]`, `text-[12px]`, or `text-[14px]`. Do not overuse micro typography like `text-2xs` (0.65rem/10px) — default to standard `text-xs` or `text-sm` for UI controls, body text, and dialog descriptions to ensure high legibility.
+8. **Non-pnpm Usage:** Never run `npm` or `yarn` commands; use `pnpm` exclusively.
+9. **Unverified Submissions:** Never submit code changes without verifying them via `pnpm run typecheck` and `pnpm run lint`.

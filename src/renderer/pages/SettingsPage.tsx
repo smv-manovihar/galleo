@@ -18,11 +18,15 @@ import {
 import {
   FolderSync,
   Settings2,
-  LineChart,
   Eye,
   RefreshCcw,
   Info,
+  Sparkles,
+  SlidersHorizontal,
 } from "lucide-react"
+
+import { AIConfig } from "../components/settings/AIConfig"
+import { ENABLE_AI_FEATURES } from "../../shared/constants"
 
 export const SettingsPage: React.FC = () => {
   const {
@@ -33,17 +37,25 @@ export const SettingsPage: React.FC = () => {
   } = useUIStore()
 
   interface TabItem {
-    value: "folders" | "scan" | "quality" | "appearance" | "reset" | "about"
+    value:
+      | "folders"
+      | "scan"
+      | "quality"
+      | "appearance"
+      | "ai"
+      | "reset"
+      | "about"
     label: string
     icon: React.ComponentType<{ className?: string }>
     hasUpdate?: boolean
   }
 
-  const tabsData: TabItem[] = [
+  const rawTabsData: TabItem[] = [
     { value: "folders", label: "Allowed Roots", icon: FolderSync },
     { value: "scan", label: "Scan Rules", icon: Settings2 },
-    { value: "quality", label: "Defect Sensitivity", icon: LineChart },
+    { value: "quality", label: "Defect Tresholds", icon: SlidersHorizontal },
     { value: "appearance", label: "Theme & Interface", icon: Eye },
+    { value: "ai", label: "AI Visual Search", icon: Sparkles },
     { value: "reset", label: "Reset App Data", icon: RefreshCcw },
     {
       value: "about",
@@ -51,10 +63,14 @@ export const SettingsPage: React.FC = () => {
       icon: Info,
       hasUpdate: Boolean(
         updateInfo?.updateAvailable &&
-        updateInfo.latestVersion !== dismissedVersion
+          updateInfo.latestVersion !== dismissedVersion
       ),
     },
   ]
+
+  const tabsData = ENABLE_AI_FEATURES
+    ? rawTabsData
+    : rawTabsData.filter((t) => t.value !== "ai")
 
   const activeTabItem =
     tabsData.find((t) => t.value === activeSettingsTab) || tabsData[0]
@@ -156,6 +172,9 @@ export const SettingsPage: React.FC = () => {
             className="m-0 focus-visible:outline-none"
           >
             <AppearanceConfig />
+          </TabsContent>
+          <TabsContent value="ai" className="m-0 focus-visible:outline-none">
+            <AIConfig />
           </TabsContent>
           <TabsContent value="reset" className="m-0 focus-visible:outline-none">
             <ResetConfig />

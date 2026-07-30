@@ -9,7 +9,7 @@ import {
   CardContent,
 } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
-import { Plus, Trash2, Folder } from "lucide-react"
+import { Plus, Trash2, Folder, FolderSync } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import {
@@ -50,14 +50,15 @@ export const FolderConfig: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6 font-sans text-xs select-none">
-      <Card className="border-border bg-card/45">
-        <CardHeader className="flex flex-col gap-4 border-b border-border pb-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-1">
-            <CardTitle className="text-sm font-semibold text-foreground">
+    <div className="space-y-4 font-sans text-xs select-none">
+      <Card className="border-border/60 bg-card/50 shadow-xs">
+        <CardHeader className="border-b border-border/40 px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-0.5">
+            <CardTitle className="flex items-center gap-2 text-xs font-bold text-foreground">
+              <FolderSync className="h-3.5 w-3.5 text-primary" />
               Scanned Roots
             </CardTitle>
-            <CardDescription className="text-xs leading-normal text-muted-foreground">
+            <CardDescription className="text-2xs text-muted-foreground">
               Manage scanned folders. Disabled folders are skipped during scans.
             </CardDescription>
           </div>
@@ -70,7 +71,7 @@ export const FolderConfig: React.FC = () => {
             Add Root Folder
           </Button>
         </CardHeader>
-        <CardContent className="space-y-3 p-3.5 sm:p-4">
+        <CardContent className="space-y-4 p-4">
           {settings.folders.roots.length === 0 ? (
             <div className="rounded-lg border border-dashed border-border py-6 text-center text-muted-foreground">
               No root directories added yet. Click "Add Root Folder" to start.

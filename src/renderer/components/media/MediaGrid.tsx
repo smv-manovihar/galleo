@@ -2,6 +2,11 @@ import React, { useRef, useMemo, useState, useEffect } from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import type { MediaItem } from "../../../shared/types/media"
 import { MediaCard } from "./MediaCard"
+import { useMediaStore } from "../../stores/media-store"
+import { useSettingsStore } from "../../stores/settings-store"
+import { FolderSearch } from "lucide-react"
+
+import type { SearchResultItem } from "../../../main/services/search-engine.service"
 
 interface MediaGridProps {
   items: MediaItem[]
@@ -11,6 +16,8 @@ interface MediaGridProps {
   onInfoOpen: (item: MediaItem) => void
   onReviewAction: (id: string, state: "keep" | "delete" | "skipped") => void
   columns?: number
+  searchResultsMap?: Map<string, SearchResultItem>
+  onFindSimilar?: (mediaId: string) => void
 }
 
 const GAP = 16
@@ -24,17 +31,29 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
   onInfoOpen,
   onReviewAction,
   columns: overrideColumns,
+  searchResultsMap,
+  onFindSimilar,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [containerWidth, setContainerWidth] = useState<number>(800)
+  const [containerWidth, setContainerWidth] = useState(1000)
+
+  const activeRootPath = useMediaStore((s) => s.activeRootPath)
+  const { settings } = useSettingsStore()
+
+  const isScanned = useMemo(() => {
+    if (!activeRootPath || activeRootPath === "all") {
+      return settings.folders.roots.some((r) => r.enabled && r.scanned)
+    }
+    return !!settings.folders.roots.find(
+      (r) => r.path.toLowerCase() === activeRootPath.toLowerCase()
+    )?.scanned
+  }, [activeRootPath, settings.folders.roots])
 
   useEffect(() => {
     if (!containerRef.current) return
     const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        if (entry.contentRect.width > 0) {
-          setContainerWidth(entry.contentRect.width)
-        }
+      if (entries[0]?.contentRect.width) {
+        setContainerWidth(entries[0].contentRect.width)
       }
     })
     observer.observe(containerRef.current)
@@ -72,6 +91,25 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
     overscan: 4,
   })
 
+  if (items.length === 0) {
+    return (
+      <div className="flex h-full w-full flex-1 flex-col items-center justify-center py-16 font-sans text-xs text-muted-foreground select-none">
+        {!isScanned ? (
+          <>
+            <FolderSearch className="h-8 w-8 text-amber-500/80 mb-1" />
+            <span className="text-sm font-medium text-foreground">Folder not scanned</span>
+            <span className="mt-1 text-2xs text-muted-foreground">Use the Scan Folders button above to index media files.</span>
+          </>
+        ) : (
+          <>
+            <span className="text-sm font-medium text-foreground">No items match current filters</span>
+            <span className="mt-1 text-2xs text-muted-foreground">Try clearing filters or search terms.</span>
+          </>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div
       ref={containerRef}
@@ -96,26 +134,26 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
                 transform: `translateY(${virtualRow.start}px)`,
               }}
             >
-              {rowItems.map((item) => (
-                <MediaCard
-                  key={item.id}
-                  item={item}
-                  isSelected={selectedIds.has(item.id)}
-                  onSelectToggle={onSelectToggle}
-                  onPreviewOpen={onPreviewOpen}
-                  onInfoOpen={onInfoOpen}
-                  onReviewAction={onReviewAction}
-                />
-              ))}
+              {rowItems.map((item) => {
+                const searchMatch = searchResultsMap?.get(item.id)
+                return (
+                  <MediaCard
+                    key={item.id}
+                    item={item}
+                    isSelected={selectedIds.has(item.id)}
+                    onSelectToggle={onSelectToggle}
+                    onPreviewOpen={onPreviewOpen}
+                    onInfoOpen={onInfoOpen}
+                    onReviewAction={onReviewAction}
+                    matchingFrame={searchMatch?.matchingFrame}
+                    searchScore={searchMatch?.score}
+                    onFindSimilar={onFindSimilar}
+                  />
+                )
+              })}
             </div>
           )
         })}
-
-        {items.length === 0 && (
-          <div className="flex h-64 flex-col items-center justify-center font-sans text-muted-foreground">
-            <span className="text-sm">No items match current filters</span>
-          </div>
-        )}
       </div>
     </div>
   )

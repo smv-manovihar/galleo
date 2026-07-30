@@ -8,3 +8,5 @@ allowBuilds:
   ffmpeg-static: true
   exifreader: true
   electron-winstaller: true
+  onnxruntime-node: true
+  protobufjs: true

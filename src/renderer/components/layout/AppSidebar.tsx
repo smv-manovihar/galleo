@@ -226,7 +226,7 @@ export const AppSidebar: React.FC = () => {
                   </TooltipTrigger>
                   {!hasAnyScanned && (
                     <TooltipContent side="right">
-                      No folders scanned yet — click to scan now
+                      No folders scanned yet
                     </TooltipContent>
                   )}
                 </Tooltip>

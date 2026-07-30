@@ -11,7 +11,7 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
-import { Sun, Moon, Monitor, Type, Palette, Check } from "lucide-react"
+import { Sun, Moon, Monitor, Check, Palette, Type } from "lucide-react"
 
 export const AppearanceConfig: React.FC = () => {
   const { settings, saveSettings } = useSettingsStore()
@@ -60,7 +60,7 @@ export const AppearanceConfig: React.FC = () => {
     <div className="space-y-4 font-sans text-xs select-none">
       <Card className="border-border/60 bg-card/50 shadow-xs">
         <CardHeader className="border-b border-border/40 px-4 py-3">
-          <CardTitle className="flex items-center gap-2 text-xs font-bold text-foreground uppercase tracking-wide">
+          <CardTitle className="flex items-center gap-2 text-xs font-bold text-foreground">
             <Palette className="h-3.5 w-3.5 text-primary" />
             Theme & Interface
           </CardTitle>
@@ -71,7 +71,8 @@ export const AppearanceConfig: React.FC = () => {
         <CardContent className="space-y-4 p-4">
           {/* Color Theme Section */}
           <div className="space-y-2">
-            <Label className="flex items-center gap-1.5 text-2xs font-bold text-muted-foreground uppercase tracking-wider">
+            <Label className="flex items-center gap-1.5 text-2xs font-semibold text-muted-foreground">
+              <Sun className="h-3.5 w-3.5 text-primary" />
               Color Theme
             </Label>
 
@@ -140,7 +141,8 @@ export const AppearanceConfig: React.FC = () => {
 
           {/* Font Size Scale Section */}
           <div className="space-y-2">
-            <Label className="flex items-center gap-1.5 text-2xs font-bold text-muted-foreground uppercase tracking-wider">
+            <Label className="flex items-center gap-1.5 text-2xs font-semibold text-muted-foreground">
+              <Type className="h-3.5 w-3.5 text-primary" />
               Font Size Scale
             </Label>
 

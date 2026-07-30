@@ -1,5 +1,12 @@
 import type { AppSettings } from "./types/settings"
 
+/**
+ * Feature Flags
+ * Set ENABLE_AI_FEATURES to true to enable Visual AI Search & ONNX Model indexing.
+ * Default is false while AI model execution is unstable/under development.
+ */
+export const ENABLE_AI_FEATURES = false
+
 export const SUPPORTED_PHOTO_EXTENSIONS = [
   "jpg",
   "jpeg",
@@ -24,6 +31,51 @@ export const ALL_SUPPORTED_EXTENSIONS = [
   ...SUPPORTED_VIDEO_EXTENSIONS,
 ] as const
 
+export const DEFAULT_EXCLUDE_PATTERNS = [
+  "node_modules",
+  "**/node_modules/**",
+  ".git",
+  "**/.git/**",
+  "$RECYCLE.BIN",
+  "**/$RECYCLE.BIN/**",
+  "System Volume Information",
+  "__pycache__",
+  ".venv",
+  "venv",
+  "env",
+  ".env",
+  "*.egg-info",
+  "build",
+  "dist",
+  ".pytest_cache",
+  ".tox",
+  ".mypy_cache",
+  ".npm",
+  ".yarn",
+  "bower_components",
+  ".svn",
+  ".hg",
+  ".vscode",
+  ".idea",
+  ".eclipse",
+  "*.iml",
+  "target",
+  "out",
+  ".gradle",
+  ".mvn",
+  "bin",
+  "obj",
+  ".DS_Store",
+  "Thumbs.db",
+  "desktop.ini",
+  "*.log",
+  "*.tmp",
+  "*.cache",
+  "logs",
+  "temp",
+  "tmp",
+]
+
 export const DEFAULT_SETTINGS: AppSettings = {
   folders: {
     roots: [],
@@ -34,7 +86,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   scanning: {
     includeSubfolders: true,
     maxDepth: 10,
-    excludePatterns: ["**/node_modules/**", "**/.git/**", "**/$RECYCLE.BIN/**"],
+    excludePatterns: [...DEFAULT_EXCLUDE_PATTERNS],
     minFileSize: 1024, // 1KB
     maxFileSize: 0, // unlimited
     supportedExtensions: [...ALL_SUPPORTED_EXTENSIONS],
@@ -65,5 +117,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
     thumbnailCacheMaxMB: 512,
     scanBatchSize: 50,
     maxConcurrentOps: 4,
+    aiEmbeddingConcurrency: 1,
   },
 }

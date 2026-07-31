@@ -83,7 +83,7 @@ export class FileOpsService {
       if (failures.length > 0) {
         return fail({
           code: "UNKNOWN",
-          message: `Failed to delete ${failures.length} files: ${failures.join(", ")}`,
+          message: `Failed to move ${failures.length} of ${paths.length} files to trash: ${failures.slice(0, 3).join(", ")}${failures.length > 3 ? "..." : ""}`,
         })
       }
 

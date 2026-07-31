@@ -3,6 +3,7 @@ export interface RootFolder {
   enabled: boolean
   label?: string
   scanned?: boolean
+  lastScannedMtime?: number
 }
 
 export type DuplicateStrategy =

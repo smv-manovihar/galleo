@@ -142,17 +142,17 @@ export function initDatabase(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_video_frames_media ON video_frame_embeddings(media_id);
   `)
 
-  // Backward-compatible migration: add date_modified column if it does not exist yet
-  try {
-    db.exec(`ALTER TABLE media_items ADD COLUMN date_modified TEXT;`)
-  } catch {
-    // Column already exists — safe to ignore
-  }
+  // Versioned migrations via user_version PRAGMA
+  let currentVersion = (db.pragma("user_version", { simple: true }) as number) || 0
 
-  try {
-    db.exec(`ALTER TABLE media_items ADD COLUMN similarity_index INTEGER;`)
-  } catch {
-    // Column already exists — safe to ignore
+  if (currentVersion < 1) {
+    try {
+      db.exec(`ALTER TABLE media_items ADD COLUMN date_modified TEXT;`)
+    } catch {}
+    try {
+      db.exec(`ALTER TABLE media_items ADD COLUMN similarity_index INTEGER;`)
+    } catch {}
+    db.pragma("user_version = 1")
   }
 
   dbInstance = db
@@ -161,6 +161,11 @@ export function initDatabase(): Database.Database {
 
 export function closeDatabase(): void {
   if (dbInstance) {
+    try {
+      dbInstance.pragma("wal_checkpoint(FULL)")
+    } catch (e) {
+      console.warn("WAL checkpoint failed before closing database:", e)
+    }
     dbInstance.close()
     dbInstance = null
   }

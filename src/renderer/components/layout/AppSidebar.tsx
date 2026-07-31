@@ -58,16 +58,16 @@ import {
 } from "@/components/ui/sidebar"
 
 export const AppSidebar: React.FC = () => {
-  const {
-    currentView,
-    setCurrentView,
-    updateInfo,
-    checkForUpdates,
-    hasRunInitialUpdateCheck,
-    dismissedVersion,
-    dismissUpdate,
-  } = useUIStore()
-  const { settings, addRootFolder, removeRootFolder } = useSettingsStore()
+  const currentView = useUIStore((s) => s.currentView)
+  const setCurrentView = useUIStore((s) => s.setCurrentView)
+  const updateInfo = useUIStore((s) => s.updateInfo)
+  const checkForUpdates = useUIStore((s) => s.checkForUpdates)
+  const hasRunInitialUpdateCheck = useUIStore((s) => s.hasRunInitialUpdateCheck)
+  const dismissedVersion = useUIStore((s) => s.dismissedVersion)
+  const dismissUpdate = useUIStore((s) => s.dismissUpdate)
+  const settings = useSettingsStore((s) => s.settings)
+  const addRootFolder = useSettingsStore((s) => s.addRootFolder)
+  const removeRootFolder = useSettingsStore((s) => s.removeRootFolder)
 
   useEffect(() => {
     if (!hasRunInitialUpdateCheck) {
@@ -75,9 +75,26 @@ export const AppSidebar: React.FC = () => {
     }
   }, [hasRunInitialUpdateCheck, checkForUpdates])
   const activeRootPath = useMediaStore((s) => s.activeRootPath)
+  const items = useMediaStore((s) => s.items)
   const fetchMediaItems = useMediaStore((s) => s.fetchMediaItems)
   const startScan = useScanStore((s) => s.startScan)
   const isScanning = useScanStore((s) => s.isScanning)
+  const folderCounts = useScanStore((s) => s.folderCounts)
+
+  // Derive per-root indexed item count from the live media store.
+  // Used to compute isPartial: scanned && dbCount < totalDiscoveredCount.
+  const rootItemCountMap = React.useMemo(() => {
+    const map = new Map<string, number>()
+    for (const root of settings.folders.roots) {
+      if (!root.scanned) continue
+      const norm = root.path.replace(/\\/g, "/").toLowerCase()
+      const count = items.filter((item) =>
+        item.path.replace(/\\/g, "/").toLowerCase().startsWith(norm)
+      ).length
+      map.set(root.path, count)
+    }
+    return map
+  }, [items, settings.folders.roots])
 
   const [folderToDelete, setFolderToDelete] = useState<string | null>(null)
   const [showScanPrompt, setShowScanPrompt] = useState(false)
@@ -262,6 +279,17 @@ export const AppSidebar: React.FC = () => {
               <SidebarMenu className="gap-1">
                 {settings.folders.roots.map((root) => {
                   const isScanned = !!root.scanned
+                  const folderData = folderCounts.get(root.path)
+                  const liveDiskCount = folderData?.count
+                  const needsRescan = !!folderData?.needsRescan
+                  const dbCount = rootItemCountMap.get(root.path) ?? 0
+                  const isPartial =
+                    isScanned &&
+                    liveDiskCount !== undefined &&
+                    liveDiskCount > 0 &&
+                    dbCount < liveDiskCount
+                  const mightNeedRescan = isScanned && !isPartial && needsRescan
+
                   const label = root.label || root.path
                   const isSelected =
                     activeRootPath?.replace(/\\/g, "/").toLowerCase() ===
@@ -284,9 +312,13 @@ export const AppSidebar: React.FC = () => {
                                   className={`h-4 w-4 shrink-0 ${
                                     !isScanned
                                       ? "text-amber-500/80"
-                                      : isSelected
-                                        ? "text-primary"
-                                        : "text-muted-foreground/75"
+                                      : isPartial
+                                        ? "text-amber-400"
+                                        : mightNeedRescan
+                                          ? "text-sky-400"
+                                          : isSelected
+                                            ? "text-primary"
+                                            : "text-muted-foreground/75"
                                   }`}
                                 />
                                 <span className="flex-1 truncate font-sans text-xs">
@@ -295,10 +327,19 @@ export const AppSidebar: React.FC = () => {
                                 {!isScanned && (
                                   <ScanSearch className="ml-auto h-3.5 w-3.5 shrink-0 text-amber-500/60" />
                                 )}
+                                {isPartial && (
+                                  <span className="ml-auto h-2 w-2 shrink-0 rounded-full bg-amber-400" />
+                                )}
+                                {mightNeedRescan && (
+                                  <span className="ml-auto h-2 w-2 shrink-0 rounded-full bg-sky-400 animate-pulse" />
+                                )}
                               </SidebarMenuButton>
                             </TooltipTrigger>
                             <TooltipContent side="right">
-                              {root.path} {!isScanned && " (Not Scanned)"}
+                              {root.path}
+                              {!isScanned && " (Not scanned)"}
+                              {isPartial && " (Partially scanned: resume to index remaining files)"}
+                              {mightNeedRescan && " (Might need rescan: files changed on disk)"}
                             </TooltipContent>
                           </Tooltip>
                         </ContextMenuTrigger>

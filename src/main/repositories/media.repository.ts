@@ -206,13 +206,16 @@ export class MediaRepository {
       return rows.map((row) => this.rowToMediaItem(row))
     }
 
-    // Normalize path separators to search standard path matching
-    const searchPath = folderPath.replace(/\\/g, "/").toLowerCase()
+    // Escape SQL LIKE wildcards and normalize path
+    const searchPath = folderPath
+      .replace(/\\/g, "/")
+      .toLowerCase()
+      .replace(/[%_]/g, "\\$&")
 
     // We match any item whose path starts with the folderPath
     const stmt = db.prepare(`
        SELECT * FROM media_items 
-       WHERE LOWER(path) LIKE ? 
+       WHERE LOWER(path) LIKE ? ESCAPE '\\'
        ORDER BY date_target DESC
      `)
 
@@ -286,8 +289,11 @@ export class MediaRepository {
       stmt.run()
       return
     }
-    const searchPath = folderPath.replace(/\\/g, "/").toLowerCase()
-    const stmt = db.prepare("DELETE FROM media_items WHERE LOWER(path) LIKE ?")
+    const searchPath = folderPath
+      .replace(/\\/g, "/")
+      .toLowerCase()
+      .replace(/[%_]/g, "\\$&")
+    const stmt = db.prepare("DELETE FROM media_items WHERE LOWER(path) LIKE ? ESCAPE '\\'")
     stmt.run(`${searchPath}%`)
   }
 
@@ -304,11 +310,14 @@ export class MediaRepository {
       stmt.run()
       return
     }
-    const searchPath = folderPath.replace(/\\/g, "/").toLowerCase()
+    const searchPath = folderPath
+      .replace(/\\/g, "/")
+      .toLowerCase()
+      .replace(/[%_]/g, "\\$&")
     const stmt = db.prepare(`
       UPDATE media_items 
       SET review_state = 'pending', reviewed_at = NULL 
-      WHERE LOWER(path) LIKE ?
+      WHERE LOWER(path) LIKE ? ESCAPE '\\'
     `)
     stmt.run(`${searchPath}%`)
   }

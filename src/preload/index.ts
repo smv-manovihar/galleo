@@ -14,6 +14,8 @@ const api: GalleoAPI = {
   startScan: (rootPaths, forceRescan) =>
     ipcRenderer.invoke(IPC_CHANNELS.SCAN_START, rootPaths, forceRescan),
   cancelScan: () => ipcRenderer.invoke(IPC_CHANNELS.SCAN_CANCEL),
+  countFolders: (rootPaths) =>
+    ipcRenderer.invoke(IPC_CHANNELS.SCAN_COUNT_FOLDERS, rootPaths),
 
   onScanProgress: (callback) => {
     const listener = (_event: any, payload: ScanProgressPayload) =>
@@ -29,6 +31,18 @@ const api: GalleoAPI = {
     ipcRenderer.on(IPC_CHANNELS.SCAN_COMPLETE, listener)
     return () => {
       ipcRenderer.removeListener(IPC_CHANNELS.SCAN_COMPLETE, listener)
+    }
+  },
+
+  onFolderCountsUpdated: (callback) => {
+    const listener = (_event: any, counts: any) =>
+      callback(counts)
+    ipcRenderer.on(IPC_CHANNELS.SCAN_FOLDER_COUNTS_UPDATED, listener)
+    return () => {
+      ipcRenderer.removeListener(
+        IPC_CHANNELS.SCAN_FOLDER_COUNTS_UPDATED,
+        listener
+      )
     }
   },
 

@@ -30,8 +30,8 @@ export function parseExifDate(
     const s = parseInt(second, 10)
 
     if (
-      y >= 1995 &&
-      y <= 2035 &&
+      y >= 1970 &&
+      y <= 2099 &&
       m >= 0 &&
       m <= 11 &&
       d >= 1 &&
@@ -60,7 +60,7 @@ export function parseExifDate(
   if (!isNaN(standardDate.getTime())) {
     const y = standardDate.getFullYear()
     // Prevent parsing generic numbers/junk as valid standard dates
-    if (y >= 1995 && y <= 2035) {
+    if (y >= 1970 && y <= 2099) {
       return standardDate
     }
   }
@@ -77,21 +77,25 @@ export function resolveTargetDate(params: {
   fsBirthTime?: string | null
   fsMTime?: string | null
 }): DateResolution {
-  // 1. Check EXIF date original
-  const exifDate = parseExifDate(params.exifDateOriginal)
-  if (exifDate) {
-    return {
-      targetDate: exifDate.toISOString(),
-      source: "exif",
+  // 1. Exif date original (camera capture timestamp) — highest priority
+  if (params.exifDateOriginal) {
+    const parsed = parseExifDate(params.exifDateOriginal)
+    if (parsed) {
+      return {
+        targetDate: parsed.toISOString(),
+        source: "exif",
+      }
     }
   }
 
-  // 2. Check filename date
-  const filenameDate = extractDateFromFilename(params.filename)
-  if (filenameDate) {
-    return {
-      targetDate: filenameDate.toISOString(),
-      source: "filename",
+  // 2. Filename inferred date
+  if (params.filename) {
+    const parsed = extractDateFromFilename(params.filename)
+    if (parsed) {
+      return {
+        targetDate: parsed.toISOString(),
+        source: "filename",
+      }
     }
   }
 
@@ -99,7 +103,7 @@ export function resolveTargetDate(params: {
   if (params.fsBirthTime) {
     const birthDate = new Date(params.fsBirthTime)
     if (!isNaN(birthDate.getTime())) {
-      // Validate it's a reasonable date (e.g. not Jan 1 1970)
+      // Validate it's a reasonable date (e.g. not Jan 1 1970 epoch)
       if (birthDate.getFullYear() > 1980) {
         return {
           targetDate: birthDate.toISOString(),
@@ -113,9 +117,11 @@ export function resolveTargetDate(params: {
   if (params.fsMTime) {
     const mDate = new Date(params.fsMTime)
     if (!isNaN(mDate.getTime())) {
-      return {
-        targetDate: mDate.toISOString(),
-        source: "filesystem",
+      if (mDate.getFullYear() > 1980) {
+        return {
+          targetDate: mDate.toISOString(),
+          source: "filesystem",
+        }
       }
     }
   }

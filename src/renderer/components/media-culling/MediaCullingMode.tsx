@@ -92,6 +92,8 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
   const currentItem =
     unreviewedItems.length > 0 ? unreviewedItems[0] : lastReviewedItem
 
+  const handleKeyDownRef = useRef<(e: KeyboardEvent) => Promise<void>>(async () => {})
+
   useEffect(() => {
     setIsVideoPlaying(false)
   }, [currentItem?.id])
@@ -156,11 +158,18 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
       }
     }
 
-    window.addEventListener("keydown", handleKeyDown)
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown)
+    handleKeyDownRef.current = handleKeyDown
+  })
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      handleKeyDownRef.current(e)
     }
-  }, [currentItem, swipeClass, undoStack])
+    window.addEventListener("keydown", onKeyDown)
+    return () => {
+      window.removeEventListener("keydown", onKeyDown)
+    }
+  }, [])
 
   const handleAction = async (state: "keep" | "delete") => {
     if (!currentItem) return

@@ -117,7 +117,7 @@ export class AIIndexerService {
             }
           } catch (err: unknown) {
             console.error(
-              `[AIIndexer] ✗ Failed to index ${item.path.split(/[\\/]/).pop()}:`,
+              `[AIIndexer] Failed to index ${item.path.split(/[\\/]/).pop()}:`,
               err instanceof Error ? err.message : err
             )
           }

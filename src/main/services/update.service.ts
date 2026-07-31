@@ -20,6 +20,7 @@ export class UpdateService {
           "User-Agent": "galleo-update-checker",
           Accept: "application/vnd.github.v3+json",
         },
+        signal: AbortSignal.timeout(10000),
       })
 
       if (!response.ok) {

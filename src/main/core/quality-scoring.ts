@@ -70,13 +70,13 @@ export function evaluateQuality(params: ScoreParams): QualityMetrics {
   // We start at 100 and penalize based on various defect markers
   let compositeScore = 100
 
-  if (isBlurry) {
+  if (isBlurry && thresholds.blurThreshold > 0) {
     // Blurriness penalty is scaled by how far below the threshold it is
     const severityFactor =
-      (thresholds.blurThreshold - blurScore) / thresholds.blurThreshold
+      Math.max(0, (thresholds.blurThreshold - blurScore) / thresholds.blurThreshold)
     const penalty = 20 + Math.round(severityFactor * 35) // 20 - 55 penalty
     compositeScore -= penalty
-  } else {
+  } else if (!isBlurry) {
     // Slight penalty if it's near the blur threshold, reward extreme sharpness
     // score 30-100. If blurScore is 100, no penalty. If it's near 30, tiny penalty.
     const margin = blurScore - thresholds.blurThreshold
@@ -85,10 +85,10 @@ export function evaluateQuality(params: ScoreParams): QualityMetrics {
     }
   }
 
-  if (isDark) {
+  if (isDark && thresholds.darknessThreshold > 0) {
     // Darkness penalty: how far below threshold (0 to darknessThreshold)
     const severityFactor =
-      (thresholds.darknessThreshold - brightness) / thresholds.darknessThreshold
+      Math.max(0, (thresholds.darknessThreshold - brightness) / thresholds.darknessThreshold)
     const penalty = 15 + Math.round(severityFactor * 20) // 15 - 35 penalty
     compositeScore -= penalty
   }

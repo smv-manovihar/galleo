@@ -53,13 +53,7 @@ export class SessionRepository {
         savedAt: cp.savedAt,
       })
 
-      // 2. Clear old decisions and insert updated map
-      // (Easier to just write all current ones as transactional sync)
-      const deleteDecisions = db.prepare(
-        "DELETE FROM session_decisions WHERE session_id = ?"
-      )
-      deleteDecisions.run(cp.sessionId)
-
+      // 2. Upsert current session decisions
       for (const [mediaId, decision] of Object.entries(cp.decisions)) {
         insertDecision.run({
           sessionId: cp.sessionId,
@@ -68,12 +62,7 @@ export class SessionRepository {
         })
       }
 
-      // 3. Clear old undo stack for this session and write new one
-      const deleteUndo = db.prepare(
-        "DELETE FROM undo_actions WHERE session_id = ?"
-      )
-      deleteUndo.run(cp.sessionId)
-
+      // 3. Upsert current undo stack items
       for (const undo of cp.undoStack) {
         insertUndo.run({
           id: undo.id,

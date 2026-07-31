@@ -36,16 +36,30 @@ export function generateVideoThumbnail(
         return resolve(ok(outputPath))
       }
 
-      ffmpeg(videoPath)
+      let killed = false
+      const command = ffmpeg(videoPath)
+      const timeout = setTimeout(() => {
+        killed = true
+        try {
+          command.kill("SIGKILL")
+        } catch {}
+      }, 15000)
+
+      command
         .on("end", () => {
+          clearTimeout(timeout)
           resolve(ok(outputPath))
         })
         .on("error", (err) => {
+          clearTimeout(timeout)
+          try {
+            command.kill("SIGKILL")
+          } catch {}
           resolve(
             fail({
               code: "THUMBNAIL_FAILED",
               path: videoPath,
-              reason: err.message || "ffmpeg extraction failed",
+              reason: killed ? "ffmpeg process timed out" : err.message || "ffmpeg extraction failed",
             })
           )
         })

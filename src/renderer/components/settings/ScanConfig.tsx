@@ -108,6 +108,13 @@ export const ScanConfig: React.FC = () => {
     const targetPattern = (patternToAdd || newPatternInput).trim()
     if (!targetPattern) return
 
+    if (/[?*+]\{/.test(targetPattern) || targetPattern.includes("***")) {
+      toast.error("Invalid glob pattern format", {
+        description: "Please check pattern syntax (e.g. *.tmp, node_modules).",
+      })
+      return
+    }
+
     if (excludePatterns.includes(targetPattern)) {
       toast.error("Pattern already exists", {
         description: `"${targetPattern}" is already in the exclusion list.`,
@@ -121,17 +128,20 @@ export const ScanConfig: React.FC = () => {
       setNewPatternInput("")
     }
 
-    await saveSettings({
-      ...settings,
-      scanning: {
-        ...settings.scanning,
-        excludePatterns: updated,
-      },
-    })
-
-    toast.success("Exclusion pattern added", {
-      description: `Added "${targetPattern}" to exclusion rules.`,
-    })
+    try {
+      await saveSettings({
+        ...settings,
+        scanning: {
+          ...settings.scanning,
+          excludePatterns: updated,
+        },
+      })
+      toast.success("Exclusion pattern added", {
+        description: `Added "${targetPattern}" to exclusion rules.`,
+      })
+    } catch {
+      toast.error("Failed to save settings")
+    }
   }
 
   const handleBrowseFolderToExclude = async () => {

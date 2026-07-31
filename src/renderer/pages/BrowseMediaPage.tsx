@@ -35,6 +35,7 @@ import {
 } from "lucide-react"
 import { formatBytes } from "../lib/format"
 import { storage } from "../lib/storage"
+import { ENABLE_AI_FEATURES } from "../../shared/constants"
 
 export const BrowseMediaPage: React.FC = () => {
   const items = useMediaStore((s) => s.items)
@@ -68,6 +69,7 @@ export const BrowseMediaPage: React.FC = () => {
   )
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [previewItem, setPreviewItem] = useState<MediaItem | null>(null)
+  const [previewAutoPlay, setPreviewAutoPlay] = useState(false)
   const [infoItem, setInfoItem] = useState<MediaItem | null>(null)
   const [showCommitConfirm, setShowCommitConfirm] = useState(false)
 
@@ -142,6 +144,7 @@ export const BrowseMediaPage: React.FC = () => {
   }, [searchQuery, filterType, activeRootPath])
 
   const handleFindSimilar = async (mediaId: string) => {
+    if (!ENABLE_AI_FEATURES) return
     try {
       if (typeof window !== "undefined" && window.api?.search) {
         const results = await window.api.search.findSimilar(mediaId, 24)
@@ -194,8 +197,11 @@ export const BrowseMediaPage: React.FC = () => {
       const item = currentItems.find((i) => i.id === mediaId)
       if (item) {
         await submitDecision(mediaId, state, item, "browse", batchId)
-        // Refresh items list local states
-        item.reviewState = state
+        useMediaStore.setState((prev) => ({
+          items: prev.items.map((i) =>
+            i.id === mediaId ? { ...i, reviewState: state } : i
+          ),
+        }))
       }
     },
     [submitDecision]
@@ -224,6 +230,10 @@ export const BrowseMediaPage: React.FC = () => {
     (item: MediaItem) => setPreviewItem(item),
     []
   )
+  const handlePlayOpen = React.useCallback((item: MediaItem) => {
+    setPreviewItem(item)
+    setPreviewAutoPlay(true)
+  }, [])
   const handleSetInfoItem = React.useCallback(
     (item: MediaItem) => setInfoItem(item),
     []
@@ -500,7 +510,8 @@ export const BrowseMediaPage: React.FC = () => {
             onReviewAction={handleReviewAction}
             columns={4}
             searchResultsMap={searchResultsMap}
-            onFindSimilar={handleFindSimilar}
+            onFindSimilar={ENABLE_AI_FEATURES ? handleFindSimilar : undefined}
+            onPlayOpen={handlePlayOpen}
           />
         )}
         {layoutMode === "card" && groupMode === "date" && (
@@ -519,7 +530,9 @@ export const BrowseMediaPage: React.FC = () => {
             selectedIds={selectedIds}
             onSelectToggle={handleSelectToggle}
             onPreviewOpen={handleSetPreviewItem}
+            onInfoOpen={handleSetInfoItem}
             onReviewAction={handleReviewAction}
+            onFindSimilar={ENABLE_AI_FEATURES ? handleFindSimilar : undefined}
             isGrouped={groupMode === "date"}
           />
         )}
@@ -528,9 +541,12 @@ export const BrowseMediaPage: React.FC = () => {
       {/* Slide-over Preview dialog modal */}
       <MediaPreview
         item={previewItem}
-        onClose={() => setPreviewItem(null)}
+        onClose={() => {
+          setPreviewItem(null)
+          setPreviewAutoPlay(false)
+        }}
         items={filteredItems}
-        onItemChange={setPreviewItem}
+        autoPlay={previewAutoPlay}
       />
       <MediaInfoDialog item={infoItem} onClose={() => setInfoItem(null)} />
 

@@ -105,7 +105,12 @@ app.whenReady().then(() => {
   protocol.handle("media", (request) => {
     try {
       const url = new URL(request.url)
-      let resolvedPath = decodeURIComponent(url.pathname)
+      let resolvedPath: string
+      try {
+        resolvedPath = decodeURIComponent(url.pathname)
+      } catch {
+        return new Response("Bad Request: Invalid URI encoding", { status: 400 })
+      }
 
       // If Electron normalized the drive letter as host, reconstruct the Windows path
       if (url.host) {
@@ -152,6 +157,11 @@ app.whenReady().then(() => {
 
         const chunksize = end - start + 1
         const fileStream = fs.createReadStream(resolvedPath, { start, end })
+        if (request.signal) {
+          request.signal.addEventListener("abort", () => {
+            fileStream.destroy()
+          })
+        }
         const webStream = Readable.toWeb(fileStream)
 
         return new Response(webStream as any, {
@@ -165,6 +175,11 @@ app.whenReady().then(() => {
         })
       } else {
         const fileStream = fs.createReadStream(resolvedPath)
+        if (request.signal) {
+          request.signal.addEventListener("abort", () => {
+            fileStream.destroy()
+          })
+        }
         const webStream = Readable.toWeb(fileStream)
         return new Response(webStream as any, {
           status: 200,

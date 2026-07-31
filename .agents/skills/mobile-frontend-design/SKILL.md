@@ -84,7 +84,7 @@ Prefer continuous scaling over breakpoint jumps for type and spacing. `clamp(MIN
 h1 { font-size: clamp(1.75rem, 1.2rem + 2.5vw, 3rem); }
 ```
 
-Use `vw`/`vh` in the preferred term for viewport-relative scaling, or container units (`cqi`, `cqw`) when the text should scale to its component rather than the screen. Build the whole type and space scale this way (a tool like Utopia generates the `clamp()` custom properties) so you stop hand-tuning sizes at each breakpoint. Hard floors still apply: body text never below 14px (prefer 16px), and form inputs never below 16px regardless of what `clamp()` computes.
+Use `vw`/`vh` in the preferred term for viewport-relative scaling, or container units (`cqi`, `cqw`) when the text should scale to its component rather than the screen. Build the whole type and space scale this way (a tool like Utopia generates the `clamp()` custom properties) so you stop hand-tuning sizes at each breakpoint. Hard floors still apply: body text never below 14px, and form inputs never below 16px regardless of what `clamp()` computes.
 
 ---
 
@@ -148,7 +148,7 @@ Secondary / rare items → hamburger → drawer (never primary nav)
 ```
 
 - Bottom nav/tab bar is `position: fixed; bottom: 0` with `padding-bottom: env(safe-area-inset-bottom)`.
-- Hamburger and close triggers are ≥ 44×44px; drawer closes on backdrop tap and `Escape`.
+- Hamburger and close triggers should be touch-friendly and proportionally padded; drawer closes on backdrop tap and `Escape`.
 - Active/selected state is always visually distinct; users must never guess where they are.
 - Nav `z-index` sits above page content but below dialogs.
 - Nav items never require horizontal scroll — collapse overflow into "More".
@@ -163,7 +163,7 @@ Horizontal scrolling on mobile = broken, unless inside a deliberately scrollable
 
 | Cause | Fix |
 |---|---|
-| Fixed-width element | `w-full` or `w-full md:w-[400px]` |
+| Fixed-width element | `w-full` or `w-full md:w-96` |
 | Flex row, no wrap | `flex-wrap` or `flex-col md:flex-row` |
 | Text won't truncate in flex child | `min-w-0` on **every** flex ancestor |
 | `100vw` on inner element | `w-full` (`100vw` includes the scrollbar) |
@@ -188,27 +188,27 @@ Horizontal scrolling on mobile = broken, unless inside a deliberately scrollable
 
 ## Touch targets
 
-- Minimum hit area **44×44px** (iOS) / **48×48dp** (Android) for every interactive element.
-- Minimum **8px** between adjacent targets.
-- Icon-only buttons need a real hit area and an accessible label; no hover tooltips on touch — use a visible label or tap-to-reveal.
+- Interactive elements must be proportionally sized and touch-friendly on mobile while scaling cleanly across screen sizes.
+- Maintain adequate proportional spacing (`gap-2 sm:gap-3`) between adjacent targets.
+- Icon-only buttons should use relative padding, touch-friendly hit areas, and accessible labels; avoid hardcoded pixel dimensions or hover-only tooltips on touch devices.
 
 ```jsx
-// CORRECT — guaranteed hit area + screen-reader label
-<button className="p-3 min-w-[44px] min-h-[44px]" aria-label="Close">
-  <XIcon className="w-5 h-5" />
+// CORRECT — proportional, touch-friendly sizing with screen-reader label
+<button className="p-2 sm:p-3 rounded-lg text-muted-foreground hover:text-foreground transition-colors" aria-label="Close">
+  <XIcon className="size-5 sm:size-4" />
 </button>
 ```
 
-**Thumb zone.** The lower ~40% of the screen is the comfortable one-handed reach. Put primary actions, the tab bar, and any FAB there. Push destructive or rare actions (delete, sign out) to the upper zone so they are harder to hit by accident. Thumb-zone logic does not apply to tablets/foldables held with two hands — there, optimize for pointer precision and larger targets instead.
+**Thumb zone.** The lower screen area is the comfortable one-handed reach zone on mobile devices. Put primary actions, the tab bar, and any FAB there. Push destructive or rare actions (delete, sign out) to the upper zone so they are harder to hit by accident. Proportional scaling ensures controls remain comfortably reachable across all viewports.
 
 ---
 
 ## Buttons
 
 - Primary action: `w-full` on mobile, `md:w-auto` on desktop. Never blanket-apply `w-full` to desktop buttons.
-- Height ≥ 44px (`py-3` / `h-11`); font ≥ `text-base` (16px).
+- Scale height and padding proportionally (`py-2 px-4 sm:px-6`); font ≥ `text-sm` sm:`text-base`.
 - Place primary CTA at the bottom of the form/screen; make it sticky when the form is long, with `safe-area-inset-bottom` padding so the keyboard doesn't bury it.
-- Put a destructive secondary action *above* the primary (users scan bottom-up); keep `gap-3`+ between buttons.
+- Put a destructive secondary action *above* the primary (users scan bottom-up); keep proportional gaps between buttons.
 - Always show a disabled + spinner loading state to prevent double-submit on slow networks.
 
 ---
@@ -217,7 +217,7 @@ Horizontal scrolling on mobile = broken, unless inside a deliberately scrollable
 
 | Rule | Value |
 |---|---|
-| Body text | `text-sm` (14px) floor; prefer `text-base` (16px) on mobile |
+| Body text | `text-sm` (14px) floor |
 | Input text | **16px hard minimum** — anything smaller triggers iOS focus-zoom |
 | Line height | `leading-relaxed` for mobile body copy |
 | Heading sizes | ≤ 3 on mobile; scale up with `md:` or `clamp()` |
@@ -237,7 +237,7 @@ What to do:
 - **Clamp supplementary text to 2–3 lines** with `line-clamp` (`-webkit-line-clamp` / Tailwind `line-clamp-2`) and pair it with a **"Show more" / "Show less"** toggle that expands in place. Never clamp without giving a way to read the rest.
 - **Collapse secondary blocks** (long descriptions, specs, FAQs, metadata, "about" copy) behind an accordion, a tap-to-expand card, or native `<details>`/`<summary>` — zero-JS, accessible, and keyboard-operable by default.
 - **Push deep detail off the page** entirely: show a 1–2 line summary with a "View details" affordance that opens a bottom sheet or a dedicated screen, rather than rendering everything inline.
-- Make the disclosure affordance obvious (a "Show more" link or chevron) and a real ≥44px target; toggle its label and `aria-expanded` state.
+- Make the disclosure affordance obvious (a "Show more" link or chevron) with a touch-friendly proportional hit target; toggle its label and `aria-expanded` state.
 - Default to **collapsed** for anything in the *Should-show* / *Can-show* tiers; keep it expanded only when the text is the primary content.
 
 What to avoid:
@@ -250,7 +250,7 @@ What to avoid:
 // Clamp + reveal (only the description collapses; title and CTA stay visible)
 <p className={expanded ? "" : "line-clamp-2"}>{description}</p>
 <button
-  className="mt-1 min-h-[44px] text-sm font-medium text-primary"
+  className="mt-1 py-2 px-3 text-sm font-medium text-primary hover:bg-primary/5 rounded-md transition-colors"
   aria-expanded={expanded}
   onClick={() => setExpanded(v => !v)}
 >
@@ -354,9 +354,9 @@ Verify on a real phone or a 375px viewport before declaring "mobile-ready". Also
 
 **Container queries** — reusable components respond to their container, not the viewport · verified in every context they appear (sidebar, grid, modal).
 
-**Navigation** — primary nav is a visible bottom bar (not a hamburger) · desktop nav is `hidden md:block`, mobile nav is separate · close button ≥ 44px · active route indicated · drawer closes on backdrop + Esc.
+**Navigation** — primary nav is a visible bottom bar (not a hamburger) · desktop nav is `hidden md:block`, mobile nav is separate · close button is touch-friendly and proportional · active route indicated · drawer closes on backdrop + Esc.
 
-**Touch** — all targets ≥ 44×44px · ≥ 8px apart · no hover-only interactions · no action reachable only by gesture.
+**Touch** — targets are touch-friendly and proportionally sized · adequate separation between targets · no hover-only interactions · no action reachable only by gesture.
 
 **Forms** — inputs ≥ 16px (no zoom) · labels above · errors inline · submit reachable with keyboard open · correct `type` attributes.
 

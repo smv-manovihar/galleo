@@ -4,7 +4,7 @@ description: >
   Use when asked to audit a codebase for reliability, resilience, or production-readiness issues.
   Triggers: "audit my codebase", "find reliability issues", "review for production", "check for
   race conditions / timeouts / N+1 queries", "SRE review", "find vulnerabilities", "trace user
-  flows". Outputs two artifacts: `audit_progress.md` and `audit_traces.md`. NEVER executes code
+  flows". Outputs three artifacts: `audit_backlog.md`, `audit_traces.md`, and `audit_progress.md`. NEVER executes code
   changes. Do NOT use for security pen-testing, CVE scanning, or static type-checking.
 ---
 
@@ -12,6 +12,18 @@ description: >
 
 ## Core Philosophy
 Trace real user flows end-to-end. Production failures are cascades of small gaps — a missing timeout, a swallowed exception, a schema mismatch — not single catastrophic bugs. Avoid alarm fatigue (flagging every TODO as HIGH) and false confidence (stopping at the controller layer).
+
+The audit runs **one flow at a time** and **checkpoints after each flow**. No fixed flow/file cap — it proceeds until the flow queue is exhausted or you pause. State lives entirely in the two artifact files, so a fresh session continues from where the last left off.
+
+The audit supports two modes: **checkpoint mode** (pauses after each flow, waits for `continue`) and **continuous mode** (auto-proceeds without pausing). Reply `continuous` at any checkpoint to switch, or `checkpoint` to switch back.
+
+## Output Economy
+Write for a reader who scans. Both artifact files and chat updates use dense fragments, not prose.
+- Findings: state trigger → failure → fix in the fewest unambiguous words; no lead-in sentences.
+- Code in a finding: only the lines that show the flaw (≤10), never a whole function.
+- Log/trace rows: one line per event; never restate context already on the page.
+- Chat at a checkpoint: 2–3 lines — done / next / how to continue. Don't paste the artifact back.
+- Fill a template field or omit it; don't write "N/A because…".
 
 ---
 
@@ -23,75 +35,53 @@ A flow **must** start at an entry point (route/UI event/CLI), pass through servi
 ## Phase 0 — Learn the Project First (Mandatory)
 
 ### 0-A. Build the Structural Map
-Answer these questions by reading landmark files only:
-1. **What kind of project?** — `package.json`, `pyproject.toml`, etc. Note frameworks, ORMs, HTTP clients, AI SDKs.
+Answer by reading landmark files only:
+1. **Project type?** — `package.json`, `pyproject.toml`, etc. Note frameworks, ORMs, HTTP clients, AI SDKs.
 2. **Service boundaries?** — `docker-compose.yml`, `.env.example`, `config/`. List every external service.
-3. **Entry-point hierarchy?** — Read routing files first (`routes`, `router`, `app`, `server`, `main`).
-4. **Data models?** — `*.prisma`, `models.py`, `*.schema.ts`, `types.ts`. These are ground truth.
-5. **Total file count?** — Run `git ls-files --cached --others --exclude-standard | wc -l`.
+3. **Entry points?** — routing files first (`routes`, `router`, `app`, `server`, `main`).
+4. **Data models?** — `*.prisma`, `models.py`, `*.schema.ts`, `types.ts`. Ground truth.
+5. **File count?** — `git ls-files --cached --others --exclude-standard | wc -l` or `(git ls-files --cached --others --exclude-standard).Count`. (IMPORTANT: scope the listing to required folders only)
 
-Write findings into the **Project Profile** section of `audit_progress.md`.
+Write into **Project Profile**.
 
 ### 0-B. Learn the Documentation Pattern
-Read 2–3 well-documented files to capture: comment style, error message format, naming conventions, logging pattern (structured vs. plain), return type conventions (tuples / exceptions / Result types), and test coverage. Record in **Project Patterns**. All remediations must mirror these patterns exactly.
+Read 2–3 well-documented files to capture: comment style, error message format, naming conventions, logging pattern (structured vs. plain), return conventions (tuples / exceptions / Result types), test coverage. Record in **Project Patterns**. All remediations mirror these exactly.
 
 ### 0-C. Calibrate the Quality Baseline
-Silently read one complete flow without flagging anything. Determine: Is error handling absent or just inconsistent? Are there known TODOs on critical paths? Is defensive coding the norm? A systemic pattern is always higher severity than an isolated one.
+Silently read one complete flow without flagging. Determine: is error handling absent or just inconsistent? TODOs on critical paths? Is defensive coding the norm? A systemic pattern outranks an isolated one on severity.
+
+### 0-D. Build the Flow Backlog
+Read the routing layer and all entry points (route files, server entry, scheduled jobs, webhook receivers, queue consumers, CLI commands, event listeners). List every distinct flow in a **Flow Backlog** showing the actual call path:
+
+```
+FLOW-001 Create resource     → `POST /api/resources` → `service.create` → `store.save` → DB write
+FLOW-002 Get resource        → `GET /api/resources/:id` → `service.getById` → `store.findOne` → DB read
+```
+
+Order: highest-risk/traffic first. The backlog is the **source of truth** for all known flows. During Phase 2, flows discovered mid-audit (following a call chain reveals an undocumented path) are **appended** to the backlog.
 
 ---
 
-## Phase 1 — Initialize `audit_progress.md`
+## Phase 1 — Initialize `audit_backlog.md`
 
-Create in project root before scanning any source file. Update after every file read.
+Create in project root before scanning any source file. The flow queue.
 
 ```markdown
-<!-- FINAL SUMMARY prepended here on completion -->
+# Audit Backlog
 
-# Reliability Audit — Progress
+| Flow ID | Status | Flow Path |
+|---------|--------|-----------|
+| FLOW-001 | ⏳ Pending | `entry` → `service` → `store` → boundary |
 
-## Artifacts
-- **Findings Log**: `audit_progress.md`
-- **Execution Traces**: `audit_traces.md`
-
-## Current Status
-| Field | Value |
-|---|---|
-| **Status** | Phase 0 / Scanning Flow N of 5 / ⛔ Terminated |
-| **Files Read** | X / [Total] (Z%) |
-| **Flows Completed** | Y / 5 |
-
-## Project Profile
-- **Language / Runtime:**
-- **Framework:**
-- **ORM / DB Client:**
-- **External Services:**
-- **Total Project Files:**
-- **Key Risk Areas:**
-
-## Project Patterns
-- **Error handling:**
-- **Logging:**
-- **Naming conventions:**
-- **Return conventions:**
-- **Test coverage:**
-
-## Execution Queue
-### ✅ Completed Flows
-### 🔍 Current Flow: `FLOW-NNN` — [Description]
-_(Strike through completed files; mark next with `← NEXT`)_
-### ⏭️ Upcoming Flows
-
-## Audit Log
-_(Append-only — see mutation rules below)_
+Status: ⏳ Pending / 🔍 Current / ✅ Done / ⛔ Dead-end
+New flows discovered mid-audit → appended as ⏳ Pending.
 ```
 
-### Document Mutation Rules
+**Mutation Rules:**
 | Section | Rule |
 |---|---|
-| Current Status | Overwrite on every file read |
-| Project Profile / Patterns | Fill once; overwrite with `*(revised)*` if corrected |
-| Execution Queue | Strike through completed files; never delete entries |
-| Audit Log | **Append only.** Add an `**Updated:**` block below (never rewrite) if: severity escalated, blast radius changed, or finding is partially resolved. |
+| Flow status | Move from ⏳ → 🔍 → ✅ (or ⛔). Never delete entries. |
+| Discovered flows | Append as ⏳ Pending. |
 
 ---
 
@@ -99,127 +89,145 @@ _(Append-only — see mutation rules below)_
 
 ```markdown
 # Reliability Audit — Flow Traces
-### 🔍 Trace — FLOW-001: [Description]
+### 🔍 Trace — FLOW-001: [desc]
+| # | File | Function | Action |
+|---|---|---|---|
+| 1 | `router.py` | `POST /resource` | input validation |
+| 2 | `service.py` | `create_resource` | business logic |
+| 3 | `store.py` | `save_to_db` | atomic write + error bubbling |
+
+**Simulated:** [1–2 lines: the user flow and the reliability concern tested.]
 ```
 
-Rules: Every trace needs a unique Flow ID. Log every file transition with function and action. Never read the full file if >100 lines — grep the Flow ID and read a 50-line window.
+---
+
+## Phase 1.75 — Initialize `audit_progress.md`
+
+```markdown
+<!-- FINAL SUMMARY prepended here on completion -->
+
+# Reliability Audit — Progress
+
+## Status
+| Field | Value |
+|---|---|
+| Phase | Phase 0 / Auditing `FLOW-NNN` / ⏸️ Checkpoint / ✅ Queue exhausted |
+| Flows done | X / Y |
+| Findings | N (🔴 HIGH N · 🟠 MEDIUM N · 🟡 LOW N) |
+| Last checkpoint | after `FLOW-NNN` |
+
+## Project Profile
+- Language/runtime · Framework · ORM/DB client · External services · Total files · Key risk areas
+
+## Project Patterns
+- Error handling · Logging · Naming · Return conventions · Test coverage
+
+## Findings Log
+_(Append-only. Findings reference Flow IDs linked from audit_traces.)_
+```
+
+### Mutation Rules
+| Section | Rule |
+|---|---|
+| Status | Overwrite on every file read |
+| Project Profile / Patterns | Fill once; overwrite with `*(revised)*` if corrected |
+| Findings Log | Append only. Add `**Updated:**` line if severity escalated or blast radius changed. |
 
 ---
 
 ## Phase 2 — Execution Loop
 
-Repeat until a budget limit is hit:
+One flow at a time; checkpoint after each. Repeat until the queue is empty or the user pauses.
 
-**2-A. Select Next File** — Follow the actual call chain (imports/function calls), not alphabetical order. Three consecutive dead ends → trigger termination.
+**2-A. Select next flow** — pick first `⏳ Pending` from `audit_backlog.md`. Mark it `🔍 Current`.
 
-**2-B. Read and Analyze** — Apply all seven audit categories to every file.
+**2-B. Walk the flow** — follow the real call chain from entry to terminal boundary. At each step, append a row to `audit_traces.md` (file | function | action).
 
-**2-C. Record and Extend** — Append findings to Audit Log. Add downstream files to queue. Update `audit_traces.md`. Strike through current file. Increment file count.
+**2-C. Write findings** — when a flaw is found, write it to `audit_progress.md` Findings Log using the Finding Template. Link the finding ID in `audit_traces.md` Action column. If a new flow is discovered mid-audit, append it to `audit_backlog.md` as `⏳ Pending`.
 
-**2-D. Check Budget**
+**2-D. Checkpoint** — no fixed budget; checkpoint at natural boundaries so the run is pausable/resumable. Triggers:
 ```
-flows_completed >= 5    → TERMINATE
-files_read >= BUDGET    → TERMINATE  (BUDGET = max(25, 5% of total files))
-dead_ends >= 3          → TERMINATE
+flow reaches terminal boundary   → CHECKPOINT (flow done)
+3 consecutive dead ends          → CHECKPOINT (mark ⛔ Dead-end)
+user pause / context long        → CHECKPOINT
+flow queue empty                 → CHECKPOINT + Final Summary
 ```
-A flow is complete when the trace reaches the DB/storage layer or an external service call.
+At every checkpoint: flush both files; mark flow `✅ Done` (or `⛔ Dead-end`) in backlog; set next `⏳ → 🔍`; set Status `⏸️ Checkpoint`; emit checkpoint line. In **checkpoint mode**: stop and wait for user. In **continuous mode**: auto-proceed to next flow (loop back to 2-A).
+
+**Checkpoint line:**
+> **Checkpoint — `FLOW-NNN` done.** [N] findings · [Y]/[X] flows. Top: [one line]. Next: `FLOW-NNN`. Reply **continue**, or `continuous` to auto-proceed, or resume from `audit_backlog.md`.
 
 ---
 
 ## Reasoning Before Flagging
 
-Before writing any finding, run this internal reasoning chain. The goal is to distinguish a real flaw from a stylistic preference or a missing feature.
+Before writing any finding, run this chain — it separates a real flaw from a style preference or missing feature.
 
-**Step 1 — What is the intended behavior?**
-Read the surrounding code to understand what this function is supposed to do. A missing null check is only a flaw if `null` can actually arrive here — if the upstream contract guarantees it won't, it is not a finding.
+1. **Intended behavior?** A missing null check is only a flaw if `null` can actually arrive here.
+2. **What input breaks it?** Name it concretely ("empty array", "concurrent second request", "504 from the AI API"). Can't name it → not a finding yet; keep reading.
+3. **What happens on break?** Throws and propagates cleanly? Swallows and returns corrupt data? Partial write → inconsistent state? The failure mode sets severity, not the pattern.
+4. **Right layer to fix?** A missing check in B may be a design gap in A. Flag where the fix is most durable.
+5. **Already handled elsewhere?** Middleware, base class, wrapper, DB constraint. Confirm the guard exists before skipping — flagging a guarded issue is noise.
+6. **Flaw or choice?** Unbounded query on a ≤50-row table, no timeout on a loopback call, optimistic update with client rollback — if intentional (comment/config/test), downgrade or skip and note the assumption.
 
-**Step 2 — What input makes this break?**
-Concretely name the input or condition that triggers the failure. "An empty array", "a concurrent second request", "a 504 from the AI API". If you cannot name the input, you do not have a finding yet — keep reading.
-
-**Step 3 — What actually happens when it breaks?**
-Trace the failure forward: does it throw and propagate cleanly? Does it swallow silently and return corrupted data? Does it partially write to the DB and leave it in an inconsistent state? The failure mode determines severity, not the code pattern alone.
-
-**Step 4 — Is this the right layer to fix it?**
-Sometimes a missing check in layer B is a symptom of a design gap in layer A. Flag it at the layer where the fix is most durable and least likely to be bypassed by a future caller.
-
-**Step 5 — Is this already handled elsewhere?**
-Check if the same concern is addressed by middleware, a base class, a wrapper, or a DB constraint. Flagging an issue that is already guarded upstream is noise. Confirm the guard exists before skipping.
-
-**Step 6 — Is this a flaw or a choice?**
-Some patterns look wrong but are intentional tradeoffs: an unbounded query on a table that will never exceed 50 rows, a missing timeout on an internal loopback call, optimistic updates with client-side rollback. If the code shows signs of intentionality (comment, related config, matching test), downgrade or skip the finding and note the assumption.
-
-Only after passing all six steps should you write a finding.
+Only after all six should you write a finding.
 
 ---
 
 ## The Nine Audit Categories
 
 ### 1 — Schema & Model Alignment
-Check every data boundary crossing:
-- **Frontend → API**: field names, casing, required vs. optional mismatches
-- **Pydantic / TS Optionality**: logically required fields (`project_id`, `user_id`) must not be `Optional`
-- **API → Service**: destructured fields match service function signature
-- **Service → DB**: ORM model matches DB column names, types, and nullability
-- **AI Response → DB**: AI output validated against schema before persistence
-- **API Response → Frontend**: DTO field names and types match frontend expectations
+- **Frontend → API**: field names, casing, required vs. optional
+- **Pydantic / TS optionality**: logically required fields (`project_id`, `user_id`) must not be `Optional`
+- **API → Service**: destructured fields match the service signature
+- **Service → DB**: ORM model matches column names, types, nullability
+- **AI response → DB**: validated against schema before persistence
+- **API response → Frontend**: DTO field names/types match what the frontend consumes
 
 ### 2 — Exception & Error Handling
-Every error must bubble up, be logged with context, or be explicitly handled. Flag:
-- Empty catch blocks or `.catch(() => {})` — CRITICAL on write/payment/auth paths
-- Unawaited promise-returning calls
-- Error messages with no user/operation/input context
-- Caller receiving a success response when an error was caught and not re-thrown
+Every error must bubble, be logged with context, or be explicitly handled. Flag: empty catch / `.catch(() => {})` (CRITICAL on write/payment/auth); unawaited promise-returning calls; errors with no operation/entity/input context; caller getting success after an error was caught and not re-thrown.
 
 ### 3 — Timeout & Back-Pressure
-Every cross-process call needs an explicit timeout: HTTP calls, DB queries on large datasets, queue polls, remote file I/O. Also check:
-- Retry logic without exponential backoff + jitter
-- No circuit breaker on high-traffic AI/payment dependencies
-- Unbounded loops over DB records with no chunking or pagination
+Every cross-process call needs an explicit timeout (HTTP, DB on large sets, queue polls, remote file I/O). Also: retries without exponential backoff + jitter; no circuit breaker on high-traffic AI/payment deps; unbounded loops over DB records with no chunking/pagination.
 
 ### 4 — Database Safety
-- **N+1 Queries**: a loop containing an individual DB call where a single bulk query would serve the same purpose
-- **Missing Transactions**: two or more writes that must succeed or fail together with no wrapping transaction
-- **Connection per request**: DB client constructed inside a per-request handler instead of once at startup
-- **Missing indexes**: filter/sort fields on large tables with no index; identify by cross-referencing query predicates against the schema definition
+- **N+1**: per-iteration DB call where a bulk query serves the same purpose
+- **Missing transactions**: 2+ writes that must succeed/fail together, unwrapped
+- **Connection per request**: DB client built inside a per-request handler
+- **Missing indexes**: filter/sort fields on large tables absent from the schema
 
 ### 5 — Concurrency & Race Conditions
-- Check-then-act patterns without atomicity (fix: `upsert` + unique constraint)
-- Missing idempotency keys on payment/order/subscription endpoints
-- Shared mutable state without synchronization in a multi-process or multi-thread context
-- Optimistic concurrency without version/timestamp validation before write
+Check-then-act without atomicity (fix: `upsert` + unique constraint); missing idempotency keys on payment/order/subscription endpoints; shared mutable state without sync in a multi-process/thread context; optimistic concurrency without version/timestamp check before write.
 
 ### 6 — Rate Limiting & Back-Pressure
-- Public endpoints without rate limiting middleware (flag only if the endpoint triggers writes or expensive computation)
-- Background jobs without a concurrency cap
-- Outbound calls to rate-limited upstreams (AI, payments) without a 429 handler or token bucket
-- Webhook receivers without signature verification
+Public write/expensive endpoints without rate limiting; background jobs without a concurrency cap; outbound calls to rate-limited upstreams without a 429 handler / token bucket; webhook receivers without signature verification.
 
 ### 7 — Performance & Efficiency
-Flag only when the inefficiency will cause measurable degradation under realistic load, not theoretical load.
-- **Redundant computation**: the same value derived more than once within a single request lifecycle with no memoization. Check for repeated calls to the same pure function, repeated DB reads for the same record within a flow, and repeated serialization of the same object.
-- **Over-fetching**: query selects all columns (`SELECT *`) or fetches an entire ORM relation when only 1–2 fields are consumed downstream. Flag only when the relation is large or the endpoint is high-traffic.
-- **Unnecessary sequential I/O**: two or more independent async calls (DB, external API) executed in series when they could be parallelized. Identify by looking for `await a(); await b();` where `a` and `b` do not depend on each other's output.
-- **Hot path re-initialization**: config parsing, regex compilation, schema validation object construction, or SDK client initialization happening inside a function called per-request. These belong at module load time.
-- **Unbounded memory accumulation**: data appended to an in-memory structure across iterations with no flush or size cap — most dangerous in streaming handlers and background jobs.
-- **Blocking I/O on async thread**: synchronous file reads, `JSON.parse` on very large payloads, or CPU-heavy transforms running on the main event loop without being offloaded.
+Flag only where it degrades under *realistic* load.
+- **Redundant computation**: same value derived >once per request with no memoization
+- **Over-fetching**: `SELECT *` / full relation when 1–2 fields are used (large relation or hot path only)
+- **Sequential I/O**: `await a(); await b();` where `a`,`b` are independent and parallelizable
+- **Hot-path re-init**: config parse, regex compile, schema object, SDK client built per request (belongs at module load)
+- **Unbounded memory**: append to an in-memory structure with no cap/flush (streams, background jobs)
+- **Blocking I/O on async thread**: sync file reads, `JSON.parse` of huge payloads, CPU-heavy transforms on the event loop
 
 ### 8 — Code Duplication & Abstraction Flaws
-Flag only when duplication creates a real divergence risk, not merely an aesthetic one.
-- **Diverged duplicates**: the same logic implemented in two or more places where one has been updated and the other has not (detectable by comparing logic, not by string matching). This is the only duplication that is an immediate reliability risk.
-- **Inline reimplementation of a utility that already exists**: the project already has a `formatDate` or `buildQueryParams` utility but a new function re-implements it locally. Flag with the location of the existing utility.
-- **Copy-pasted validation without a shared schema**: the same input shape validated in two different places with slightly different rules. One will drift. The fix is a shared validator, not just documentation.
-- **Parallel type hierarchies**: a DB model, a service DTO, and an API response type that represent the same entity and are manually kept in sync. Flag when they have diverged or when there is no mapper function and transformation is done inline at multiple sites.
-- **Repeated error-handling boilerplate**: try/catch blocks with identical structure wrapping every function in a file. Flag as an abstraction opportunity — a higher-order wrapper or middleware would centralize this without duplicating it.
+Flag only when duplication creates real divergence risk.
+- **Diverged duplicates**: same logic in 2+ places, one updated and the other not (the only immediate reliability risk)
+- **Inline reimplementation** of an existing utility (cite its location)
+- **Copy-pasted validation** without a shared schema — one will drift
+- **Parallel type hierarchies** (DB model / DTO / API type) kept in sync by hand, no mapper
+- **Repeated try/catch boilerplate** where a wrapper/middleware would centralize
 
 ### 9 — Logic Flaws & Behavioral Correctness
-These are the hardest to find and the most damaging. They do not look like bugs. They look like working code.
-- **Incorrect boundary conditions**: off-by-one in pagination (returns N+1 or N-1 items), wrong comparison operator (`>` instead of `>=`), fence-post error in date range queries. Trace the math explicitly.
-- **Assumption violations**: code assumes a sorted list, a non-empty array, a UTC timestamp, or a lowercase string — but the upstream does not guarantee this. Read the producer and the consumer side-by-side.
-- **Silent default substitution**: a missing or null field is replaced with a default value (`|| 0`, `?? ''`, `or []`) without any log or signal. If the field being absent is unexpected, the default masks a real problem and makes it undiagnosable.
-- **State machine violations**: an entity that can transition between states (order status, payment state, user role) with no enforcement of valid transitions. Any caller can write any state directly. Flag when there is no transition guard function or DB constraint.
-- **Incorrect aggregation scope**: a `SUM`, `COUNT`, or `GROUP BY` that operates on the wrong dataset — typically caused by a missing `WHERE` clause, a join that multiplies rows, or a filter applied after aggregation instead of before.
-- **Authorization logic applied after data fetch**: data is fetched from the DB and then filtered by ownership check in application code. A timing flaw or early return can leak the unfiltered result. The ownership predicate must be in the query, not after it.
-- **Asymmetric create/delete**: a resource creation flow that writes to multiple tables or storage layers, but the deletion flow only cleans up some of them. Trace both paths when you see a create.
+Hardest to find, most damaging — they look like working code.
+- **Boundary conditions**: off-by-one pagination, wrong operator (`>` vs `>=`), date fence-posts — trace the math
+- **Assumption violations**: assumes sorted list / non-empty / UTC / lowercase without upstream guarantee — read producer + consumer together
+- **Silent default substitution**: `|| 0`, `?? ''`, `or []` masking an unexpected missing value with no log
+- **State-machine violations**: any caller can write any state; no transition guard or DB constraint
+- **Wrong aggregation scope**: missing `WHERE`, row-multiplying join, or filter applied after aggregation
+- **Auth after fetch**: ownership filtered in app code after the query — predicate must be *in* the query
+- **Asymmetric create/delete**: create writes N stores, delete cleans up fewer — trace both
 
 ---
 
@@ -227,37 +235,32 @@ These are the hardest to find and the most damaging. They do not look like bugs.
 
 | Severity | Condition |
 |---|---|
-| **CRITICAL** | Data loss, silent corruption, full outage, or authorization boundary crossed. The flaw produces the wrong outcome on every occurrence regardless of load. |
-| **HIGH** | Significant user-facing failure or data inconsistency under realistic load or normal retry behavior. Requires a deploy or manual DB intervention to recover. |
-| **MEDIUM** | Degrades gracefully under normal load but causes visible errors, measurable performance regression, or latent divergence that will surface as a bug when a related feature changes. |
-| **LOW** | Code quality issue, abstraction gap, or optimization opportunity with no current user impact. Worth fixing to reduce future risk. |
+| **CRITICAL** | Data loss, silent corruption, full outage, or auth boundary crossed. Wrong outcome every time, regardless of load. |
+| **HIGH** | Significant user-facing failure / data inconsistency under realistic load or normal retries. Needs a deploy or manual DB fix to recover. |
+| **MEDIUM** | Degrades gracefully but causes visible errors, measurable perf regression, or latent divergence that will surface later. |
+| **LOW** | Code-quality / abstraction / optimization gap, no current user impact. |
 
-**Systemic upgrade rule**: same flaw in 3+ files → escalate one level. State the reason and list the files explicitly.
-**Do not escalate** a LOW to MEDIUM purely because it appears frequently if it still has no user impact. Frequency amplifies impact-based severity, not zero-impact severity.
+**Systemic upgrade**: same flaw in 3+ files → escalate one level; state reason + files.
+**Don't escalate** a zero-impact LOW just for frequency. Frequency amplifies impact-based severity, not zero-impact severity.
 
 ---
 
 ## Finding Template
 
 ```markdown
-### [CRITICAL | HIGH | MEDIUM | LOW] — <Short, specific title>
+### [CRITICAL|HIGH|MEDIUM|LOW] — <specific title>
 
-| Field | Detail |
+| | |
 |---|---|
-| **Issue ID** | `ISSUE-NNN` |
-| **Trace ID** | `FLOW-NNN` |
-| **File** | `path/to/file.ts` lines X–Y |
-| **Category** | Schema / Exception / Timeout / DB Safety / Race Condition / Rate Limiting / Performance / Duplication / Logic Flaw |
-| **Systemic?** | Yes — also in `fileA`, `fileB` / No |
+| Issue | `ISSUE-NNN` |
+| Flow | `FLOW-NNN` |
+| File | `path` lines X–Y |
+| Category | Schema / Exception / Timeout / DB / Race / RateLimit / Perf / Duplication / Logic |
+| Systemic | Yes (`fileA`,`fileB`) / No |
 
-**The Flaw**
-Describe the specific logic error or structural gap. State the input or condition that triggers it and what happens as a result. Include the relevant code (≤15 lines).
-
-**Impact**
-What fails, for how many users, how visibly, and whether recovery is automatic or requires intervention. Be concrete — "every checkout where the payment provider responds in >30s" is better than "timeouts".
-
-**Remediation**
-Before/after code snippet using the project's own error classes, logger, and naming conventions. If the fix requires a DB migration, schema change, or config update, say so explicitly.
+**Flaw** — trigger input + what breaks. Code ≤10 lines.
+**Impact** — what fails, for whom, how visibly, auto-recover or manual.
+**Fix** — before/after using the project's own error class, logger, naming. Note any migration/schema/config change.
 ```
 
 ---
@@ -265,118 +268,57 @@ Before/after code snippet using the project's own error classes, logger, and nam
 ## Flow Trace Template
 
 ```markdown
-### 🔍 Trace — FLOW-NNN: [Short Description]
-
-| Field | Detail |
-|---|---|
-| **ID** | `FLOW-NNN` |
-| **Status** | In Progress / Trace Completed |
-| **Primary File** | `router.py` |
-
-| Step | File | Function | Action |
+### 🔍 Trace — FLOW-NNN: [desc]
+| # | File | Function | Action |
 |---|---|---|---|
-| 1 | `router.py` | `POST /resource` | Analyzed input validation. |
-| 2 | `service.py` | `create_resource` | Traced business logic. |
-| 3 | `store.py` | `save_to_db` | Verified atomic write and error bubbling. |
+| 1 | `router.py` | `POST /resource` | input validation |
+| 2 | `service.py` | `create_resource` | business logic |
+| 3 | `store.py` | `save_to_db` | atomic write + error bubbling |
 
-**What we were doing:** [2–3 sentences on the user flow simulated and reliability concerns tested.]
+**Simulated:** [1–2 lines: the user flow and the reliability concern tested.]
 ```
 
 ---
 
 ## Final Summary Block
 
-Prepend to top of `audit_progress.md` when any budget limit is reached:
+Prepend to top of `audit_progress.md` when the queue is exhausted or the user ends at a checkpoint.
 
 ```markdown
-<!-- ══════════════════════════════════════════════════════════════════ -->
-## ⛔ FINAL SUMMARY — Audit Complete
+<!-- ════════════════════════════════════════════════════════ -->
+## ⛔ FINAL SUMMARY
 
-**Terminated by:** Max Flows / Max Files / Dead End
-**Files read:** X / [Total] (Z%) | **Flows completed:** Y / 5
+Checkpoint reason: Queue exhausted / User ended
+Flows done: Y / X
 
-### Overall Health: 🔴 Critical / 🟠 High Risk / 🟡 Moderate / 🟢 Healthy
-_(One paragraph: most dangerous finding, most pervasive pattern, highest-density layer, isolated vs. systemic.)_
+### Health: 🔴 Critical / 🟠 High Risk / 🟡 Moderate / 🟢 Healthy
+_(one paragraph: worst finding, most pervasive pattern, highest-density layer, isolated vs. systemic)_
 
-### Finding Counts
-| Severity | Count |
-|---|---|
-| 🚨 CRITICAL | N |
-| 🔴 HIGH | N |
-| 🟠 MEDIUM | N |
-| 🟡 LOW | N |
-| **Total** | **N** |
+### Counts
+🚨 CRITICAL N · 🔴 HIGH N · 🟠 MEDIUM N · 🟡 LOW N · **Total N**
 
-### Top 3 Fixes — In Priority Order
-1. **[File, lines]** — issue. Fix: action.
-2. **[File, lines]** — issue. Fix: action.
-3. **[File, lines]** — issue. Fix: action.
-
-### Entry Points for Next Audit Run
-- `path/to/file.ts` — why high-priority
-<!-- ══════════════════════════════════════════════════════════════════ -->
+### Top 3 Fixes
+1. `[file:lines]` — issue → fix
+2. `[file:lines]` — issue → fix
+3. `[file:lines]` — issue → fix
+<!-- ════════════════════════════════════════════════════════ -->
 ```
 
 Then send:
-> **Audit paused — [limit] reached.** `audit_progress.md` contains [N] findings across [Y] flows ([X] files read). Most urgent: [one sentence on highest-severity finding]. To continue: start a new run using the queue in `audit_progress.md`.
+> **Audit complete — queue exhausted.** [N] findings · [Y]/[X] flows. Most urgent: [one line]. Unaudited flows in `audit_backlog.md`.
 
 ---
 
-## Per-File Checklist (run silently before marking any file done)
+## Resuming
+State lives in the artifact files. A fresh session reads `audit_backlog.md` + `audit_traces.md` + `audit_progress.md`, re-reads Project Profile & Patterns, resumes at the `🔍 Current` flow in the backlog, and skips completed flows.
 
-**Before checking anything — apply the reasoning chain first.** For each item below, only flag when you can name the specific input that triggers the flaw and the concrete failure that results.
+---
 
-```
-SCHEMA & CONTRACTS
-[ ] Every field read from input exists in the upstream type definition with a matching type
-[ ] No logically required field (ID, ownership key, status) is marked Optional or nullable
-[ ] AI/external response fields are validated against a schema before being persisted or returned
-[ ] API response DTO matches what the frontend component actually consumes (check both sides)
+## Project-Level Conventions
 
-EXCEPTION & ERROR HANDLING
-[ ] No catch block that swallows without logging and re-throwing on a write, auth, or payment path
-[ ] No promise-returning call missing await where a rejection would go unobserved
-[ ] Every thrown error includes: what operation failed, for which entity, and with what input shape
-[ ] No path where the caller receives a success response after an error was caught
+### Plans & Artifacts Folder
+Place all plan documents and audit artifacts inside a dedicated folder at the project root that is gitignored. The recommended names are `.artifacts/` or `.scratch/` (add to `.gitignore`).
 
-TIMEOUTS & RESILIENCE
-[ ] Every HTTP, DB (unbounded), queue, and remote file call has an explicit timeout at the call site
-[ ] Every retry loop uses exponential backoff with jitter — not immediate re-attempt
-[ ] High-traffic external dependencies (AI, payments) have a circuit breaker or fast-fail fallback
-
-DATABASE SAFETY
-[ ] DB client is not instantiated inside a per-request function
-[ ] No loop that issues an individual DB query per iteration where a bulk query is possible
-[ ] Every pair of writes that must be atomic is wrapped in a transaction
-[ ] Filter and sort columns on large tables have corresponding index definitions in the schema
-
-CONCURRENCY & CORRECTNESS
-[ ] No check-then-act pattern without an atomicity guarantee (unique constraint or DB-level lock)
-[ ] Every state-mutating endpoint that can be retried validates an idempotency key before executing
-[ ] Every entity with discrete states has a transition guard — no caller can write arbitrary state directly
-[ ] Ownership/authorization predicate is applied inside the DB query, not after the fetch
-
-PERFORMANCE
-[ ] No value derived more than once per request that could be computed once and passed down
-[ ] No SELECT * or full relation fetch where only 1–2 fields are consumed
-[ ] No two or more independent async I/O calls in series that could be parallelized
-[ ] No SDK client, regex, config parse, or schema object constructed inside a per-request function
-[ ] No in-memory structure that grows without a size cap or flush inside a loop or stream handler
-
-CODE DUPLICATION & ABSTRACTION
-[ ] No logic duplicated across files where one copy has been updated and the other has not
-[ ] No inline reimplementation of a utility or validator that already exists in the codebase
-[ ] No parallel type definitions for the same entity that are manually kept in sync without a mapper
-[ ] No copy-pasted try/catch boilerplate where a shared wrapper or middleware would centralize it
-
-LOGIC FLAWS
-[ ] Boundary conditions are correct: pagination counts, date ranges, comparison operators
-[ ] Every upstream assumption (sorted input, non-empty array, UTC timestamp) is verified or enforced
-[ ] No silent default substitution masking a missing required value (`|| 0`, `?? ''`) without a log
-[ ] Create and delete flows are symmetric — every table/store written on create is cleaned on delete
-[ ] Aggregations apply filters before grouping, not after; joins do not multiply rows unintentionally
-
-CONSISTENCY
-[ ] Remediations use the project's error class, logger, naming convention, and return pattern
-[ ] No TODO/FIXME on a reliability-critical path (treat as a finding at the appropriate severity)
+### Sub-Agent Usage
+For broad exploration tasks (finding files, understanding file patterns, searching code), use a sub-agent with the minimum-cost model available to avoid context rot and preserve budget for the main task. For large repetitive refactors (e.g., renaming a function across 20+ files, updating the same pattern in many modules), delegate to a sub-agent with clear per-file instructions and a checkpoint after every batch. Verify each batch's output before starting the next.
 ```

@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 import { formatBytes } from "../../lib/format"
 import { getFileManagerName } from "../../lib/os"
+import { ENABLE_AI_FEATURES } from "../../../shared/constants"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -49,6 +50,7 @@ interface MediaCardProps {
   }
   searchScore?: number
   onFindSimilar?: (mediaId: string) => void
+  onPlayOpen?: (item: MediaItem) => void
 }
 
 const MediaCardInner: React.FC<MediaCardProps> = ({
@@ -61,6 +63,7 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
   matchingFrame,
   searchScore,
   onFindSimilar,
+  onPlayOpen,
 }) => {
   const isVideo = item.mediaType === "video"
   const hasQuality = item.quality !== undefined
@@ -221,7 +224,16 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
 
             {/* Video Play Indicator */}
             {isVideo && (
-              <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center transition-opacity duration-200 group-hover:opacity-0">
+              <div
+                className="absolute inset-0 z-10 flex items-center justify-center transition-opacity duration-200 group-hover:opacity-0"
+                onClick={(e) => {
+                  if (onPlayOpen) {
+                    e.stopPropagation()
+                    onPlayOpen(item)
+                  }
+                }}
+                style={{ cursor: onPlayOpen ? "pointer" : "default" }}
+              >
                 <div className="flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-black/50 text-white shadow-md backdrop-blur-sm">
                   <Play className="ml-0.5 h-3.5 w-3.5 fill-current" />
                 </div>
@@ -315,7 +327,7 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
                       <Info className="h-3.5 w-3.5" />
                       File Info
                     </DropdownMenuItem>
-                    {onFindSimilar && (
+                    {onFindSimilar && ENABLE_AI_FEATURES && (
                       <DropdownMenuItem
                         onClick={() => onFindSimilar(item.id)}
                         className="cursor-pointer gap-2.5 text-primary"
@@ -360,7 +372,7 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
           <Info className="h-3.5 w-3.5" />
           File Info
         </ContextMenuItem>
-        {onFindSimilar && (
+        {onFindSimilar && ENABLE_AI_FEATURES && (
           <ContextMenuItem
             onClick={() => onFindSimilar(item.id)}
             className="gap-2.5 text-primary focus:text-primary"
@@ -411,6 +423,7 @@ export const MediaCard = React.memo(MediaCardInner, (prev, next) => {
     prev.onSelectToggle === next.onSelectToggle &&
     prev.onPreviewOpen === next.onPreviewOpen &&
     prev.onInfoOpen === next.onInfoOpen &&
-    prev.onReviewAction === next.onReviewAction
+    prev.onReviewAction === next.onReviewAction &&
+    prev.onPlayOpen === next.onPlayOpen
   )
 })

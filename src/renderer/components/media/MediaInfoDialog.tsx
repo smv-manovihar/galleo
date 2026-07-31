@@ -38,6 +38,7 @@ export const MediaInfoDialog: React.FC<MediaInfoDialogProps> = ({
   return (
     <Dialog open={item !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
+        key={item.id}
         className="max-w-sm border-border bg-card font-sans text-xs text-foreground"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >

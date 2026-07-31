@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react"
 import { useSettingsStore } from "../../stores/settings-store"
+import { useMediaStore } from "../../stores/media-store"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 import { CullingAnimationDemo } from "../layout/help/culling"
@@ -402,6 +403,7 @@ export const SetupWizard: React.FC = () => {
       }
       const selected = await window.api.selectFolder()
       if (selected) {
+        useMediaStore.getState().setActiveRootPath(selected)
         const success = await addRootFolder(selected)
         if (!success) {
           throw new Error(
@@ -416,127 +418,129 @@ export const SetupWizard: React.FC = () => {
   }
 
   return (
-    <div className="flex min-h-full items-center justify-center bg-background p-4 font-sans md:p-6">
-      <div className="grid max-h-[calc(100vh-40px)] w-full max-w-5xl grid-cols-1 gap-0 overflow-hidden rounded-2xl border border-border/85 bg-card/40 shadow-2xl backdrop-blur-md lg:h-[540px] lg:grid-cols-12">
-        {/* Left Column: Branding and Feature List */}
-        <div className="flex flex-col justify-between space-y-6 p-6 md:p-8 lg:col-span-7">
-          {/* Header */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2.5">
-              <div className="animate-spin-slow flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-linear-to-br from-primary to-destructive text-primary-foreground">
-                <Aperture className="h-4.5 w-4.5" />
+    <TooltipProvider>
+      <div className="flex min-h-full items-center justify-center bg-background p-4 font-sans md:p-6">
+        <div className="grid max-h-[calc(100vh-40px)] w-full max-w-5xl grid-cols-1 gap-0 overflow-hidden rounded-2xl border border-border/85 bg-card/40 shadow-2xl backdrop-blur-md lg:h-[540px] lg:grid-cols-12">
+          {/* Left Column: Branding and Feature List */}
+          <div className="flex flex-col justify-between space-y-6 p-6 md:p-8 lg:col-span-7">
+            {/* Header */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2.5">
+                <div className="animate-spin-slow flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-linear-to-br from-primary to-destructive text-primary-foreground">
+                  <Aperture className="h-4.5 w-4.5" />
+                </div>
+                <span className="font-heading text-xl font-extrabold tracking-tight text-foreground">
+                  Galleo
+                </span>
               </div>
-              <span className="font-heading text-xl font-extrabold tracking-tight text-foreground">
-                Galleo
-              </span>
+
+              <div className="space-y-1">
+                <h1 className="font-heading text-2xl leading-tight font-black tracking-tight text-foreground md:text-3xl">
+                  Your media,
+                  <br />
+                  beautifully structured.
+                </h1>
+                <p className="max-w-md text-2xs leading-relaxed text-muted-foreground">
+                  Local-first media organizer. Select a folder to scan, cull low-quality photos, remove duplicates, and organize files.
+                </p>
+              </div>
             </div>
 
-            <div className="space-y-1">
-              <h1 className="font-heading text-2xl leading-tight font-black tracking-tight text-foreground md:text-3xl">
-                Your media,
-                <br />
-                beautifully structured.
-              </h1>
-              <p className="max-w-md text-2xs leading-relaxed text-muted-foreground">
-                Local-first media organizer. Select a folder to scan, cull low-quality photos, remove duplicates, and organize files.
+            {/* Core Features */}
+            <div className="space-y-3.5 pt-0.5">
+              <div className="flex gap-3">
+                <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border border-primary/20 bg-primary/10 text-primary">
+                  <Zap className="h-3.5 w-3.5" />
+                </div>
+                <div className="space-y-0.5">
+                  <h3 className="text-xs font-semibold text-foreground">
+                    Media culling
+                  </h3>
+                  <p className="text-[10px] leading-relaxed text-muted-foreground">
+                    Flags blurry and low-quality photos to reclaim storage space.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border border-primary/20 bg-primary/10 text-primary">
+                  <Layers className="h-3.5 w-3.5" />
+                </div>
+                <div className="space-y-0.5">
+                  <h3 className="text-xs font-semibold text-foreground">
+                    Duplicate Finder
+                  </h3>
+                  <p className="text-[10px] leading-relaxed text-muted-foreground">
+                    Finds exact duplicates and similar shots to remove clutter.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border border-primary/20 bg-primary/10 text-primary">
+                  <Folder className="h-3.5 w-3.5" />
+                </div>
+                <div className="space-y-0.5">
+                  <h3 className="text-xs font-semibold text-foreground">
+                    File Organizer
+                  </h3>
+                  <p className="text-[10px] leading-relaxed text-muted-foreground">
+                    Sorts files into clean folders by EXIF year and month.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="space-y-2.5 pt-1">
+              {error && (
+                <Alert variant="destructive" className="px-2.5 py-2">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  <AlertTitle className="text-2xs font-semibold">
+                    Folder Selection Failed
+                  </AlertTitle>
+                  <AlertDescription className="text-[10px]">
+                    {error}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <div className="flex flex-col gap-1.5">
+                <Button
+                  className="h-9.5 w-full cursor-pointer gap-1.5 bg-primary text-xs font-medium text-primary-foreground shadow-md transition-colors hover:bg-primary/95"
+                  onClick={handleSelectRoot}
+                >
+                  <FolderPlus className="h-3.5 w-3.5" />
+                  Select Folder to Manage
+                </Button>
+
+                {/* Privacy Banner */}
+                <div className="flex items-center gap-2 rounded-lg border border-primary/10 bg-primary/5 p-2 text-[10px] text-muted-foreground">
+                  <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-500" />
+                  <span>
+                    <strong className="text-[10px] font-semibold text-foreground">
+                      100% Offline & Private:
+                    </strong>{" "}
+                    All analysis is local. Media never leaves your PC.
+                  </span>
+                </div>
+              </div>
+
+              <p className="text-center text-3xs text-muted-foreground">
+                Configure folders, quality rules, and shortcuts in Settings.
               </p>
             </div>
           </div>
 
-          {/* Core Features */}
-          <div className="space-y-3.5 pt-0.5">
-            <div className="flex gap-3">
-              <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border border-primary/20 bg-primary/10 text-primary">
-                <Zap className="h-3.5 w-3.5" />
-              </div>
-              <div className="space-y-0.5">
-                <h3 className="text-xs font-semibold text-foreground">
-                  Media culling
-                </h3>
-                <p className="text-[10px] leading-relaxed text-muted-foreground">
-                  Flags blurry and low-quality photos to reclaim storage space.
-                </p>
-              </div>
+          {/* Right Column: Interactive Mockup Showcase */}
+          <div className="relative flex flex-col items-stretch justify-center overflow-hidden p-6 select-none lg:col-span-5">
+            <div className="bg-radial-gradient absolute inset-0 from-transparent to-background/5 opacity-50" />
+            <div className="relative z-10 w-full">
+              <FeatureShowcaseVisualizer />
             </div>
-
-            <div className="flex gap-3">
-              <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border border-primary/20 bg-primary/10 text-primary">
-                <Layers className="h-3.5 w-3.5" />
-              </div>
-              <div className="space-y-0.5">
-                <h3 className="text-xs font-semibold text-foreground">
-                  Duplicate Finder
-                </h3>
-                <p className="text-[10px] leading-relaxed text-muted-foreground">
-                  Finds exact duplicates and similar shots to remove clutter.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border border-primary/20 bg-primary/10 text-primary">
-                <Folder className="h-3.5 w-3.5" />
-              </div>
-              <div className="space-y-0.5">
-                <h3 className="text-xs font-semibold text-foreground">
-                  File Organizer
-                </h3>
-                <p className="text-[10px] leading-relaxed text-muted-foreground">
-                  Sorts files into clean folders by EXIF year and month.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="space-y-2.5 pt-1">
-            {error && (
-              <Alert variant="destructive" className="px-2.5 py-2">
-                <AlertCircle className="h-3.5 w-3.5" />
-                <AlertTitle className="text-2xs font-semibold">
-                  Folder Selection Failed
-                </AlertTitle>
-                <AlertDescription className="text-[10px]">
-                  {error}
-                </AlertDescription>
-              </Alert>
-            )}
-
-            <div className="flex flex-col gap-1.5">
-              <Button
-                className="h-9.5 w-full cursor-pointer gap-1.5 bg-primary text-xs font-medium text-primary-foreground shadow-md transition-colors hover:bg-primary/95"
-                onClick={handleSelectRoot}
-              >
-                <FolderPlus className="h-3.5 w-3.5" />
-                Select Folder to Manage
-              </Button>
-
-              {/* Privacy Banner */}
-              <div className="flex items-center gap-2 rounded-lg border border-primary/10 bg-primary/5 p-2 text-[10px] text-muted-foreground">
-                <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-500" />
-                <span>
-                  <strong className="text-[10px] font-semibold text-foreground">
-                    100% Offline & Private:
-                  </strong>{" "}
-                  All analysis is local. Media never leaves your PC.
-                </span>
-              </div>
-            </div>
-
-            <p className="text-center text-3xs text-muted-foreground">
-              Configure folders, quality rules, and shortcuts in Settings.
-            </p>
-          </div>
-        </div>
-
-        {/* Right Column: Interactive Mockup Showcase */}
-        <div className="relative flex flex-col items-stretch justify-center overflow-hidden p-6 select-none lg:col-span-5">
-          <div className="bg-radial-gradient absolute inset-0 from-transparent to-background/5 opacity-50" />
-          <div className="relative z-10 w-full">
-            <FeatureShowcaseVisualizer />
           </div>
         </div>
       </div>
-    </div>
+    </TooltipProvider>
   )
 }

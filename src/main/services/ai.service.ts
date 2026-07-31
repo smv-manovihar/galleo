@@ -206,6 +206,16 @@ export class AIService {
       console.warn("[AIService] Worker exited with code", code)
       this.worker = null
       this.workerReady = false
+      if (code !== 0 && this.isModelDownloaded()) {
+        console.log("[AIService] Worker process crashed unexpectedly. Respawning worker...")
+        setTimeout(() => {
+          try {
+            this.spawnWorker()
+          } catch (err) {
+            console.error("[AIService] Failed to respawn worker after exit:", err)
+          }
+        }, 1000)
+      }
     })
   }
 

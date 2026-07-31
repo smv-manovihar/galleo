@@ -23,6 +23,7 @@ interface MediaCullingControlsProps {
     mediaIds: string[],
     decision: "keep" | "delete"
   ) => Promise<void>
+  disabled?: boolean
 }
 
 export const MediaCullingControls: React.FC<MediaCullingControlsProps> = ({
@@ -32,6 +33,7 @@ export const MediaCullingControls: React.FC<MediaCullingControlsProps> = ({
   onDelete,
   onKeep,
   onBulkChangeDecisions,
+  disabled = false,
 }) => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
 
@@ -114,6 +116,7 @@ export const MediaCullingControls: React.FC<MediaCullingControlsProps> = ({
                 variant="outline"
                 className="flex h-16 w-16 cursor-pointer items-center justify-center rounded-full border border-red-500/20 bg-red-500/10 text-red-600 shadow-md transition-colors duration-200 hover:bg-red-500/20 dark:border-red-500/30 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-900/45"
                 onClick={onDelete}
+                disabled={disabled}
               >
                 <Trash2 className="h-6 w-6 fill-current" />
               </Button>
@@ -127,6 +130,7 @@ export const MediaCullingControls: React.FC<MediaCullingControlsProps> = ({
                 variant="outline"
                 className="flex h-16 w-16 cursor-pointer items-center justify-center rounded-full border border-green-500/20 bg-green-500/10 text-green-600 shadow-md transition-colors duration-200 hover:bg-green-500/20 dark:border-green-500/30 dark:bg-green-950/30 dark:text-green-400 dark:hover:bg-green-900/45"
                 onClick={onKeep}
+                disabled={disabled}
               >
                 <Bookmark className="h-6 w-6 fill-current" />
               </Button>

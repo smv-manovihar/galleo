@@ -57,7 +57,7 @@ export const MediaCullingCard: React.FC<MediaCullingCardProps> = ({
 }) => {
   const { settings } = useSettingsStore()
   const itemIsVideo = item.mediaType === "video"
-  const safeSrc = `media:///${item.path.replace(/\\/g, "/")}`
+  const safeSrc = `media:///${(item.thumbnailPath || item.path).replace(/\\/g, "/")}`
 
   const blurThreshold = settings?.quality?.blurThreshold ?? 30
   const darknessThreshold = settings?.quality?.darknessThreshold ?? 50
@@ -317,14 +317,14 @@ export const MediaCullingCard: React.FC<MediaCullingCardProps> = ({
       <Card className="relative flex h-full w-full flex-col overflow-hidden rounded-2xl border border-border bg-card/60 p-0 py-0 shadow-xl select-none">
         <CardContent className="relative flex min-h-0 w-full flex-1 flex-col justify-end bg-black p-0">
           {deckIndex <= 1 ? (
-            itemIsVideo ? (
+            isTopCard && itemIsVideo ? (
               <VideoPlayer
-                ref={isTopCard ? videoPlayerRef : undefined}
+                ref={videoPlayerRef}
                 src={item.path}
                 poster={item.thumbnailPath}
                 className="absolute! inset-0 h-full w-full"
                 hideFullscreen={false}
-                onPlayStateChange={isTopCard ? onPlayStateChange : undefined}
+                onPlayStateChange={onPlayStateChange}
                 fillContainer={true}
               />
             ) : (

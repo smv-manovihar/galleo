@@ -9,6 +9,8 @@ export const IPC_CHANNELS = {
   FOLDERS_SELECT: "folders:select",
   SCAN_START: "scan:start",
   SCAN_CANCEL: "scan:cancel",
+  SCAN_COUNT_FOLDERS: "scan:count-folders",
+  SCAN_FOLDER_COUNTS_UPDATED: "scan:folder-counts-updated",
   SCAN_PROGRESS: "scan:progress", // Main -> Renderer event
   SCAN_COMPLETE: "scan:complete", // Main -> Renderer event
   MEDIA_GET: "media:get",
@@ -79,6 +81,12 @@ export interface AIIndexingProgressPayload {
   currentFile?: string
 }
 
+export interface FolderCountResult {
+  path: string
+  count: number
+  needsRescan?: boolean
+}
+
 export interface GalleoAPI {
   getSettings: () => Promise<AppSettings>
   saveSettings: (settings: AppSettings) => Promise<Result<void>>
@@ -88,10 +96,15 @@ export interface GalleoAPI {
     forceRescan?: boolean
   ) => Promise<Result<void>>
   cancelScan: () => Promise<void>
+  /** Fast readdir-only count of media files per root — no metadata, no thumbnails. */
+  countFolders: (rootPaths: string[]) => Promise<FolderCountResult[]>
   onScanProgress: (
     callback: (payload: ScanProgressPayload) => void
   ) => () => void
   onScanComplete: (callback: () => void) => () => void
+  onFolderCountsUpdated: (
+    callback: (counts: FolderCountResult[]) => void
+  ) => () => void
   getMediaItems: (folderPath: string) => Promise<MediaItem[]>
   updateReviews: (
     sessionId: string,

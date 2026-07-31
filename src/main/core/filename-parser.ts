@@ -1,8 +1,9 @@
+import path from "path"
+
 export function cleanFilename(filename: string): string {
-  // Removes extension and normalizes string
-  const lastDot = filename.lastIndexOf(".")
-  const nameWithoutExt =
-    lastDot !== -1 ? filename.substring(0, lastDot) : filename
+  const base = path.basename(filename)
+  const ext = path.extname(base)
+  const nameWithoutExt = ext ? base.slice(0, -ext.length) : base
   return nameWithoutExt.trim()
 }
 
@@ -68,7 +69,7 @@ export function extractDateFromFilename(filename: string): Date | null {
   // ──────────────────────────────────────────────────────────────────────────
   {
     const m = clean.match(
-      /(?:^|[_-])(?:IMG|VID|DSC|DCIM|CAM|MOV|PANO|BURST|PRO|MVIMG|SIMG)?[_-]?(\d{4})(\d{2})(\d{2})[_-](\d{2})(\d{2})(\d{2})\d*/i
+      /(?:^|[_-])(?:(?:IMG|VID|DSC|DCIM|CAM|MOV|PANO|BURST|PRO|MVIMG|SIMG)[_-]?)?(\d{4})(\d{2})(\d{2})[_-](\d{2})(\d{2})(\d{2})/i
     )
     if (m) {
       const d = createValidDate(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6])

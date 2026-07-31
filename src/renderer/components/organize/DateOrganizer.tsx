@@ -216,6 +216,7 @@ export const DateOrganizer: React.FC = () => {
   const [progress, setProgress] = useState<OrganizeProgressPayload | null>(null)
   const [previewItem, setPreviewItem] = useState<MediaItem | null>(null)
   const [showHelpDialog, setShowHelpDialog] = useState(false)
+  const [visibleFileCount, setVisibleFileCount] = useState(100)
 
   const handleSelectDest = async () => {
     try {
@@ -666,7 +667,17 @@ export const DateOrganizer: React.FC = () => {
                     renderFile={renderFile}
                   />
                 ))}
-                {folderTree.files.map(renderFile)}
+                {folderTree.files.slice(0, visibleFileCount).map(renderFile)}
+                {folderTree.files.length > visibleFileCount && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="mt-2 w-full text-xs text-muted-foreground hover:bg-muted/20"
+                    onClick={() => setVisibleFileCount((v) => v + 100)}
+                  >
+                    Show More ({folderTree.files.length - visibleFileCount} remaining)
+                  </Button>
+                )}
               </div>
             </CardContent>
 

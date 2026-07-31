@@ -6,6 +6,9 @@ import { app } from "electron"
 import { type Result, fail, ok } from "../../shared/types/results"
 import { bmvbhash } from "blockhash-core"
 
+// Bound Sharp native Libvips C++ memory pool to prevent excessive RAM accumulation while preserving file handle & buffer caching
+sharp.cache({ memory: 256, items: 500, files: 20 })
+
 export interface ImageAnalysisResult {
   blurScore: number // 0 - 100
   brightness: number // 0 - 255 (average)
@@ -17,9 +20,12 @@ export interface ImageAnalysisResult {
 export function getThumbnailCacheDir(): string {
   let cachePath: string
   try {
-    cachePath = path.join(app.getPath("userData"), "thumbnails")
+    const isDev = !app.isPackaged || process.env.NODE_ENV === "development"
+    cachePath = isDev
+      ? path.join(process.cwd(), ".data", "thumbnails")
+      : path.join(app.getPath("userData"), "thumbnails")
   } catch {
-    cachePath = path.join(process.cwd(), "data", "thumbnails")
+    cachePath = path.join(process.cwd(), ".data", "thumbnails")
   }
 
   if (!existsSync(cachePath)) {

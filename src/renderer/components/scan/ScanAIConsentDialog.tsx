@@ -16,14 +16,12 @@ import { Sparkles, ShieldCheck, ZapOff, Search, XCircle } from "lucide-react"
 import { ENABLE_AI_FEATURES } from "../../../shared/constants"
 
 export const ScanAIConsentDialog: React.FC = () => {
-  const {
-    showAIConsentDialog,
-    isDownloadingAI,
-    aiDownloadProgress,
-    confirmScanWithAIDownload,
-    confirmScanWithoutAI,
-    dismissAIConsentDialog,
-  } = useScanStore()
+  const showAIConsentDialog = useScanStore((s) => s.showAIConsentDialog)
+  const isDownloadingAI = useScanStore((s) => s.isDownloadingAI)
+  const aiDownloadProgress = useScanStore((s) => s.aiDownloadProgress)
+  const confirmScanWithAIDownload = useScanStore((s) => s.confirmScanWithAIDownload)
+  const confirmScanWithoutAI = useScanStore((s) => s.confirmScanWithoutAI)
+  const dismissAIConsentDialog = useScanStore((s) => s.dismissAIConsentDialog)
 
   if (!ENABLE_AI_FEATURES) {
     return null

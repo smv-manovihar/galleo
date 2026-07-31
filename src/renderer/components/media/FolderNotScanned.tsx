@@ -1,5 +1,6 @@
 import React from "react"
 import { useMediaStore } from "../../stores/media-store"
+import { useScanStore } from "../../stores/scan-store"
 import { AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -15,6 +16,7 @@ export const FolderNotScanned: React.FC<FolderNotScannedProps> = ({
   className,
 }) => {
   const items = useMediaStore((s) => s.items)
+  const folderCounts = useScanStore((s) => s.folderCounts)
 
   const hasScannedItems = React.useMemo(() => {
     if (activeRootPath === "all" || !activeRootPath) {
@@ -26,17 +28,24 @@ export const FolderNotScanned: React.FC<FolderNotScannedProps> = ({
     )
   }, [activeRootPath, items])
 
+  const folderData = folderCounts.get(activeRootPath)
+  const needsRescan = !!folderData?.needsRescan
+
   const folderName =
     activeRootPath === "all" || !activeRootPath
       ? "library folders"
       : `"${activeRootPath.split(/[\\/]/).pop() || activeRootPath}"`
 
   const bannerTitle = hasScannedItems
-    ? "Folder partially scanned"
+    ? needsRescan
+      ? "Folder changes detected: rescan recommended"
+      : "Folder partially scanned"
     : "Folder not scanned"
 
   const defaultSubtitle = hasScannedItems
-    ? `scan ${folderName} to index remaining media files`
+    ? needsRescan
+      ? `rescan ${folderName} to index modified files`
+      : `scan ${folderName} to index remaining media files`
     : `scan ${folderName} to index media files`
 
   const subtitleText = featureDescription

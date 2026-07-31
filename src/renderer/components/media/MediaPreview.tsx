@@ -61,12 +61,17 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
   const [activeItem, setActiveItem] = useState<MediaItem | null>(null)
 
   useEffect(() => {
-    if (propItem) {
-      setActiveItem(propItem)
+    setActiveItem(propItem)
+    return () => {
+      if (videoPlayerRef.current?.pause) {
+        try {
+          videoPlayerRef.current.pause()
+        } catch {}
+      }
     }
   }, [propItem])
 
-  const item = propItem || activeItem
+  const item = activeItem || propItem
 
   const currentIndex =
     items && item ? items.findIndex((i) => i.id === item.id) : -1
@@ -74,16 +79,20 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
   const hasNext = items ? currentIndex < items.length - 1 : false
 
   const handlePrevious = useCallback(() => {
-    if (items && hasPrevious && onItemChange) {
-      onItemChange(items[currentIndex - 1])
+    if (items && hasPrevious) {
+      const prevItem = items[currentIndex - 1]
+      setActiveItem(prevItem)
+      onItemChange?.(prevItem)
     }
-  }, [items, hasPrevious, onItemChange, currentIndex])
+  }, [items, hasPrevious, currentIndex, onItemChange])
 
   const handleNext = useCallback(() => {
-    if (items && hasNext && onItemChange) {
-      onItemChange(items[currentIndex + 1])
+    if (items && hasNext) {
+      const nextItem = items[currentIndex + 1]
+      setActiveItem(nextItem)
+      onItemChange?.(nextItem)
     }
-  }, [items, hasNext, onItemChange, currentIndex])
+  }, [items, hasNext, currentIndex, onItemChange])
 
   useEffect(() => {
     if (!item || !items || !onItemChange) return
@@ -164,7 +173,7 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
   useEffect(() => {
     setScale(1)
     setPosition({ x: 0, y: 0 })
-  }, [propItem?.id])
+  }, [item?.id])
 
   const toggleFullscreen = async () => {
     if (isVideo && videoPlayerRef.current) {

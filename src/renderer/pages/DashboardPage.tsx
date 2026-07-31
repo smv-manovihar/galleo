@@ -43,41 +43,85 @@ export const DashboardPage: React.FC = () => {
   const setFilterReviewState = useMediaStore((s) => s.setFilterReviewState)
   const { setCurrentView, setActiveSettingsTab } = useUIStore()
 
-  const totalFiles = items.length
-  const photoCount = items.filter((i) => i.mediaType === "photo").length
-  const videoCount = items.filter((i) => i.mediaType === "video").length
-  const totalSize = items.reduce((sum, i) => sum + i.size, 0)
-
-  // Review states
-  const keptCount = items.filter((i) => i.reviewState === "keep").length
-  const trashCount = items.filter((i) => i.reviewState === "delete").length
-  const pendingCount = items.filter((i) => i.reviewState === "pending").length
-  const reviewedCount = keptCount + trashCount
-  const reviewProgress =
-    totalFiles > 0 ? Math.round((reviewedCount / totalFiles) * 100) : 0
-
-  // Defect & quality categories
-  const blurryItems = items.filter((i) => i.quality?.isBlurry)
-  const darkItems = items.filter((i) => i.quality?.isDark)
-  const duplicateItems = items.filter(
-    (i) => i.isDuplicate && !i.isBestInDuplicateGroup
-  )
-  const screenshotItems = items.filter((i) => i.quality?.isScreenshot)
-  const smallItems = items.filter((i) => i.quality?.isSmall)
-
-  // Unique duplicate groups
-  const duplicateGroupsCount = React.useMemo(() => {
+  const metrics = React.useMemo(() => {
+    let photoCount = 0
+    let videoCount = 0
+    let totalSize = 0
+    let keptCount = 0
+    let trashCount = 0
+    let pendingCount = 0
+    const blurryItems: typeof items = []
+    const darkItems: typeof items = []
+    const duplicateItems: typeof items = []
+    const screenshotItems: typeof items = []
+    const smallItems: typeof items = []
     const groups = new Set<string>()
-    items.forEach((i) => {
-      if (i.isDuplicate && i.duplicateGroupId) {
-        groups.add(i.duplicateGroupId)
+
+    for (const i of items) {
+      if (i.mediaType === "photo") photoCount++
+      else if (i.mediaType === "video") videoCount++
+      totalSize += i.size || 0
+
+      if (i.reviewState === "keep") keptCount++
+      else if (i.reviewState === "delete") trashCount++
+      else pendingCount++
+
+      if (i.quality?.isBlurry) blurryItems.push(i)
+      if (i.quality?.isDark) darkItems.push(i)
+      if (i.isDuplicate) {
+        if (!i.isBestInDuplicateGroup) duplicateItems.push(i)
+        if (i.duplicateGroupId) groups.add(i.duplicateGroupId)
       }
-    })
-    return groups.size
+      if (i.quality?.isScreenshot) screenshotItems.push(i)
+      if (i.quality?.isSmall) smallItems.push(i)
+    }
+
+    const totalFiles = items.length
+    const reviewedCount = keptCount + trashCount
+    const reviewProgress = totalFiles > 0 ? Math.round((reviewedCount / totalFiles) * 100) : 0
+    const duplicateSavedBytes = duplicateItems.reduce((sum, i) => sum + (i.size || 0), 0)
+    const blurrySavedBytes = blurryItems.reduce((sum, i) => sum + (i.size || 0), 0)
+
+    return {
+      totalFiles,
+      photoCount,
+      videoCount,
+      totalSize,
+      keptCount,
+      trashCount,
+      pendingCount,
+      reviewedCount,
+      reviewProgress,
+      blurryItems,
+      darkItems,
+      duplicateItems,
+      screenshotItems,
+      smallItems,
+      duplicateGroupsCount: groups.size,
+      duplicateSavedBytes,
+      blurrySavedBytes,
+    }
   }, [items])
 
-  const duplicateSavedBytes = duplicateItems.reduce((sum, i) => sum + i.size, 0)
-  const blurrySavedBytes = blurryItems.reduce((sum, i) => sum + i.size, 0)
+  const {
+    totalFiles,
+    photoCount,
+    videoCount,
+    totalSize,
+    keptCount,
+    trashCount,
+    pendingCount,
+    reviewedCount,
+    reviewProgress,
+    blurryItems,
+    darkItems,
+    duplicateItems,
+    screenshotItems,
+    smallItems,
+    duplicateGroupsCount,
+    duplicateSavedBytes,
+    blurrySavedBytes,
+  } = metrics
   const smallSavedBytes = smallItems.reduce((sum, i) => sum + i.size, 0)
   const totalWastedBytes =
     duplicateSavedBytes + blurrySavedBytes + smallSavedBytes

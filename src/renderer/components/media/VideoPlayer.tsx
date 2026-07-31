@@ -31,6 +31,7 @@ import {
   HoverCardTrigger,
   HoverCardContent,
 } from "@/components/ui/hover-card"
+import { storage } from "../../lib/storage"
 
 interface VideoPlayerProps {
   src: string
@@ -97,8 +98,29 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
     }, [])
 
     const [isPlaying, setIsPlaying] = useState(false)
-    const [isMuted, setIsMuted] = useState(false)
-    const [volume, setVolume] = useState(1)
+    const [isMuted, setIsMuted] = useState(() => {
+      const saved = storage.get("video_player_muted")
+      return saved === "true"
+    })
+    const [volume, setVolume] = useState(() => {
+      const saved = storage.get("video_player_volume")
+      if (saved !== null) {
+        const parsed = parseFloat(saved)
+        if (!isNaN(parsed) && parsed >= 0 && parsed <= 1) {
+          return parsed
+        }
+      }
+      return 1
+    })
+
+    // Synchronize native video element volume & mute attributes with state
+    useEffect(() => {
+      if (videoRef.current) {
+        videoRef.current.volume = volume
+        videoRef.current.muted = isMuted
+      }
+    }, [volume, isMuted, src])
+
     const [currentTime, setCurrentTime] = useState(0)
     const [duration, setDuration] = useState(0)
     const [internalFullscreen, setInternalFullscreen] = useState(false)
@@ -280,6 +302,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
             const next = !videoRef.current.muted
             videoRef.current.muted = next
             setIsMuted(next)
+            storage.set("video_player_muted", next ? "true" : "false")
             resetHideTimer()
           }
         } else if (e.key === " " || key === "spacebar") {
@@ -316,16 +339,21 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
             videoRef.current.muted = false
             setVolume(newVolume)
             setIsMuted(false)
+            storage.set("video_player_volume", newVolume.toString())
+            storage.set("video_player_muted", "false")
             resetHideTimer()
           }
         } else if (e.key === "ArrowDown") {
           e.preventDefault()
           if (videoRef.current) {
             const newVolume = Math.max(0, videoRef.current.volume - 0.1)
+            const isNowMuted = newVolume === 0
             videoRef.current.volume = newVolume
-            videoRef.current.muted = newVolume === 0
+            videoRef.current.muted = isNowMuted
             setVolume(newVolume)
-            setIsMuted(newVolume === 0)
+            setIsMuted(isNowMuted)
+            storage.set("video_player_volume", newVolume.toString())
+            storage.set("video_player_muted", isNowMuted ? "true" : "false")
             resetHideTimer()
           }
         }
@@ -378,15 +406,19 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       const next = !isMuted
       videoRef.current.muted = next
       setIsMuted(next)
+      storage.set("video_player_muted", next ? "true" : "false")
     }
 
     const handleVolumeChange = (val: number[]) => {
       if (!videoRef.current) return
       const v = val[0]
+      const nextMuted = v === 0
       videoRef.current.volume = v
-      videoRef.current.muted = v === 0
+      videoRef.current.muted = nextMuted
       setVolume(v)
-      setIsMuted(v === 0)
+      setIsMuted(nextMuted)
+      storage.set("video_player_volume", v.toString())
+      storage.set("video_player_muted", nextMuted ? "true" : "false")
     }
 
     const handleSeek = (val: number[]) => {

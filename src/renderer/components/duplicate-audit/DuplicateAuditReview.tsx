@@ -583,8 +583,8 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
         return
       }
 
-      // Keep All: K
-      if (key === "k") {
+      // Keep All: C
+      if (key === "c") {
         e.preventDefault()
         handleKeepAll()
         return
@@ -766,7 +766,7 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
                 Keep All
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="top">Keep All (K)</TooltipContent>
+            <TooltipContent side="top">Keep All (C)</TooltipContent>
           </Tooltip>
 
           <Tooltip>

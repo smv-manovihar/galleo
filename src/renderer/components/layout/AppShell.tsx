@@ -22,9 +22,11 @@ import { OrganizeFilesPage } from "../../pages/OrganizeFilesPage"
 import { SettingsPage } from "../../pages/SettingsPage"
 
 export const AppShell: React.FC = () => {
-  const { currentView } = useUIStore()
+  const currentView = useUIStore((s) => s.currentView)
   const { setTheme } = useTheme()
-  const { settings, fetchSettings, isInitialized } = useSettingsStore()
+  const settings = useSettingsStore((s) => s.settings)
+  const fetchSettings = useSettingsStore((s) => s.fetchSettings)
+  const isInitialized = useSettingsStore((s) => s.isInitialized)
   const hasItems = useMediaStore((s) => s.items.length > 0)
   const fetchMediaItems = useMediaStore((s) => s.fetchMediaItems)
   const activeRootPath = useMediaStore((s) => s.activeRootPath)

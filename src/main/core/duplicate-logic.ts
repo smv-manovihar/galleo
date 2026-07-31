@@ -107,6 +107,7 @@ export function findDuplicates(
   for (let i = 0; i < n; i++) {
     const n1 = parsedItems[i].nibbles
     for (let j = i + 1; j < n; j++) {
+      if (find(i) === find(j)) continue
       const n2 = parsedItems[j].nibbles
       if (n1.length !== n2.length) continue
 

@@ -98,17 +98,19 @@ export class EmbeddingRepository {
     const stmt = db.prepare(
       `SELECT media_id, embedding, created_at FROM media_embeddings`
     )
-    const rows = stmt.all() as Array<{
+    const results: MediaEmbeddingRecord[] = []
+    for (const row of stmt.iterate() as Iterable<{
       media_id: string
       embedding: Buffer
       created_at: string
-    }>
-
-    return rows.map((row) => ({
-      mediaId: row.media_id,
-      embedding: EmbeddingRepository.bufferToFloat32(row.embedding),
-      createdAt: row.created_at,
-    }))
+    }>) {
+      results.push({
+        mediaId: row.media_id,
+        embedding: EmbeddingRepository.bufferToFloat32(row.embedding),
+        createdAt: row.created_at,
+      })
+    }
+    return results
   }
 
   /**
@@ -337,19 +339,21 @@ export class EmbeddingRepository {
            OR (m.media_type = 'video' AND v.media_id IS NULL)
       `).get() as { count: number }
       return row?.count ?? 0
-    } else {
-      const placeholders = excludeIds.map(() => "?").join(",")
-      const row = db.prepare(`
-        SELECT COUNT(*) as count
-        FROM media_items m
-        LEFT JOIN media_embeddings e ON m.id = e.media_id
-        LEFT JOIN video_frame_embeddings v ON m.id = v.media_id
-        WHERE ((m.media_type = 'photo' AND e.media_id IS NULL)
-           OR (m.media_type = 'video' AND v.media_id IS NULL))
-           AND m.id NOT IN (${placeholders})
-      `).get(...excludeIds) as { count: number }
-      return row?.count ?? 0
     }
+
+    const activeExcludes = excludeIds.slice(-500)
+    const placeholders = activeExcludes.map(() => "?").join(",")
+    const row = db.prepare(`
+      SELECT COUNT(*) as count
+      FROM media_items m
+      LEFT JOIN media_embeddings e ON m.id = e.media_id
+      LEFT JOIN video_frame_embeddings v ON m.id = v.media_id
+      WHERE ((m.media_type = 'photo' AND e.media_id IS NULL)
+         OR (m.media_type = 'video' AND v.media_id IS NULL))
+         AND m.id NOT IN (${placeholders})
+    `).get(...activeExcludes) as { count: number }
+
+    return Math.max(0, (row?.count ?? 0) - Math.max(0, excludeIds.length - activeExcludes.length))
   }
 
   /**
@@ -384,30 +388,31 @@ export class EmbeddingRepository {
         mediaType: r.media_type as "photo" | "video",
         thumbnailPath: r.thumbnail_path ?? undefined,
       }))
-    } else {
-      const placeholders = excludeIds.map(() => "?").join(",")
-      const stmt = db.prepare(`
-        SELECT m.id, m.path, m.media_type, m.thumbnail_path
-        FROM media_items m
-        LEFT JOIN media_embeddings e ON m.id = e.media_id
-        LEFT JOIN video_frame_embeddings v ON m.id = v.media_id
-        WHERE ((m.media_type = 'photo' AND e.media_id IS NULL)
-           OR (m.media_type = 'video' AND v.media_id IS NULL))
-           AND m.id NOT IN (${placeholders})
-        LIMIT ?
-      `)
-      const rows = stmt.all(...excludeIds, limit) as Array<{
-        id: string
-        path: string
-        media_type: string
-        thumbnail_path: string | null
-      }>
-      return rows.map((r) => ({
-        id: r.id,
-        path: r.path,
-        mediaType: r.media_type as "photo" | "video",
-        thumbnailPath: r.thumbnail_path ?? undefined,
-      }))
     }
+
+    const activeExcludes = excludeIds.slice(-500)
+    const placeholders = activeExcludes.map(() => "?").join(",")
+    const stmt = db.prepare(`
+      SELECT m.id, m.path, m.media_type, m.thumbnail_path
+      FROM media_items m
+      LEFT JOIN media_embeddings e ON m.id = e.media_id
+      LEFT JOIN video_frame_embeddings v ON m.id = v.media_id
+      WHERE ((m.media_type = 'photo' AND e.media_id IS NULL)
+         OR (m.media_type = 'video' AND v.media_id IS NULL))
+         AND m.id NOT IN (${placeholders})
+      LIMIT ?
+    `)
+    const rows = stmt.all(...activeExcludes, limit) as Array<{
+      id: string
+      path: string
+      media_type: string
+      thumbnail_path: string | null
+    }>
+    return rows.map((r) => ({
+      id: r.id,
+      path: r.path,
+      mediaType: r.media_type as "photo" | "video",
+      thumbnailPath: r.thumbnail_path ?? undefined,
+    }))
   }
 }

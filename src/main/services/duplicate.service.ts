@@ -39,44 +39,48 @@ export class DuplicateService {
       // Find and group duplicate photos using blockhash logic
       const groups = findDuplicates(items, maxDistance)
 
-      // Reset duplicate states in SQLite
-      const updatedItems = items.map((item) => ({
-        ...item,
-        duplicateGroupId: undefined,
-        isDuplicate: false,
-        isBestInDuplicateGroup: false,
-      }))
-
-      // Apply duplicate groups
+      // Map groups by item ID
       const groupMap = new Map<string, MediaItem>()
       for (const group of groups) {
-        for (const item of group.items) {
-          groupMap.set(item.id, item)
+        for (const dupItem of group.items) {
+          groupMap.set(dupItem.id, dupItem)
         }
       }
 
-      const finalItems = updatedItems.map((item) => {
-        const dupItem = groupMap.get(item.id)
-        return dupItem ? dupItem : item
-      })
+      // Build updated items map
+      const originalMap = new Map(items.map((i) => [i.id, i]))
+      const itemsToUpdate: MediaItem[] = []
 
-      // Save only updated items whose duplicate state actually changed to avoid massive DB write locking
-      const itemsToUpdate = finalItems.filter((finalItem) => {
-        const originalItem = items.find((i) => i.id === finalItem.id)
-        if (!originalItem) return true
-        return (
-          originalItem.isDuplicate !== finalItem.isDuplicate ||
-          originalItem.duplicateGroupId !== finalItem.duplicateGroupId ||
-          originalItem.isBestInDuplicateGroup !==
-            finalItem.isBestInDuplicateGroup
-        )
-      })
+      const allFinalItems: MediaItem[] = []
+      for (const item of items) {
+        const dupItem = groupMap.get(item.id)
+        const finalItem: MediaItem = dupItem
+          ? dupItem
+          : {
+              ...item,
+              duplicateGroupId: undefined,
+              isDuplicate: false,
+              isBestInDuplicateGroup: false,
+            }
+
+        allFinalItems.push(finalItem)
+
+        const orig = originalMap.get(item.id)
+        if (
+          !orig ||
+          orig.isDuplicate !== finalItem.isDuplicate ||
+          orig.duplicateGroupId !== finalItem.duplicateGroupId ||
+          orig.isBestInDuplicateGroup !== finalItem.isBestInDuplicateGroup
+        ) {
+          itemsToUpdate.push(finalItem)
+        }
+      }
 
       if (itemsToUpdate.length > 0) {
         this.repository.upsertMany(itemsToUpdate)
       }
 
-      return ok(finalItems)
+      return ok(allFinalItems)
     } catch (e: any) {
       return fail({
         code: "UNKNOWN",

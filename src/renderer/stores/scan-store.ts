@@ -37,6 +37,8 @@ interface ScanState {
   isDownloadingAI: boolean
   aiDownloadProgress: number
   aiIndexingProgress: AIIndexingProgress
+  /** Live disk media file count and rescan status per root path, fetched via fast readdir & watcher. */
+  folderCounts: Map<string, { count: number; needsRescan?: boolean }>
 
   checkAIStatus: () => Promise<void>
   startScan: (rootPaths: string[], forceRescan?: boolean) => Promise<void>
@@ -67,6 +69,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
     processedCount: 0,
     totalCount: 0,
   },
+  folderCounts: new Map(),
 
   checkAIStatus: async () => {
     if (!ENABLE_AI_FEATURES) {
@@ -176,6 +179,22 @@ export const useScanStore = create<ScanState>((set, get) => ({
       },
     })
 
+    let pendingItemsBuffer: any[] = []
+    let flushTimeout: ReturnType<typeof setTimeout> | null = null
+
+    const flushBuffer = () => {
+      if (pendingItemsBuffer.length === 0) return
+      const batch = pendingItemsBuffer
+      pendingItemsBuffer = []
+      useMediaStore.setState((mediaState) => {
+        const itemMap = new Map(mediaState.items.map((i) => [i.id, i]))
+        for (const item of batch) {
+          itemMap.set(item.id, item)
+        }
+        return { items: Array.from(itemMap.values()) }
+      })
+    }
+
     _cleanupProgress = window.api.onScanProgress((payload) => {
       set({
         scanProgress: {
@@ -186,20 +205,24 @@ export const useScanStore = create<ScanState>((set, get) => ({
       })
 
       if (payload.items && payload.items.length > 0) {
-        useMediaStore.setState((mediaState) => {
-          const itemMap = new Map(mediaState.items.map((i) => [i.id, i]))
-          for (const item of payload.items) {
-            itemMap.set(item.id, item)
-          }
-          return {
-            items: Array.from(itemMap.values()),
-          }
-        })
+        pendingItemsBuffer.push(...payload.items)
+        if (!flushTimeout) {
+          flushTimeout = setTimeout(() => {
+            flushTimeout = null
+            flushBuffer()
+          }, 250)
+        }
       }
     })
 
     _cleanupComplete = window.api.onScanComplete(async () => {
-      const isWasStopping = get().isStopping
+      if (flushTimeout) {
+        clearTimeout(flushTimeout)
+        flushTimeout = null
+      }
+      flushBuffer()
+
+      const wasPartialScan = get().isStopping
 
       _cleanupProgress?.()
       _cleanupComplete?.()
@@ -208,29 +231,38 @@ export const useScanStore = create<ScanState>((set, get) => ({
 
       set({ isScanning: false, isStopping: false })
 
-      if (isWasStopping) {
-        toast.info("Folder scan canceled", { id: "scan-complete-toast" })
-        return
+      // Reload media in every case — partial scans still produced indexed items
+      const activeRootPath = useMediaStore.getState().activeRootPath
+      if (activeRootPath) {
+        await useMediaStore.getState().fetchMediaItems(activeRootPath)
       }
 
+      // Re-fetch settings so the totalDiscoveredCount written by the scanner
+      // during discovery is included. Then:
+      //   - Partial scan: keep totalDiscoveredCount so isPartial stays derived correctly.
+      //   - Full scan:    clear it — the DB is now truth, no stale count should linger.
       const settingsStore = useSettingsStore.getState()
-      const updatedRoots = settingsStore.settings.folders.roots.map((r) => {
+      const latestSettings = await window.api.getSettings()
+      const updatedRoots = latestSettings.folders.roots.map((r) => {
         if (rootPaths.some((p) => p.toLowerCase() === r.path.toLowerCase())) {
           return { ...r, scanned: true }
         }
         return r
       })
       await settingsStore.saveSettings({
-        ...settingsStore.settings,
+        ...latestSettings,
         folders: {
-          ...settingsStore.settings.folders,
+          ...latestSettings.folders,
           roots: updatedRoots,
         },
       })
 
-      const activeRootPath = useMediaStore.getState().activeRootPath
-      if (activeRootPath) {
-        await useMediaStore.getState().fetchMediaItems(activeRootPath)
+      if (wasPartialScan) {
+        toast.info("Scan stopped: showing indexed results", {
+          id: "scan-complete-toast",
+          description: "Items scanned before stopping are visible. Resume scan to index remaining files.",
+        })
+        return
       }
 
       await get().checkAIStatus()
@@ -288,5 +320,15 @@ if (ENABLE_AI_FEATURES && typeof window !== "undefined" && window.api?.ai?.onInd
     if (!payload.isIndexing) {
       useScanStore.getState().checkAIStatus()
     }
+  })
+}
+
+if (typeof window !== "undefined" && window.api?.onFolderCountsUpdated) {
+  window.api.onFolderCountsUpdated((counts) => {
+    const map = new Map(useScanStore.getState().folderCounts)
+    for (const item of counts) {
+      map.set(item.path, { count: item.count, needsRescan: item.needsRescan })
+    }
+    useScanStore.setState({ folderCounts: map })
   })
 }

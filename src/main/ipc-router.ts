@@ -32,8 +32,20 @@ export function registerIpcHandlers(window: BrowserWindow): void {
   })
 
   ipcMain.handle(IPC_CHANNELS.SETTINGS_SAVE, async (_, settings) => {
-    return await settingsService.saveSettings(settings)
+    const res = await settingsService.saveSettings(settings)
+    const enabledRoots = settings.folders.roots
+      .filter((r: any) => r.enabled)
+      .map((r: any) => r.path)
+    scannerService.watchFolders(window, enabledRoots)
+    return res
   })
+
+  // Start background folder watcher/sniffer for initial root directories
+  const currentSettings = settingsService.getSettings()
+  const initialEnabledRoots = currentSettings.folders.roots
+    .filter((r) => r.enabled)
+    .map((r) => r.path)
+  scannerService.watchFolders(window, initialEnabledRoots)
 
   // Native Folder Picker Dialog
   ipcMain.handle(IPC_CHANNELS.FOLDERS_SELECT, async (event) => {
@@ -51,10 +63,10 @@ export function registerIpcHandlers(window: BrowserWindow): void {
   ipcMain.handle(
     IPC_CHANNELS.SCAN_START,
     async (event, rootPaths: string[], forceRescan?: boolean) => {
-      const win = BrowserWindow.fromWebContents(event.sender)
+      const targetWin = getValidWindow(event, window)
       return await scannerService.scanFolders(
         rootPaths,
-        win || window,
+        targetWin,
         forceRescan
       )
     }
@@ -63,6 +75,11 @@ export function registerIpcHandlers(window: BrowserWindow): void {
   ipcMain.handle(IPC_CHANNELS.SCAN_CANCEL, () => {
     scannerService.cancelScan()
   })
+
+  ipcMain.handle(
+    IPC_CHANNELS.SCAN_COUNT_FOLDERS,
+    (_event, rootPaths: string[]) => scannerService.countMediaFiles(rootPaths)
+  )
 
   // Media queries
   ipcMain.handle(IPC_CHANNELS.MEDIA_GET, (_, folderPath: string) => {
@@ -194,6 +211,7 @@ export function registerIpcHandlers(window: BrowserWindow): void {
         }
 
         if (cache) {
+          db.prepare("UPDATE media_items SET thumbnail_path = NULL").run()
           const cacheDir = getThumbnailCacheDir()
           await fs.rm(cacheDir, { recursive: true, force: true })
           await fs.mkdir(cacheDir, { recursive: true })
@@ -216,7 +234,13 @@ export function registerIpcHandlers(window: BrowserWindow): void {
 
   ipcMain.handle(IPC_CHANNELS.URL_OPEN, (_, url: string) => {
     try {
-      shell.openExternal(url)
+      if (!url || typeof url !== "string" || !/^https?:\/\//i.test(url.trim())) {
+        return fail({
+          code: "INVALID_URL",
+          message: "Only HTTP(S) URLs are permitted",
+        })
+      }
+      shell.openExternal(url.trim())
       return ok(undefined)
     } catch (e: any) {
       return fail({
@@ -291,9 +315,9 @@ export function registerIpcHandlers(window: BrowserWindow): void {
         message: "AI features are disabled via feature flag.",
       })
     }
-    const win = BrowserWindow.fromWebContents(event.sender)
+    const targetWin = getValidWindow(event, window)
     try {
-      aiIndexerService.startIndexing(win || window).catch(() => {})
+      aiIndexerService.startIndexing(targetWin).catch(() => {})
       return ok(undefined)
     } catch (e: unknown) {
       return fail({
@@ -304,19 +328,31 @@ export function registerIpcHandlers(window: BrowserWindow): void {
   })
 }
 
+function getValidWindow(
+  event: Electron.IpcMainInvokeEvent,
+  defaultWindow: BrowserWindow
+): BrowserWindow {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  const target = win || defaultWindow
+  if (!target || target.isDestroyed()) return defaultWindow
+  return target
+}
+
 // Utility to recursively discover files for duplicate target detection in organization preview
-async function scanFilesFlat(dir: string, outSet: Set<string>): Promise<void> {
-  const queue: string[] = [dir]
+async function scanFilesFlat(dir: string, outSet: Set<string>, maxDepth: number = 10): Promise<void> {
+  const queue: Array<{ path: string; depth: number }> = [{ path: dir, depth: 0 }]
   while (queue.length > 0) {
-    const current = queue.shift()!
+    const item = queue.shift()!
+    if (item.depth > maxDepth) continue
     try {
-      const entries = await fs.readdir(current, { withFileTypes: true })
+      const entries = await fs.readdir(item.path, { withFileTypes: true })
       for (const entry of entries) {
-        const full = path.join(current, entry.name)
+        if (entry.isSymbolicLink()) continue
+        const fullPath = path.join(item.path, entry.name)
         if (entry.isDirectory()) {
-          queue.push(full)
-        } else {
-          outSet.add(full.replace(/\\/g, "/").toLowerCase())
+          queue.push({ path: fullPath, depth: item.depth + 1 })
+        } else if (entry.isFile()) {
+          outSet.add(fullPath.replace(/\\/g, "/").toLowerCase())
         }
       }
     } catch {}

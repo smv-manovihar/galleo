@@ -4,22 +4,46 @@ import type { MediaItem } from "../../../shared/types/media"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { formatBytes, formatShortDate, formatDate } from "../../lib/format"
-import { Play, FileImage, Trash2, Check, Eye, ChevronRight, FolderSearch } from "lucide-react"
+import {
+  Play,
+  FileImage,
+  Trash2,
+  Check,
+  Eye,
+  ChevronRight,
+  FolderSearch,
+  ExternalLink,
+  FolderOpen,
+  Info,
+  Bookmark,
+  Sparkles,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useMediaStore } from "../../stores/media-store"
 import { useSettingsStore } from "../../stores/settings-store"
+import { getFileManagerName } from "../../lib/os"
+import { ENABLE_AI_FEATURES } from "../../../shared/constants"
 import {
   Tooltip,
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip"
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu"
 
 interface MediaListProps {
   items: MediaItem[]
   selectedIds: Set<string>
   onSelectToggle: (id: string, e: React.MouseEvent) => void
   onPreviewOpen: (item: MediaItem) => void
+  onInfoOpen?: (item: MediaItem) => void
   onReviewAction: (id: string, state: "keep" | "delete" | "skipped") => void
+  onFindSimilar?: (mediaId: string) => void
   isGrouped?: boolean
 }
 
@@ -33,7 +57,9 @@ interface MediaListRowProps {
   virtualIndex: number
   onSelectToggle: (id: string, e: React.MouseEvent) => void
   onPreviewOpen: (item: MediaItem) => void
+  onInfoOpen?: (item: MediaItem) => void
   onReviewAction: (id: string, state: "keep" | "delete" | "skipped") => void
+  onFindSimilar?: (mediaId: string) => void
 }
 
 const MediaListRow = React.memo<MediaListRowProps>(
@@ -47,162 +73,226 @@ const MediaListRow = React.memo<MediaListRowProps>(
     virtualIndex,
     onSelectToggle,
     onPreviewOpen,
+    onInfoOpen,
     onReviewAction,
+    onFindSimilar,
   }) => {
     const isVideo = item.mediaType === "video"
     const score = item.quality?.compositeScore ?? null
 
+    const handleOpenFolder = async () => {
+      await window.api.showFile(item.path)
+    }
+
+    const handleOpenFile = async () => {
+      await window.api.openFile(item.path)
+    }
+
     return (
-      <div
-        key={virtualRowKey}
-        ref={measureRef}
-        data-index={virtualIndex}
-        className={`absolute top-0 left-0 grid h-10 w-full cursor-pointer items-center border-b border-border/40 text-xs transition-colors duration-150 will-change-transform hover:bg-accent/40 ${
-          isSelected ? "bg-primary/5 hover:bg-primary/10" : ""
-        }`}
-        style={{
-          ...gridStyle,
-          height: 38,
-          transform: `translateY(${virtualRowStart}px)`,
-        }}
-        onClick={() => onPreviewOpen(item)}
-      >
-        {/* Select Checkbox */}
-        <div
-          className="flex h-full items-center justify-center border-r border-border/30"
-          onClick={(e: React.MouseEvent) => e.stopPropagation()}
-        >
-          <Checkbox
-            checked={isSelected}
-            onCheckedChange={(_checked) => {
-              onSelectToggle(item.id, { shiftKey: false } as any)
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <div
+            key={virtualRowKey}
+            ref={measureRef}
+            data-index={virtualIndex}
+            className={`absolute top-0 left-0 grid h-10 w-full cursor-pointer items-center border-b border-border/40 text-xs transition-colors duration-150 will-change-transform hover:bg-accent/40 ${
+              isSelected ? "bg-primary/5 hover:bg-primary/10" : ""
+            }`}
+            style={{
+              ...gridStyle,
+              height: 38,
+              transform: `translateY(${virtualRowStart}px)`,
             }}
-            className="h-3.5 w-3.5 cursor-pointer border-border focus-visible:ring-1"
-          />
-        </div>
+            onClick={() => onPreviewOpen(item)}
+          >
+            {/* Select Checkbox */}
+            <div
+              className="flex h-full items-center justify-center border-r border-border/30"
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            >
+              <Checkbox
+                checked={isSelected}
+                onCheckedChange={(_checked) => {
+                  onSelectToggle(item.id, { shiftKey: false } as any)
+                }}
+                className="h-3.5 w-3.5 cursor-pointer border-border focus-visible:ring-1"
+              />
+            </div>
 
-        {/* File Icon + Name */}
-        <div className="flex h-full items-center truncate border-r border-border/30 pr-4 pl-3 font-medium">
-          <div className="flex min-w-0 items-center gap-2.5">
-            {isVideo ? (
-              <Play className="h-3.5 w-3.5 shrink-0 text-primary" />
-            ) : (
-              <FileImage className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            )}
-            <span className="truncate text-foreground" title={item.name}>
-              {item.name}
-            </span>
+            {/* File Icon + Name */}
+            <div className="flex h-full items-center truncate border-r border-border/30 pr-4 pl-3 font-medium">
+              <div className="flex min-w-0 items-center gap-2.5">
+                {isVideo ? (
+                  <Play className="h-3.5 w-3.5 shrink-0 text-primary" />
+                ) : (
+                  <FileImage className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                )}
+                <span className="truncate text-foreground" title={item.name}>
+                  {item.name}
+                </span>
+              </div>
+            </div>
+
+            {/* Type */}
+            <div className="flex h-full items-center border-r border-border/30 pl-3 text-2xs text-muted-foreground capitalize">
+              {item.mediaType}
+            </div>
+
+            {/* Date */}
+            <div className="flex h-full items-center border-r border-border/30 pl-3 text-foreground tabular-nums">
+              {formatShortDate(item.dateTarget)}
+            </div>
+
+            {/* Size */}
+            <div className="flex h-full items-center border-r border-border/30 pl-3 text-muted-foreground tabular-nums">
+              {formatBytes(item.size)}
+            </div>
+
+            {/* Quality Score */}
+            <div className="flex h-full items-center justify-center border-r border-border/30 text-center">
+              {score !== null ? (
+                <Badge
+                  variant={score < 50 ? "destructive" : "secondary"}
+                  className="h-4.5 px-1.5 py-0 text-2xs font-bold"
+                >
+                  {score}
+                </Badge>
+              ) : (
+                <span className="text-muted-foreground">-</span>
+              )}
+            </div>
+
+            {/* Review State */}
+            <div className="flex h-full items-center justify-center border-r border-border/30 text-center">
+              {item.reviewState === "keep" && (
+                <Badge
+                  variant="outline"
+                  className="h-4.5 border-green-500/20 bg-green-500/10 px-1.5 py-0 text-2xs text-green-500"
+                >
+                  Keep
+                </Badge>
+              )}
+              {item.reviewState === "delete" && (
+                <Badge
+                  variant="outline"
+                  className="h-4.5 border-destructive/20 bg-destructive/10 px-1.5 py-0 text-2xs text-destructive"
+                >
+                  Delete
+                </Badge>
+              )}
+              {item.reviewState === "skipped" && (
+                <Badge
+                  variant="outline"
+                  className="h-4.5 border-border bg-muted px-1.5 py-0 text-2xs text-muted-foreground"
+                >
+                  Skipped
+                </Badge>
+              )}
+              {item.reviewState === "pending" && (
+                <span className="text-2xs text-muted-foreground">Pending</span>
+              )}
+            </div>
+
+            {/* Quick Actions */}
+            <div
+              className="flex h-full items-center justify-center gap-0.5 px-3"
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            >
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6.5 w-6.5 cursor-pointer rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+                    onClick={() => onPreviewOpen(item)}
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">Preview</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6.5 w-6.5 cursor-pointer rounded text-muted-foreground hover:bg-green-500/10 hover:text-green-500"
+                    onClick={() => onReviewAction(item.id, "keep")}
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">Keep</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6.5 w-6.5 cursor-pointer rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => onReviewAction(item.id, "delete")}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">Delete</TooltipContent>
+              </Tooltip>
+            </div>
           </div>
-        </div>
+        </ContextMenuTrigger>
 
-        {/* Type */}
-        <div className="flex h-full items-center border-r border-border/30 pl-3 text-2xs text-muted-foreground capitalize">
-          {item.mediaType}
-        </div>
-
-        {/* Date */}
-        <div className="flex h-full items-center border-r border-border/30 pl-3 text-foreground tabular-nums">
-          {formatShortDate(item.dateTarget)}
-        </div>
-
-        {/* Size */}
-        <div className="flex h-full items-center border-r border-border/30 pl-3 text-muted-foreground tabular-nums">
-          {formatBytes(item.size)}
-        </div>
-
-        {/* Quality Score */}
-        <div className="flex h-full items-center justify-center border-r border-border/30 text-center">
-          {score !== null ? (
-            <Badge
-              variant={score < 50 ? "destructive" : "secondary"}
-              className="h-4.5 px-1.5 py-0 text-2xs font-bold"
+        {/* Context Menu for list row */}
+        <ContextMenuContent className="w-44 border-border bg-card font-sans text-sm text-foreground">
+          <ContextMenuItem
+            onClick={() => onPreviewOpen(item)}
+            className="gap-2.5"
+          >
+            <Eye className="h-3.5 w-3.5" />
+            Preview File
+          </ContextMenuItem>
+          {onInfoOpen && (
+            <ContextMenuItem onClick={() => onInfoOpen(item)} className="gap-2.5">
+              <Info className="h-3.5 w-3.5" />
+              File Info
+            </ContextMenuItem>
+          )}
+          {onFindSimilar && ENABLE_AI_FEATURES && (
+            <ContextMenuItem
+              onClick={() => onFindSimilar(item.id)}
+              className="gap-2.5 text-primary focus:text-primary"
             >
-              {score}
-            </Badge>
-          ) : (
-            <span className="text-muted-foreground">-</span>
+              <Sparkles className="h-3.5 w-3.5" />
+              Find Similar
+            </ContextMenuItem>
           )}
-        </div>
-
-        {/* Review State */}
-        <div className="flex h-full items-center justify-center border-r border-border/30 text-center">
-          {item.reviewState === "keep" && (
-            <Badge
-              variant="outline"
-              className="h-4.5 border-green-500/20 bg-green-500/10 px-1.5 py-0 text-2xs text-green-500"
-            >
-              Keep
-            </Badge>
-          )}
-          {item.reviewState === "delete" && (
-            <Badge
-              variant="outline"
-              className="h-4.5 border-destructive/20 bg-destructive/10 px-1.5 py-0 text-2xs text-destructive"
-            >
-              Delete
-            </Badge>
-          )}
-          {item.reviewState === "skipped" && (
-            <Badge
-              variant="outline"
-              className="h-4.5 border-border bg-muted px-1.5 py-0 text-2xs text-muted-foreground"
-            >
-              Skipped
-            </Badge>
-          )}
-          {item.reviewState === "pending" && (
-            <span className="text-2xs text-muted-foreground">Pending</span>
-          )}
-        </div>
-
-        {/* Quick Actions */}
-        <div
-          className="flex h-full items-center justify-center gap-0.5 px-3"
-          onClick={(e: React.MouseEvent) => e.stopPropagation()}
-        >
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6.5 w-6.5 cursor-pointer rounded text-muted-foreground hover:bg-accent hover:text-foreground"
-                onClick={() => onPreviewOpen(item)}
-              >
-                <Eye className="h-3.5 w-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">Preview</TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6.5 w-6.5 cursor-pointer rounded text-muted-foreground hover:bg-green-500/10 hover:text-green-500"
-                onClick={() => onReviewAction(item.id, "keep")}
-              >
-                <Check className="h-3.5 w-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">Keep</TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6.5 w-6.5 cursor-pointer rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                onClick={() => onReviewAction(item.id, "delete")}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">Delete</TooltipContent>
-          </Tooltip>
-        </div>
-      </div>
+          <ContextMenuSeparator />
+          <ContextMenuItem
+            onClick={() => onReviewAction(item.id, "keep")}
+            className="gap-2.5 text-green-500 focus:text-green-500"
+          >
+            <Bookmark className="h-3.5 w-3.5" />
+            Mark to Keep
+          </ContextMenuItem>
+          <ContextMenuItem
+            onClick={() => onReviewAction(item.id, "delete")}
+            className="gap-2.5 text-destructive focus:text-destructive"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Mark to Delete
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+          <ContextMenuItem onClick={handleOpenFile} className="gap-2.5">
+            <ExternalLink className="h-3.5 w-3.5" />
+            Open in default app
+          </ContextMenuItem>
+          <ContextMenuItem onClick={handleOpenFolder} className="gap-2.5">
+            <FolderOpen className="h-3.5 w-3.5" />
+            Show in {getFileManagerName()}
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
     )
   }
 )
@@ -212,7 +302,9 @@ export const MediaList: React.FC<MediaListProps> = ({
   selectedIds,
   onSelectToggle,
   onPreviewOpen,
+  onInfoOpen,
   onReviewAction,
+  onFindSimilar,
   isGrouped = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -229,6 +321,15 @@ export const MediaList: React.FC<MediaListProps> = ({
   }) // Sum = 100
 
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+  const dragCleanupRef = React.useRef<(() => void) | null>(null)
+
+  React.useEffect(() => {
+    return () => {
+      if (dragCleanupRef.current) {
+        dragCleanupRef.current()
+      }
+    }
+  }, [])
 
   // Proportional mouse drag handler for column resizing
   const handleMouseDown = (
@@ -286,7 +387,10 @@ export const MediaList: React.FC<MediaListProps> = ({
     const handleMouseUp = () => {
       document.removeEventListener("mousemove", handleMouseMove)
       document.removeEventListener("mouseup", handleMouseUp)
+      dragCleanupRef.current = null
     }
+
+    dragCleanupRef.current = handleMouseUp
 
     document.addEventListener("mousemove", handleMouseMove)
     document.addEventListener("mouseup", handleMouseUp)
@@ -453,7 +557,7 @@ estimateSize: (index) => {
 
           {/* Date Column */}
           <div className="relative flex h-full items-center border-r border-border/40 px-3">
-            <span>Target Date</span>
+            <span>Date</span>
             <div
               onMouseDown={(e) => handleMouseDown("date", e)}
               className="absolute top-0 right-0 bottom-0 z-30 w-1.5 cursor-col-resize transition-colors hover:bg-primary/45 active:bg-primary"
@@ -549,7 +653,9 @@ estimateSize: (index) => {
                   virtualIndex={virtualRow.index}
                   onSelectToggle={onSelectToggle}
                   onPreviewOpen={onPreviewOpen}
+                  onInfoOpen={onInfoOpen}
                   onReviewAction={onReviewAction}
+                  onFindSimilar={onFindSimilar}
                 />
               )
             }

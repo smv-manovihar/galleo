@@ -18,12 +18,13 @@ interface MediaGridProps {
   columns?: number
   searchResultsMap?: Map<string, SearchResultItem>
   onFindSimilar?: (mediaId: string) => void
+  onPlayOpen?: (item: MediaItem) => void
 }
 
 const GAP = 16
 const TARGET_CARD_WIDTH = 200
 
-export const MediaGrid: React.FC<MediaGridProps> = ({
+const MediaGridComponent: React.FC<MediaGridProps> = ({
   items,
   selectedIds,
   onSelectToggle,
@@ -33,6 +34,7 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
   columns: overrideColumns,
   searchResultsMap,
   onFindSimilar,
+  onPlayOpen,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(1000)
@@ -148,6 +150,7 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
                     matchingFrame={searchMatch?.matchingFrame}
                     searchScore={searchMatch?.score}
                     onFindSimilar={onFindSimilar}
+                    onPlayOpen={onPlayOpen}
                   />
                 )
               })}
@@ -158,3 +161,5 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
     </div>
   )
 }
+
+export const MediaGrid = React.memo(MediaGridComponent)

@@ -68,7 +68,7 @@ export const AboutConfig: React.FC = () => {
                 variant="outline"
                 size="sm"
                 className="h-8 flex-1 cursor-pointer text-xs font-semibold sm:flex-none"
-                onClick={() => checkForUpdates()}
+                onClick={() => checkForUpdates(true)}
                 disabled={isCheckingUpdate}
               >
                 {isCheckingUpdate ? (

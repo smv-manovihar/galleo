@@ -67,6 +67,9 @@ export class AIIndexerService {
         lastTotalCount = totalCount
         console.log(`[AIIndexer] Batch: ${batch.length} items, processed so far: ${processedCount}, total: ${totalCount}`)
 
+        let failedCount = 0
+        let consecutiveFailures = 0
+
         for (const item of batch) {
           if (this.isCancelled) break
 
@@ -78,16 +81,31 @@ export class AIIndexerService {
             true,
             processedCount,
             totalCount,
-            item.path
+            item.path,
+            undefined,
+            failedCount
           )
 
           try {
             if (item.mediaType === "photo") {
-              const imgPath = item.thumbnailPath || item.path
-              console.log(`[AIIndexer] Embedding photo: ${imgPath}`)
-              const vec = await this.aiService.generateImageEmbedding(imgPath)
+              const primaryPath = item.thumbnailPath || item.path
+              console.log(`[AIIndexer] Embedding photo: ${primaryPath}`)
+              let vec: Float32Array
+              try {
+                vec = await this.aiService.generateImageEmbedding(primaryPath)
+              } catch (primaryErr) {
+                // If thumbnail path failed, attempt fallback to original file path
+                if (item.thumbnailPath && item.thumbnailPath !== item.path) {
+                  console.warn(
+                    `[AIIndexer] Thumbnail embedding failed for ${item.path.split(/[\\/]/).pop()}, trying original path...`
+                  )
+                  vec = await this.aiService.generateImageEmbedding(item.path)
+                } else {
+                  throw primaryErr
+                }
+              }
               this.embeddingRepository.saveMediaEmbedding(item.id, vec)
-              console.log(`[AIIndexer] ✓ Photo embedded (dim=${vec.length}):`  , item.path.split(/[\\/]/).pop())
+              console.log(`[AIIndexer] ✓ Photo embedded (dim=${vec.length}):`, item.path.split(/[\\/]/).pop())
             } else if (item.mediaType === "video") {
               const framesRes = await this.videoFrameExtractor.extractVideoFrames(
                 item.path,
@@ -115,11 +133,45 @@ export class AIIndexerService {
                 }
               }
             }
+            // Reset consecutive failures on success
+            consecutiveFailures = 0
           } catch (err: unknown) {
+            failedCount++
+            consecutiveFailures++
+            const errMsg = err instanceof Error ? err.message : String(err)
             console.error(
               `[AIIndexer] Failed to index ${item.path.split(/[\\/]/).pop()}:`,
-              err instanceof Error ? err.message : err
+              errMsg
             )
+
+            // Notify UI of error
+            this.notifyProgress(
+              window,
+              true,
+              processedCount,
+              totalCount,
+              item.path,
+              `Failed: ${item.path.split(/[\\/]/).pop()} (${errMsg})`,
+              failedCount
+            )
+
+            // Gracefully stop indexing if too many consecutive errors occur
+            if (consecutiveFailures >= 5) {
+              console.error(
+                `[AIIndexer] Stopping indexing: ${consecutiveFailures} consecutive errors encountered.`
+              )
+              this.notifyProgress(
+                window,
+                false,
+                processedCount,
+                totalCount,
+                undefined,
+                `AI Indexing stopped after ${consecutiveFailures} consecutive errors (${errMsg})`,
+                failedCount
+              )
+              this.isCancelled = true
+              break
+            }
           }
 
           processedCount++
@@ -139,7 +191,9 @@ export class AIIndexerService {
     isIndexing: boolean,
     processedCount: number,
     totalCount: number,
-    currentFile?: string
+    currentFile?: string,
+    error?: string,
+    failedCount?: number
   ): void {
     if (window && !window.isDestroyed()) {
       const payload: AIIndexingProgressPayload = {
@@ -147,6 +201,8 @@ export class AIIndexerService {
         processedCount,
         totalCount,
         currentFile: currentFile ? currentFile.split(/[\\/]/).pop() : undefined,
+        error,
+        failedCount,
       }
       window.webContents.send(IPC_CHANNELS.AI_INDEXING_PROGRESS, payload)
     }

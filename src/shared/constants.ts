@@ -5,7 +5,7 @@ import type { AppSettings } from "./types/settings"
  * Set ENABLE_AI_FEATURES to true to enable Visual AI Search & ONNX Model indexing.
  * Default is false while AI model execution is unstable/under development.
  */
-export const ENABLE_AI_FEATURES = false
+export const ENABLE_AI_FEATURES = true
 
 export const SUPPORTED_PHOTO_EXTENSIONS = [
   "jpg",

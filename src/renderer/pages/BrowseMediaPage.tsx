@@ -522,6 +522,7 @@ export const BrowseMediaPage: React.FC = () => {
             onPreviewOpen={handleSetPreviewItem}
             onInfoOpen={handleSetInfoItem}
             onReviewAction={handleReviewAction}
+            onPlayOpen={handlePlayOpen}
           />
         )}
         {layoutMode === "list" && (
@@ -533,6 +534,7 @@ export const BrowseMediaPage: React.FC = () => {
             onInfoOpen={handleSetInfoItem}
             onReviewAction={handleReviewAction}
             onFindSimilar={ENABLE_AI_FEATURES ? handleFindSimilar : undefined}
+            onPlayOpen={handlePlayOpen}
             isGrouped={groupMode === "date"}
           />
         )}

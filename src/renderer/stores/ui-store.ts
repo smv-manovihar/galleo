@@ -38,7 +38,7 @@ interface UIState {
       | "about"
   ) => void
   setActiveDuplicatesTab: (tab: "auto" | "manual") => void
-  checkForUpdates: () => Promise<void>
+  checkForUpdates: (force?: boolean) => Promise<void>
   dismissUpdate: () => void
 }
 
@@ -68,12 +68,12 @@ export const useUIStore = create<UIState>((set, get) => ({
     set({ keyboardShortcutsOpen }),
   setActiveSettingsTab: (activeSettingsTab) => set({ activeSettingsTab }),
   setActiveDuplicatesTab: (activeDuplicatesTab) => set({ activeDuplicatesTab }),
-  checkForUpdates: async () => {
+  checkForUpdates: async (force = false) => {
     if (typeof window === "undefined" || !window.api) return
 
     set({ isCheckingUpdate: true, updateError: null })
     try {
-      const result = await window.api.checkForUpdates()
+      const result = await window.api.checkForUpdates(force)
       if (result.ok) {
         const isDev = import.meta.env.DEV
         if (isDev) {
@@ -107,9 +107,13 @@ export const useUIStore = create<UIState>((set, get) => ({
           hasRunInitialUpdateCheck: true,
         })
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const message =
+        e instanceof Error
+          ? e.message
+          : "Failed to communicate with update checker"
       set({
-        updateError: e.message || "Failed to communicate with update checker",
+        updateError: message,
         isCheckingUpdate: false,
         hasRunInitialUpdateCheck: true,
       })

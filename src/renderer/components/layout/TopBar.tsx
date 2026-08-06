@@ -66,6 +66,7 @@ export const TopBar: React.FC = () => {
   const isDownloadingAI = useScanStore((state) => state.isDownloadingAI)
   const aiDownloadProgress = useScanStore((state) => state.aiDownloadProgress)
   const aiIndexingProgress = useScanStore((state) => state.aiIndexingProgress)
+  const folderCounts = useScanStore((state) => state.folderCounts)
   const { settings, saveSettings } = useSettingsStore()
 
   const [showRescanDialog, setShowRescanDialog] = React.useState(false)
@@ -688,6 +689,7 @@ export const TopBar: React.FC = () => {
             <div className="max-h-56 scrollbar-thin space-y-2 overflow-y-auto pr-1">
               {settings.folders.roots.map((root) => {
                 const isChecked = selectedPaths.includes(root.path)
+                const folderData = folderCounts.get(root.path)
                 return (
                   <div
                     key={root.path}
@@ -705,13 +707,20 @@ export const TopBar: React.FC = () => {
                       onClick={(e) => e.stopPropagation()}
                     />
                     <div className="grid min-w-0 flex-1 gap-0.5">
-                      <Label
-                        htmlFor={`rescan-folder-${root.path}`}
-                        className="cursor-pointer truncate text-xs font-semibold text-foreground"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {root.label}
-                      </Label>
+                      <div className="flex items-center justify-between gap-2">
+                        <Label
+                          htmlFor={`rescan-folder-${root.path}`}
+                          className="cursor-pointer truncate text-xs font-semibold text-foreground"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {root.label}
+                        </Label>
+                        {folderData?.rescanReason && (
+                          <span className="shrink-0 text-2xs font-medium text-amber-500">
+                            {folderData.rescanReason}
+                          </span>
+                        )}
+                      </div>
                       <span className="truncate text-2xs leading-normal text-muted-foreground">
                         {root.path}
                       </span>

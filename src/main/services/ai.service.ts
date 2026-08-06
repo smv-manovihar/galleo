@@ -38,7 +38,9 @@ export function cosineSimilarity(a: Float32Array, b: Float32Array): number {
     normB += valB * valB
   }
   if (normA === 0 || normB === 0) return 0
-  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB))
+  const rawCos = dotProduct / (Math.sqrt(normA) * Math.sqrt(normB))
+  // Normalized rescaling from [-1.0, 1.0] to [0.0, 1.0] range
+  return (rawCos + 1) / 2
 }
 
 export async function deleteDirNonBlocking(targetPath: string): Promise<void> {
@@ -116,6 +118,10 @@ export class AIService {
       if (!fs.existsSync(modelFolderPath)) continue
 
       const onnxCandidates = [
+        path.join(modelFolderPath, "onnx", "text_model.onnx"),
+        path.join(modelFolderPath, "onnx", "vision_model.onnx"),
+        path.join(modelFolderPath, "onnx", "text_model_quantized.onnx"),
+        path.join(modelFolderPath, "onnx", "vision_model_quantized.onnx"),
         path.join(modelFolderPath, "onnx", "model.onnx"),
         path.join(modelFolderPath, "onnx", "model_quantized.onnx"),
         path.join(modelFolderPath, "model.onnx"),
@@ -168,7 +174,7 @@ export class AIService {
         if (msg.type === "ready") {
           this.workerReady = true
           this.worker?.off("message", onMessage)
-          console.log("[AIService] Worker ready — model loaded successfully")
+          console.log("[AIService] Worker ready: model loaded successfully")
           resolve()
         } else if (msg.type === "error" && msg.id === -1) {
           console.error("[AIService] Worker failed to load model:", msg.message)

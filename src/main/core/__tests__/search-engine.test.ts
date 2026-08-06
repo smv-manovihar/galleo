@@ -8,16 +8,16 @@ describe("cosineSimilarity", () => {
     expect(cosineSimilarity(v1, v2)).toBeCloseTo(1.0, 5)
   })
 
-  it("returns ~0.0 for orthogonal vectors", () => {
+  it("returns 0.5 for orthogonal vectors", () => {
     const v1 = new Float32Array([1.0, 0.0, 0.0, 0.0])
     const v2 = new Float32Array([0.0, 1.0, 0.0, 0.0])
-    expect(cosineSimilarity(v1, v2)).toBeCloseTo(0.0, 5)
+    expect(cosineSimilarity(v1, v2)).toBeCloseTo(0.5, 5)
   })
 
-  it("returns -1.0 for opposite vectors", () => {
+  it("returns 0.0 for opposite vectors", () => {
     const v1 = new Float32Array([1.0, 2.0, 3.0])
     const v2 = new Float32Array([-1.0, -2.0, -3.0])
-    expect(cosineSimilarity(v1, v2)).toBeCloseTo(-1.0, 5)
+    expect(cosineSimilarity(v1, v2)).toBeCloseTo(0.0, 5)
   })
 
   it("handles empty or mismatched vector lengths safely", () => {

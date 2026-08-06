@@ -29,7 +29,17 @@ export const FolderNotScanned: React.FC<FolderNotScannedProps> = ({
   }, [activeRootPath, items])
 
   const folderData = folderCounts.get(activeRootPath)
-  const needsRescan = !!folderData?.needsRescan
+  const liveDiskCount = folderData?.count
+
+  const dbCount = items.length
+
+  const isPartial =
+    hasScannedItems &&
+    liveDiskCount !== undefined &&
+    liveDiskCount > 0 &&
+    dbCount < liveDiskCount
+
+  const needsRescan = !isPartial && !!folderData?.needsRescan
 
   const folderName =
     activeRootPath === "all" || !activeRootPath
@@ -37,30 +47,50 @@ export const FolderNotScanned: React.FC<FolderNotScannedProps> = ({
       : `"${activeRootPath.split(/[\\/]/).pop() || activeRootPath}"`
 
   const bannerTitle = hasScannedItems
-    ? needsRescan
-      ? "Folder changes detected: rescan recommended"
-      : "Folder partially scanned"
+    ? isPartial
+      ? "Folder partially scanned"
+      : needsRescan
+        ? "Folder changes detected: rescan recommended"
+        : "Folder status"
     : "Folder not scanned"
 
+  const rescanReason = folderData?.rescanReason
+
   const defaultSubtitle = hasScannedItems
-    ? needsRescan
-      ? `rescan ${folderName} to index modified files`
-      : `scan ${folderName} to index remaining media files`
+    ? isPartial
+      ? `scan ${folderName} to index remaining ${liveDiskCount - dbCount} files (${dbCount} of ${liveDiskCount} indexed)`
+      : needsRescan
+        ? rescanReason
+          ? `rescan ${folderName} (${rescanReason})`
+          : `rescan ${folderName} to index modified files`
+        : `scan ${folderName} to index remaining media files`
     : `scan ${folderName} to index media files`
 
   const subtitleText = featureDescription
     ? `scan ${folderName} to ${featureDescription}`
     : defaultSubtitle
 
+  const isSkyTheme = needsRescan && !isPartial
+
   return (
     <div
       className={cn(
-        "flex items-center justify-between gap-3 border-b border-amber-500/20 bg-amber-500/10 dark:bg-amber-500/15 px-4 py-2 text-xs text-foreground shrink-0 animate-in fade-in duration-200 select-none",
+        "flex items-center justify-between gap-3 border-b px-4 py-2 text-xs text-foreground shrink-0 animate-in fade-in duration-200 select-none",
+        isSkyTheme
+          ? "border-sky-500/20 bg-sky-500/10 dark:bg-sky-500/15"
+          : "border-amber-500/20 bg-amber-500/10 dark:bg-amber-500/15",
         className
       )}
     >
       <div className="flex items-center gap-2.5 min-w-0">
-        <AlertCircle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+        <AlertCircle
+          className={cn(
+            "h-4 w-4 shrink-0",
+            isSkyTheme
+              ? "text-sky-600 dark:text-sky-400"
+              : "text-amber-600 dark:text-amber-400"
+          )}
+        />
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="font-medium text-foreground shrink-0">
             {bannerTitle}

@@ -112,6 +112,15 @@ export function initDatabase(): Database.Database {
       FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS pending_file_changes (
+      id TEXT PRIMARY KEY,
+      root_path TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      change_type TEXT NOT NULL,
+      timestamp INTEGER NOT NULL,
+      UNIQUE(root_path, file_path)
+    );
+
     -- Image embeddings (1 vector per media item)
     CREATE TABLE IF NOT EXISTS media_embeddings (
       media_id TEXT PRIMARY KEY,
@@ -143,15 +152,19 @@ export function initDatabase(): Database.Database {
   `)
 
   // Versioned migrations via user_version PRAGMA
-  let currentVersion = (db.pragma("user_version", { simple: true }) as number) || 0
+  const currentVersion = (db.pragma("user_version", { simple: true }) as number) || 0
 
   if (currentVersion < 1) {
     try {
       db.exec(`ALTER TABLE media_items ADD COLUMN date_modified TEXT;`)
-    } catch {}
+    } catch {
+      // Column may already exist
+    }
     try {
       db.exec(`ALTER TABLE media_items ADD COLUMN similarity_index INTEGER;`)
-    } catch {}
+    } catch {
+      // Column may already exist
+    }
     db.pragma("user_version = 1")
   }
 

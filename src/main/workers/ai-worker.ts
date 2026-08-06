@@ -1,5 +1,5 @@
 /**
- * AI Worker Thread — runs ONNX model inference in isolation so the main
+ * AI Worker Thread — runs ONNX SigLIP model inference in isolation so the main
  * Electron process event loop is never blocked.
  *
  * Protocol (postMessage):
@@ -16,13 +16,10 @@ import { fileURLToPath } from "url"
 
 // ---------------------------------------------------------------------------
 // ESM __dirname polyfill — MUST happen before any import of @huggingface/transformers
-// so the ONNX runtime can resolve its native binary paths.
-// We use dynamic import() below precisely to guarantee this ordering.
+// so the ONNX runtime can resolve native binary paths.
 // ---------------------------------------------------------------------------
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
-// Expose on globalThis so any internal require() inside onnxruntime-node
-// or transformers that checks globalThis.__dirname also gets the right path.
 ;(globalThis as Record<string, unknown>)["__dirname"] = __dirname
 ;(globalThis as Record<string, unknown>)["__filename"] = __filename
 
@@ -56,33 +53,34 @@ function getModelCacheDir(): string {
 const MODEL_NAME = "Xenova/siglip-base-patch16-224"
 
 // ---------------------------------------------------------------------------
-// Lazily-imported transformers types (resolved after globalThis is set)
+// Lazily-imported transformers types
 // ---------------------------------------------------------------------------
 
 type TransformersModule = typeof import("@huggingface/transformers")
 type PreTrainedTokenizer = Awaited<ReturnType<TransformersModule["AutoTokenizer"]["from_pretrained"]>>
 type Processor = Awaited<ReturnType<TransformersModule["AutoProcessor"]["from_pretrained"]>>
-type PreTrainedModel = Awaited<ReturnType<TransformersModule["AutoModel"]["from_pretrained"]>>
+type TextModel = Awaited<ReturnType<TransformersModule["SiglipTextModel"]["from_pretrained"]>>
+type VisionModel = Awaited<ReturnType<TransformersModule["SiglipVisionModel"]["from_pretrained"]>>
 
 // ---------------------------------------------------------------------------
-// Model state (module-level singletons inside this thread)
+// Model state (module-level singletons inside this worker thread)
 // ---------------------------------------------------------------------------
 
 let tokenizer: PreTrainedTokenizer | null = null
 let processor: Processor | null = null
-let model: PreTrainedModel | null = null
+let textModel: TextModel | null = null
+let visionModel: VisionModel | null = null
 let loadPromise: Promise<void> | null = null
 
 async function ensureLoaded(): Promise<void> {
-  if (tokenizer && processor && model) return
+  if (tokenizer && processor && textModel && visionModel) return
 
-  // Dynamic import so @huggingface/transformers loads AFTER the __dirname
-  // global is set above, ensuring onnxruntime-node can find its native binary.
   const {
     env,
     AutoTokenizer,
     AutoProcessor,
-    AutoModel,
+    SiglipTextModel,
+    SiglipVisionModel,
   } = await import("@huggingface/transformers")
 
   env.cacheDir = getModelCacheDir()
@@ -94,7 +92,8 @@ async function ensureLoaded(): Promise<void> {
 
   tokenizer = await AutoTokenizer.from_pretrained(MODEL_NAME)
   processor = await AutoProcessor.from_pretrained(MODEL_NAME)
-  model = await AutoModel.from_pretrained(MODEL_NAME)
+  textModel = await SiglipTextModel.from_pretrained(MODEL_NAME)
+  visionModel = await SiglipVisionModel.from_pretrained(MODEL_NAME)
 }
 
 function normalizeVector(vec: Float32Array): Float32Array {
@@ -102,8 +101,9 @@ function normalizeVector(vec: Float32Array): Float32Array {
   for (let i = 0; i < vec.length; i++) sum += vec[i] * vec[i]
   const norm = Math.sqrt(sum)
   if (norm === 0) return vec
-  for (let i = 0; i < vec.length; i++) vec[i] /= norm
-  return vec
+  const out = new Float32Array(vec.length)
+  for (let i = 0; i < vec.length; i++) out[i] = vec[i] / norm
+  return out
 }
 
 // ---------------------------------------------------------------------------
@@ -137,7 +137,6 @@ port.on("message", (msg: InboundMessage) => {
 })
 
 async function handleMessage(msg: InboundMessage): Promise<void> {
-  // Wait for model to be ready before processing requests
   try {
     await loadPromise
   } catch {
@@ -158,33 +157,34 @@ async function handleMessage(msg: InboundMessage): Promise<void> {
 
     if (msg.source.startsWith("text:")) {
       const text = msg.source.slice("text:".length)
-      if (!tokenizer || !model) throw new Error("Model not loaded")
-      const textInputs = tokenizer(text, { padding: "max_length", truncation: true })
-      const modelObj = model as unknown as {
-        get_text_features: (
-          inputs: unknown
-        ) => Promise<{ text_embeds?: { data: Float32Array }; data?: Float32Array }>
-      }
-      const output = await modelObj.get_text_features(textInputs)
-      const rawData = output.text_embeds?.data ?? output.data
-      if (!rawData) throw new Error("Failed to compute text embeddings")
-      embedding = normalizeVector(new Float32Array(rawData))
+      if (!tokenizer || !textModel) throw new Error("Text model not loaded")
+      const textInputs = tokenizer([text], { padding: "max_length", truncation: true })
+      const textOutputs = await textModel(textInputs)
+      const textEmbeds = textOutputs.pooler_output ?? textOutputs.last_hidden_state
+      if (!textEmbeds?.data) throw new Error("Failed to compute text embeddings")
+      embedding = normalizeVector(new Float32Array(textEmbeds.data))
     } else {
-      if (!processor || !model) throw new Error("Model not loaded")
-      const image = await RawImage.read(msg.source)
-      const imageInputs = await processor(image)
-      const modelObj = model as unknown as {
-        get_image_features: (
-          inputs: unknown
-        ) => Promise<{ image_embeds?: { data: Float32Array }; data?: Float32Array }>
+      if (!processor || !visionModel) throw new Error("Vision model not loaded")
+
+      if (!fs.existsSync(msg.source)) {
+        throw new Error(`File does not exist: ${msg.source}`)
       }
-      const output = await modelObj.get_image_features(imageInputs)
-      const rawData = output.image_embeds?.data ?? output.data
-      if (!rawData) throw new Error("Failed to compute image embeddings")
-      embedding = normalizeVector(new Float32Array(rawData))
+      const stat = fs.statSync(msg.source)
+      if (stat.size < 100) {
+        throw new Error(`Thumbnail file is truncated or corrupted (${stat.size} bytes): ${msg.source}`)
+      }
+
+      const fileBuf = fs.readFileSync(msg.source)
+      const image = await RawImage.read(new Blob([fileBuf]))
+
+      const imageInputs = await processor(image)
+      const imageOutputs = await visionModel(imageInputs)
+      const imageEmbeds = imageOutputs.pooler_output ?? imageOutputs.last_hidden_state
+      if (!imageEmbeds?.data) throw new Error("Failed to compute image embeddings")
+      embedding = normalizeVector(new Float32Array(imageEmbeds.data))
     }
 
-    // Transfer the buffer ownership — zero-copy transfer to main thread
+    // Zero-copy transfer of ArrayBuffer ownership to main thread
     port.postMessage({ type: "result", id: msg.id, embedding }, [
       embedding.buffer as ArrayBuffer,
     ])

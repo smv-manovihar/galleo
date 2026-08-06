@@ -44,6 +44,7 @@ interface MediaListProps {
   onInfoOpen?: (item: MediaItem) => void
   onReviewAction: (id: string, state: "keep" | "delete" | "skipped") => void
   onFindSimilar?: (mediaId: string) => void
+  onPlayOpen?: (item: MediaItem) => void
   isGrouped?: boolean
 }
 
@@ -60,6 +61,7 @@ interface MediaListRowProps {
   onInfoOpen?: (item: MediaItem) => void
   onReviewAction: (id: string, state: "keep" | "delete" | "skipped") => void
   onFindSimilar?: (mediaId: string) => void
+  onPlayOpen?: (item: MediaItem) => void
 }
 
 const MediaListRow = React.memo<MediaListRowProps>(
@@ -76,6 +78,7 @@ const MediaListRow = React.memo<MediaListRowProps>(
     onInfoOpen,
     onReviewAction,
     onFindSimilar,
+    onPlayOpen,
   }) => {
     const isVideo = item.mediaType === "video"
     const score = item.quality?.compositeScore ?? null
@@ -112,8 +115,10 @@ const MediaListRow = React.memo<MediaListRowProps>(
             >
               <Checkbox
                 checked={isSelected}
-                onCheckedChange={(_checked) => {
-                  onSelectToggle(item.id, { shiftKey: false } as any)
+                onCheckedChange={() => {
+                  onSelectToggle(item.id, {
+                    shiftKey: false,
+                  } as unknown as React.MouseEvent)
                 }}
                 className="h-3.5 w-3.5 cursor-pointer border-border focus-visible:ring-1"
               />
@@ -123,7 +128,21 @@ const MediaListRow = React.memo<MediaListRowProps>(
             <div className="flex h-full items-center truncate border-r border-border/30 pr-4 pl-3 font-medium">
               <div className="flex min-w-0 items-center gap-2.5">
                 {isVideo ? (
-                  <Play className="h-3.5 w-3.5 shrink-0 text-primary" />
+                  <button
+                    type="button"
+                    className="group/play flex items-center justify-center cursor-pointer rounded p-0.5 hover:bg-primary/20 transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (onPlayOpen) {
+                        onPlayOpen(item)
+                      } else {
+                        onPreviewOpen(item)
+                      }
+                    }}
+                    title="Play Video"
+                  >
+                    <Play className="h-3.5 w-3.5 shrink-0 text-primary transition-transform group-hover/play:scale-110" />
+                  </button>
                 ) : (
                   <FileImage className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                 )}
@@ -305,6 +324,7 @@ export const MediaList: React.FC<MediaListProps> = ({
   onInfoOpen,
   onReviewAction,
   onFindSimilar,
+  onPlayOpen,
   isGrouped = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -656,6 +676,7 @@ estimateSize: (index) => {
                   onInfoOpen={onInfoOpen}
                   onReviewAction={onReviewAction}
                   onFindSimilar={onFindSimilar}
+                  onPlayOpen={onPlayOpen}
                 />
               )
             }

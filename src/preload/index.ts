@@ -92,7 +92,8 @@ const api: GalleoAPI = {
   resetApp: (options) => ipcRenderer.invoke(IPC_CHANNELS.APP_RESET, options),
   clearFolderIndex: (folderPath) =>
     ipcRenderer.invoke(IPC_CHANNELS.MEDIA_CLEAR_INDEX, folderPath),
-  checkForUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.APP_CHECK_UPDATE),
+  checkForUpdates: (force?: boolean) =>
+    ipcRenderer.invoke(IPC_CHANNELS.APP_CHECK_UPDATE, force),
   openExternal: (url) => ipcRenderer.invoke(IPC_CHANNELS.URL_OPEN, url),
 
   search: {

@@ -449,7 +449,7 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
                 >
                   <ZoomOut className="h-3.5 w-3.5" />
                 </Button>
-                <span className="flex min-w-[44px] items-center justify-center px-2 font-mono text-2xs text-white">
+                <span className="flex min-w-11 items-center justify-center px-2 font-mono text-2xs text-white">
                   {Math.round(scale * 100)}%
                 </span>
                 <Button

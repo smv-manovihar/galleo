@@ -4,6 +4,9 @@ import { useSettingsStore } from "./settings-store"
 import { toast } from "sonner"
 import { ENABLE_AI_FEATURES } from "../../shared/constants"
 
+import type { MediaItem } from "../../shared/types/media"
+import type { FolderCountResult } from "../../shared/types/ipc"
+
 interface ScanProgress {
   scannedCount: number
   totalCount: number
@@ -37,8 +40,8 @@ interface ScanState {
   isDownloadingAI: boolean
   aiDownloadProgress: number
   aiIndexingProgress: AIIndexingProgress
-  /** Live disk media file count and rescan status per root path, fetched via fast readdir & watcher. */
-  folderCounts: Map<string, { count: number; needsRescan?: boolean }>
+  /** Live disk media file count, rescan status, and change log per root path. */
+  folderCounts: Map<string, FolderCountResult>
 
   checkAIStatus: () => Promise<void>
   startScan: (rootPaths: string[], forceRescan?: boolean) => Promise<void>
@@ -179,7 +182,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
       },
     })
 
-    let pendingItemsBuffer: any[] = []
+    let pendingItemsBuffer: MediaItem[] = []
     let flushTimeout: ReturnType<typeof setTimeout> | null = null
 
     const flushBuffer = () => {
@@ -317,6 +320,12 @@ export const useScanStore = create<ScanState>((set, get) => ({
 if (ENABLE_AI_FEATURES && typeof window !== "undefined" && window.api?.ai?.onIndexingProgress) {
   window.api.ai.onIndexingProgress((payload) => {
     useScanStore.setState({ aiIndexingProgress: payload })
+    if (payload.error) {
+      toast.error("AI Indexing Error", {
+        id: "ai-indexing-error",
+        description: payload.error,
+      })
+    }
     if (!payload.isIndexing) {
       useScanStore.getState().checkAIStatus()
     }
@@ -327,7 +336,7 @@ if (typeof window !== "undefined" && window.api?.onFolderCountsUpdated) {
   window.api.onFolderCountsUpdated((counts) => {
     const map = new Map(useScanStore.getState().folderCounts)
     for (const item of counts) {
-      map.set(item.path, { count: item.count, needsRescan: item.needsRescan })
+      map.set(item.path, item)
     }
     useScanStore.setState({ folderCounts: map })
   })

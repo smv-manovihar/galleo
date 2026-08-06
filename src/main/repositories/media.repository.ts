@@ -14,6 +14,7 @@ export class MediaRepository {
   /**
    * Helper to map a database row to a MediaItem model object
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private rowToMediaItem(row: any): MediaItem {
     let quality: QualityMetrics | undefined = undefined
 
@@ -320,5 +321,67 @@ export class MediaRepository {
       WHERE LOWER(path) LIKE ? ESCAPE '\\'
     `)
     stmt.run(`${searchPath}%`)
+  }
+
+  /**
+   * Pending File Changes database operations for persistent rescan tracking across app restarts.
+   */
+  public getPendingChanges(
+    rootPath: string
+  ): { filePath: string; changeType: "added" | "deleted" | "modified" }[] {
+    const db = this.getDb()
+    const normRoot = rootPath.replace(/\\/g, "/").toLowerCase()
+    const stmt = db.prepare(`
+      SELECT file_path, change_type FROM pending_file_changes
+      WHERE LOWER(root_path) = ?
+    `)
+    const rows = stmt.all(normRoot) as {
+      file_path: string
+      change_type: "added" | "deleted" | "modified"
+    }[]
+    return rows.map((r) => ({
+      filePath: r.file_path,
+      changeType: r.change_type,
+    }))
+  }
+
+  public syncPendingChanges(
+    rootPath: string,
+    changes: { filePath: string; changeType: "added" | "deleted" | "modified" }[]
+  ): void {
+    const db = this.getDb()
+    const normRoot = rootPath.replace(/\\/g, "/").toLowerCase()
+
+    const clearStmt = db.prepare(`
+      DELETE FROM pending_file_changes
+      WHERE LOWER(root_path) = ?
+    `)
+
+    const insertStmt = db.prepare(`
+      INSERT INTO pending_file_changes (id, root_path, file_path, change_type, timestamp)
+      VALUES (?, ?, ?, ?, ?)
+    `)
+
+    const transaction = db.transaction(() => {
+      clearStmt.run(normRoot)
+      const now = Date.now()
+      for (const change of changes) {
+        const normFile = change.filePath.replace(/\\/g, "/").toLowerCase()
+        const id = `${normRoot}::${normFile}`
+        insertStmt.run(id, normRoot, normFile, change.changeType, now)
+      }
+    })
+
+    transaction()
+  }
+
+  public clearPendingChanges(rootPath: string): void {
+    const db = this.getDb()
+    const normRoot = rootPath.replace(/\\/g, "/").toLowerCase()
+    const stmt = db.prepare(`
+      DELETE FROM pending_file_changes
+      WHERE LOWER(root_path) = ?
+    `)
+    stmt.run(normRoot)
   }
 }

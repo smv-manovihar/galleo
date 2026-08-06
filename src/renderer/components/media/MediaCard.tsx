@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react"
+import React, { useMemo, useState } from "react"
 import type { MediaItem } from "../../../shared/types/media"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import {
@@ -69,6 +69,7 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
   const hasQuality = item.quality !== undefined
 
   const [imgError, setImgError] = useState(false)
+  const [prevThumbUrl, setPrevThumbUrl] = useState("")
 
   const thumbUrl = useMemo(() => {
     const rawPath = item.thumbnailPath || item.path
@@ -76,9 +77,10 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
     return `media:///${rawPath.replace(/\\/g, "/")}`
   }, [item.thumbnailPath, item.path])
 
-  useEffect(() => {
+  if (prevThumbUrl !== thumbUrl) {
+    setPrevThumbUrl(thumbUrl)
     setImgError(false)
-  }, [thumbUrl])
+  }
 
   const qualityFlags = useMemo(() => {
     if (!item.quality) return []
@@ -224,18 +226,20 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
 
             {/* Video Play Indicator */}
             {isVideo && (
-              <div
-                className="absolute inset-0 z-10 flex items-center justify-center transition-opacity duration-200 group-hover:opacity-0"
-                onClick={(e) => {
-                  if (onPlayOpen) {
+              <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+                <div
+                  className="pointer-events-auto flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border border-white/25 bg-black/60 text-white shadow-md backdrop-blur-sm transition-all duration-200 group-hover:scale-110 group-hover:border-primary/50 group-hover:bg-primary group-hover:text-primary-foreground"
+                  onClick={(e) => {
                     e.stopPropagation()
-                    onPlayOpen(item)
-                  }
-                }}
-                style={{ cursor: onPlayOpen ? "pointer" : "default" }}
-              >
-                <div className="flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-black/50 text-white shadow-md backdrop-blur-sm">
-                  <Play className="ml-0.5 h-3.5 w-3.5 fill-current" />
+                    if (onPlayOpen) {
+                      onPlayOpen(item)
+                    } else {
+                      onPreviewOpen(item)
+                    }
+                  }}
+                  title="Play Video"
+                >
+                  <Play className="ml-0.5 h-4 w-4 fill-current" />
                 </div>
               </div>
             )}
@@ -255,11 +259,18 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
             {/* Hover action bar — file info + quick action buttons */}
             <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col gap-1.5 px-2 pt-6 pb-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
               {/* Filename + meta */}
-              <div className="pointer-events-none text-white">
-                <span className="block truncate text-sm leading-tight font-semibold">
+              <div
+                className="pointer-events-auto cursor-text select-text text-white"
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <span
+                  className="block truncate text-sm leading-tight font-semibold"
+                  title={item.name}
+                >
                   {item.name}
                 </span>
-                <div className="mt-0.5 flex items-center justify-between text-[0.5625rem] opacity-75">
+                <div className="mt-0.5 flex items-center justify-between text-2xs opacity-75 select-none pointer-events-none">
                   <span>{dateStr}</span>
                   <span>{formatBytes(item.size)}</span>
                 </div>

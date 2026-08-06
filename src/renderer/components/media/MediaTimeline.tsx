@@ -14,6 +14,7 @@ interface MediaTimelineProps {
   onPreviewOpen: (item: MediaItem) => void
   onInfoOpen: (item: MediaItem) => void
   onReviewAction: (id: string, state: "keep" | "delete" | "skipped") => void
+  onPlayOpen?: (item: MediaItem) => void
 }
 
 const GAP = 16
@@ -26,6 +27,7 @@ export const MediaTimeline: React.FC<MediaTimelineProps> = ({
   onPreviewOpen,
   onInfoOpen,
   onReviewAction,
+  onPlayOpen,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
@@ -234,6 +236,7 @@ export const MediaTimeline: React.FC<MediaTimelineProps> = ({
                     onPreviewOpen={onPreviewOpen}
                     onInfoOpen={onInfoOpen}
                     onReviewAction={onReviewAction}
+                    onPlayOpen={onPlayOpen}
                   />
                 ))}
               </div>

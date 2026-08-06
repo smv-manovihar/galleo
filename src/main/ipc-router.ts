@@ -228,8 +228,8 @@ export function registerIpcHandlers(window: BrowserWindow): void {
   )
 
   // App Update Checker Handlers
-  ipcMain.handle(IPC_CHANNELS.APP_CHECK_UPDATE, async () => {
-    return await updateService.checkForUpdates()
+  ipcMain.handle(IPC_CHANNELS.APP_CHECK_UPDATE, async (_, force?: boolean) => {
+    return await updateService.checkForUpdates(force)
   })
 
   ipcMain.handle(IPC_CHANNELS.URL_OPEN, (_, url: string) => {

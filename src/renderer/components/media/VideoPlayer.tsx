@@ -231,17 +231,28 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
     useEffect(() => {
       if (!autoPlay || !videoRef.current) return
       const video = videoRef.current
-      const play = () => {
+      let isMounted = true
+
+      const attemptPlay = () => {
         video
           .play()
-          .then(() => setIsPlaying(true))
+          .then(() => {
+            if (isMounted) setIsPlaying(true)
+          })
           .catch(() => {})
       }
-      if (video.readyState >= 3) {
-        play()
+
+      if (video.readyState >= 2) {
+        attemptPlay()
       } else {
-        video.addEventListener("canplay", play, { once: true })
-        return () => video.removeEventListener("canplay", play)
+        const handleCanPlay = () => attemptPlay()
+        video.addEventListener("canplay", handleCanPlay, { once: true })
+        video.addEventListener("loadeddata", handleCanPlay, { once: true })
+        return () => {
+          isMounted = false
+          video.removeEventListener("canplay", handleCanPlay)
+          video.removeEventListener("loadeddata", handleCanPlay)
+        }
       }
     }, [src, autoPlay])
 

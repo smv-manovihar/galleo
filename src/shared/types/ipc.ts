@@ -79,12 +79,23 @@ export interface AIIndexingProgressPayload {
   processedCount: number
   totalCount: number
   currentFile?: string
+  error?: string
+  failedCount?: number
+}
+
+export interface FileChangeEvent {
+  timestamp: number
+  type: "added" | "deleted" | "modified"
+  path: string
+  filename: string
 }
 
 export interface FolderCountResult {
   path: string
   count: number
   needsRescan?: boolean
+  rescanReason?: string
+  changeLog?: FileChangeEvent[]
 }
 
 export interface GalleoAPI {
@@ -96,7 +107,7 @@ export interface GalleoAPI {
     forceRescan?: boolean
   ) => Promise<Result<void>>
   cancelScan: () => Promise<void>
-  /** Fast readdir-only count of media files per root — no metadata, no thumbnails. */
+  /** Fast readdir-only count of media files per root - no metadata, no thumbnails. */
   countFolders: (rootPaths: string[]) => Promise<FolderCountResult[]>
   onScanProgress: (
     callback: (payload: ScanProgressPayload) => void
@@ -141,7 +152,7 @@ export interface GalleoAPI {
     sessions?: boolean
   }) => Promise<Result<void>>
   clearFolderIndex: (folderPath: string) => Promise<Result<void>>
-  checkForUpdates: () => Promise<Result<UpdateCheckResult>>
+  checkForUpdates: (force?: boolean) => Promise<Result<UpdateCheckResult>>
   openExternal: (url: string) => Promise<Result<void>>
 
   // AI Visual Search APIs

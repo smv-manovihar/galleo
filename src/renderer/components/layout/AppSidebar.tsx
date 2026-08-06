@@ -338,8 +338,8 @@ export const AppSidebar: React.FC = () => {
                             <TooltipContent side="right">
                               {root.path}
                               {!isScanned && " (Not scanned)"}
-                              {isPartial && " (Partially scanned: resume to index remaining files)"}
-                              {mightNeedRescan && " (Might need rescan: files changed on disk)"}
+                              {isPartial && ` (Partially scanned: ${dbCount} of ${liveDiskCount} files indexed)`}
+                              {mightNeedRescan && ` (Might need rescan: ${folderData?.rescanReason ?? "files changed on disk"})`}
                             </TooltipContent>
                           </Tooltip>
                         </ContextMenuTrigger>

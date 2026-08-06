@@ -13,7 +13,7 @@ import { SimilarityService } from "./similarity.service"
 import { analyzeImage } from "../infrastructure/image-processor"
 import { type Result, ok, fail } from "../../shared/types/results"
 import type { MediaItem } from "../../shared/types/media"
-import { IPC_CHANNELS } from "../../shared/types/ipc"
+import { IPC_CHANNELS, type FolderCountResult, type FileChangeEvent } from "../../shared/types/ipc"
 import { ENABLE_AI_FEATURES } from "../../shared/constants"
 
 import { aiIndexerService } from "./ai-indexer.service"
@@ -33,6 +33,15 @@ export class ScannerService {
   private activeWatchers = new Map<string, nodeFs.FSWatcher>()
   private watchDebounceTimers = new Map<string, NodeJS.Timeout>()
   private changedFolders = new Set<string>()
+  private folderChangeLogs = new Map<string, FileChangeEvent[]>()
+  private folderFileBaseline = new Map<
+    string,
+    Map<string, { size: number; mtime: number }>
+  >()
+  private folderNetChanges = new Map<
+    string,
+    Map<string, "added" | "deleted" | "modified">
+  >()
 
   public cancelScan(): void {
     if (this.isScanning) {
@@ -42,14 +51,74 @@ export class ScannerService {
   }
 
   /**
+   * Initializes or refreshes the baseline file map for a root folder from the SQLite database.
+   */
+  private normalizePath(p: string): string {
+    return p.replace(/\\/g, "/").toLowerCase()
+  }
+
+  /**
+   * Initializes or refreshes the baseline file map for a root folder from the SQLite database.
+   */
+  private initFolderBaseline(rootPath: string): Map<string, { size: number; mtime: number }> {
+    const normRoot = this.normalizePath(rootPath)
+    const dbItems = this.mediaRepository.getByFolderPath(rootPath)
+    const map = new Map<string, { size: number; mtime: number }>()
+    for (const item of dbItems) {
+      if (item.path) {
+        const normPath = this.normalizePath(item.path)
+        const mtimeNum = item.dateModified
+          ? typeof item.dateModified === "number"
+            ? item.dateModified
+            : new Date(item.dateModified).getTime()
+          : 0
+        map.set(normPath, {
+          size: item.size,
+          mtime: mtimeNum,
+        })
+      }
+    }
+    this.folderFileBaseline.set(normRoot, map)
+
+    // Restore any persisted pending changes from SQLite DB across app restarts
+    const persisted = this.mediaRepository.getPendingChanges(rootPath)
+    if (persisted.length > 0) {
+      let netChangesMap = this.folderNetChanges.get(normRoot)
+      if (!netChangesMap) {
+        netChangesMap = new Map()
+        this.folderNetChanges.set(normRoot, netChangesMap)
+      }
+      for (const item of persisted) {
+        netChangesMap.set(this.normalizePath(item.filePath), item.changeType)
+      }
+      this.changedFolders.add(normRoot)
+
+      const logs: FileChangeEvent[] = []
+      for (const [p, type] of netChangesMap.entries()) {
+        logs.push({
+          timestamp: Date.now(),
+          type,
+          path: p,
+          filename: path.basename(p),
+        })
+      }
+      this.folderChangeLogs.set(normRoot, logs)
+    }
+
+    return map
+  }
+
+  /**
    * Listens for filesystem changes across configured root folders using native OS watchers.
    * Performs an immediate initial background count and automatically re-counts media files when
    * changes are detected (debounced to avoid performance impact).
    */
   public watchFolders(window: BrowserWindow, rootPaths: string[]): void {
+    const normRootPaths = rootPaths.map((p) => this.normalizePath(p))
+
     // Stop watchers for paths no longer in settings
     for (const [watchedPath, watcher] of this.activeWatchers.entries()) {
-      if (!rootPaths.includes(watchedPath)) {
+      if (!normRootPaths.includes(watchedPath)) {
         try {
           watcher.close()
         } catch {
@@ -57,6 +126,9 @@ export class ScannerService {
         }
         this.activeWatchers.delete(watchedPath)
         this.changedFolders.delete(watchedPath)
+        this.folderChangeLogs.delete(watchedPath)
+        this.folderFileBaseline.delete(watchedPath)
+        this.folderNetChanges.delete(watchedPath)
         const timer = this.watchDebounceTimers.get(watchedPath)
         if (timer) clearTimeout(timer)
         this.watchDebounceTimers.delete(watchedPath)
@@ -65,17 +137,113 @@ export class ScannerService {
 
     // Set up native OS watcher for each root folder
     for (const rootPath of rootPaths) {
-      if (this.activeWatchers.has(rootPath)) continue
+      const normRoot = this.normalizePath(rootPath)
+      if (this.activeWatchers.has(normRoot)) continue
       try {
         if (!nodeFs.existsSync(rootPath)) continue
-        const watcher = nodeFs.watch(rootPath, { recursive: true }, () => {
-          this.changedFolders.add(rootPath)
-          const existingTimer = this.watchDebounceTimers.get(rootPath)
+        this.initFolderBaseline(rootPath)
+        if (!this.folderNetChanges.has(normRoot)) {
+          this.folderNetChanges.set(normRoot, new Map())
+        }
+
+        const watcher = nodeFs.watch(rootPath, { recursive: true }, (_eventType, filename) => {
+          if (!filename) return
+
+          const settings = this.settingsService.getSettings()
+          const supportedExts = new Set(
+            settings.scanning.supportedExtensions.map((e) =>
+              e.toLowerCase().replace(/^\./, "")
+            )
+          )
+          const ext = path.extname(filename).toLowerCase().replace(/^\./, "")
+
+          // Ignore files that are not supported media extensions
+          if (!ext || !supportedExts.has(ext)) {
+            return
+          }
+
+          const fullPath = path.join(rootPath, filename)
+          const pathKey = this.normalizePath(fullPath)
+
+          let baselineMap = this.folderFileBaseline.get(normRoot)
+          if (!baselineMap) {
+            baselineMap = this.initFolderBaseline(rootPath)
+          }
+
+          const baseline = baselineMap.get(pathKey)
+          const initialExisted = !!baseline
+
+          const exists = nodeFs.existsSync(fullPath)
+          let netChangesMap = this.folderNetChanges.get(normRoot)
+          if (!netChangesMap) {
+            netChangesMap = new Map()
+            this.folderNetChanges.set(normRoot, netChangesMap)
+          }
+
+          if (exists) {
+            try {
+              const stat = nodeFs.statSync(fullPath)
+              if (initialExisted && baseline) {
+                // If file size AND mtime match DB baseline (within 2s tolerance), file is in baseline state
+                const mtimeDiff = Math.abs(stat.mtimeMs - baseline.mtime)
+                if (stat.size === baseline.size && (baseline.mtime === 0 || mtimeDiff < 2000)) {
+                  netChangesMap.delete(pathKey)
+                } else {
+                  netChangesMap.set(pathKey, "modified")
+                }
+              } else {
+                // File didn't exist in baseline
+                netChangesMap.set(pathKey, "added")
+              }
+            } catch {
+              // Ignore stat read race
+            }
+          } else {
+            // File does not exist on disk
+            if (initialExisted) {
+              netChangesMap.set(pathKey, "deleted")
+            } else {
+              // Added then deleted - net effect 0
+              netChangesMap.delete(pathKey)
+            }
+          }
+
+          // Evaluate net changes
+          if (netChangesMap.size === 0) {
+            this.changedFolders.delete(normRoot)
+            this.folderChangeLogs.delete(normRoot)
+          } else {
+            this.changedFolders.add(normRoot)
+            const logs: FileChangeEvent[] = []
+            for (const [p, type] of netChangesMap.entries()) {
+              logs.push({
+                timestamp: Date.now(),
+                type,
+                path: p,
+                filename: path.basename(p),
+              })
+            }
+            this.folderChangeLogs.set(normRoot, logs)
+          }
+
+          const existingTimer = this.watchDebounceTimers.get(normRoot)
           if (existingTimer) clearTimeout(existingTimer)
 
           const newTimer = setTimeout(async () => {
             if (!this.isWindowAlive(window)) return
             try {
+              // Batched DB transaction write: sync all pending changes for this root folder at once
+              const currentNetMap = this.folderNetChanges.get(normRoot)
+              if (currentNetMap && currentNetMap.size > 0) {
+                const changes = Array.from(currentNetMap.entries()).map(([p, type]) => ({
+                  filePath: p,
+                  changeType: type,
+                }))
+                this.mediaRepository.syncPendingChanges(rootPath, changes)
+              } else {
+                this.mediaRepository.clearPendingChanges(rootPath)
+              }
+
               const counts = await this.countMediaFiles([rootPath])
               if (this.isWindowAlive(window)) {
                 window.webContents.send(
@@ -88,9 +256,9 @@ export class ScannerService {
             }
           }, 1500)
 
-          this.watchDebounceTimers.set(rootPath, newTimer)
+          this.watchDebounceTimers.set(normRoot, newTimer)
         })
-        this.activeWatchers.set(rootPath, watcher)
+        this.activeWatchers.set(normRoot, watcher)
       } catch {
         // Fallback gracefully if recursive watch is unsupported or denied
       }
@@ -385,12 +553,17 @@ export class ScannerService {
         })
 
         for (const root of rootPaths) {
-          this.changedFolders.delete(root)
+          const normRoot = this.normalizePath(root)
+          this.changedFolders.delete(normRoot)
+          this.folderChangeLogs.delete(normRoot)
+          this.folderFileBaseline.delete(normRoot)
+          this.folderNetChanges.delete(normRoot)
+          this.mediaRepository.clearPendingChanges(root)
         }
       }
 
       // 5. Post-scan duplicate + similarity analysis.
-      //    Always runs — even on cancellation — so users can see results for the
+      //    Always runs - even on cancellation - so users can see results for the
       //    items that were already indexed and written to the database.
       const allEnabledRoots = settings.folders.roots
         .filter((r) => r.enabled)
@@ -443,7 +616,7 @@ export class ScannerService {
    */
   public async countMediaFiles(
     rootPaths: string[]
-  ): Promise<{ path: string; count: number; needsRescan?: boolean }[]> {
+  ): Promise<FolderCountResult[]> {
     const settings = this.settingsService.getSettings()
     const extensions = new Set(
       settings.scanning.supportedExtensions.map((e) => e.toLowerCase())
@@ -452,18 +625,21 @@ export class ScannerService {
 
     const results = await Promise.all(
       rootPaths.map(async (root) => {
+        const normRoot = this.normalizePath(root)
         const count = await this.countFilesInDir(root, extensions, excludePatterns)
-        let needsRescan = this.changedFolders.has(root)
+        let needsRescan = this.changedFolders.has(normRoot)
+        const changeLog = this.folderChangeLogs.get(normRoot) ?? []
 
         const rootConfig = settings.folders.roots.find(
-          (r) => r.path.toLowerCase() === root.toLowerCase()
+          (r) => this.normalizePath(r.path) === normRoot
         )
 
+        // 2-second timestamp buffer to prevent OS sub-second rounding false positives
         if (!needsRescan && rootConfig?.scanned && rootConfig?.lastScannedMtime) {
           try {
             if (nodeFs.existsSync(root)) {
               const currentMtime = nodeFs.statSync(root).mtimeMs
-              if (currentMtime > rootConfig.lastScannedMtime) {
+              if (currentMtime > rootConfig.lastScannedMtime + 2000) {
                 needsRescan = true
               }
             }
@@ -472,10 +648,35 @@ export class ScannerService {
           }
         }
 
+        let rescanReason: string | undefined = undefined
+        if (needsRescan) {
+          if (changeLog.length > 0) {
+            const added = changeLog.filter((e) => e.type === "added")
+            const deleted = changeLog.filter((e) => e.type === "deleted")
+            const modified = changeLog.filter((e) => e.type === "modified")
+
+            const parts: string[] = []
+            if (added.length > 0) {
+              parts.push(`${added.length} file${added.length > 1 ? "s" : ""} added`)
+            }
+            if (deleted.length > 0) {
+              parts.push(`${deleted.length} file${deleted.length > 1 ? "s" : ""} deleted`)
+            }
+            if (modified.length > 0) {
+              parts.push(`${modified.length} file${modified.length > 1 ? "s" : ""} modified`)
+            }
+            rescanReason = parts.length > 0 ? parts.join(", ") : "Files changed on disk"
+          } else {
+            rescanReason = "Files changed on disk"
+          }
+        }
+
         return {
           path: root,
           count,
           needsRescan,
+          rescanReason,
+          changeLog: changeLog.length > 0 ? changeLog : undefined,
         }
       })
     )

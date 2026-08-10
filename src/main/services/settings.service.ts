@@ -21,7 +21,7 @@ export class SettingsService {
             code: "FILE_NOT_FOUND",
             path: root.path,
             message: `Root folder does not exist: ${root.path}`,
-          } as any)
+          })
         }
       }
 
@@ -40,7 +40,7 @@ export class SettingsService {
               code: "PERMISSION_DENIED",
               path: settings.folders.destination,
               message: `Unable to create destination directory: ${settings.folders.destination}`,
-            } as any)
+            })
           }
         }
       }
@@ -48,10 +48,11 @@ export class SettingsService {
       // 3. Save settings
       this.repository.saveSettings(settings)
       return ok(undefined)
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const err = e as { message?: string }
       return fail({
         code: "UNKNOWN",
-        message: e.message || "Saving settings failed",
+        message: err.message || "Saving settings failed",
       })
     }
   }

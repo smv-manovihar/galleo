@@ -19,9 +19,6 @@ export class SessionRepository {
     const insertSession = db.prepare(`
       INSERT INTO sessions (session_id, folder_path, total_files, current_index, saved_at)
       VALUES ($sessionId, $folderPath, $totalFiles, $currentIndex, $savedAt)
-      ON CONFLICT(session_id) DO UPDATE SET
-        current_index = excluded.current_index,
-        saved_at = excluded.saved_at
       ON CONFLICT(folder_path) DO UPDATE SET
         session_id = excluded.session_id,
         total_files = excluded.total_files,
@@ -29,18 +26,22 @@ export class SessionRepository {
         saved_at = excluded.saved_at
     `)
 
+    const clearDecisions = db.prepare(
+      "DELETE FROM session_decisions WHERE session_id = ?"
+    )
+
+    const clearUndo = db.prepare(
+      "DELETE FROM undo_actions WHERE session_id = ?"
+    )
+
     const insertDecision = db.prepare(`
       INSERT INTO session_decisions (session_id, media_id, decision)
       VALUES ($sessionId, $mediaId, $decision)
-      ON CONFLICT(session_id, media_id) DO UPDATE SET decision = excluded.decision
     `)
 
     const insertUndo = db.prepare(`
       INSERT INTO undo_actions (id, session_id, media_id, type, timestamp, previous_state, new_state)
       VALUES ($id, $sessionId, $mediaId, $type, $timestamp, $previousState, $newState)
-      ON CONFLICT(id) DO UPDATE SET
-        previous_state = excluded.previous_state,
-        new_state = excluded.new_state
     `)
 
     const transaction = db.transaction((cp: SessionCheckpoint) => {
@@ -53,7 +54,8 @@ export class SessionRepository {
         savedAt: cp.savedAt,
       })
 
-      // 2. Upsert current session decisions
+      // 2. Clear old decisions for this session & insert active ones
+      clearDecisions.run(cp.sessionId)
       for (const [mediaId, decision] of Object.entries(cp.decisions)) {
         insertDecision.run({
           sessionId: cp.sessionId,
@@ -62,7 +64,8 @@ export class SessionRepository {
         })
       }
 
-      // 3. Upsert current undo stack items
+      // 3. Clear old undo stack items for this session & insert active ones
+      clearUndo.run(cp.sessionId)
       for (const undo of cp.undoStack) {
         insertUndo.run({
           id: undo.id,
@@ -89,7 +92,15 @@ export class SessionRepository {
     const sessionStmt = db.prepare(
       "SELECT * FROM sessions WHERE LOWER(folder_path) = ?"
     )
-    const sessionRow = sessionStmt.get(folderLower) as any
+    const sessionRow = sessionStmt.get(folderLower) as
+      | {
+          session_id: string
+          folder_path: string
+          total_files: number
+          current_index: number
+          saved_at: string
+        }
+      | undefined
 
     if (!sessionRow) {
       return null
@@ -114,10 +125,17 @@ export class SessionRepository {
     const undoStmt = db.prepare(
       "SELECT * FROM undo_actions WHERE session_id = ? ORDER BY timestamp ASC"
     )
-    const undoRows = undoStmt.all(sessionId) as any[]
+    const undoRows = undoStmt.all(sessionId) as {
+      id: string
+      type: UndoableAction["type"]
+      media_id: string
+      timestamp: number
+      previous_state: string
+      new_state: string
+    }[]
     const undoStack: UndoableAction[] = undoRows.map((row) => ({
       id: row.id,
-      type: row.type as any,
+      type: row.type,
       mediaId: row.media_id,
       timestamp: row.timestamp,
       previousState: JSON.parse(row.previous_state),

@@ -7,7 +7,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
-import { VideoPlayer } from "./VideoPlayer"
+import { VideoPlayer, type VideoPlayerRef } from "./VideoPlayer"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -31,6 +31,86 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 
+interface ZoomControlsProps {
+  isFullscreen: boolean
+  showControls: boolean
+  toggleFullscreen: () => void
+  onZoomIn: () => void
+  onZoomOut: () => void
+  onZoomReset: () => void
+  registerScaleListener: (listener: (scale: number) => void) => () => void
+}
+
+const ZoomControls: React.FC<ZoomControlsProps> = React.memo(
+  ({
+    isFullscreen,
+    showControls,
+    toggleFullscreen,
+    onZoomIn,
+    onZoomOut,
+    onZoomReset,
+    registerScaleListener,
+  }) => {
+    const [scale, setScale] = useState(1)
+
+    useEffect(() => {
+      return registerScaleListener(setScale)
+    }, [registerScaleListener])
+
+    return (
+      <div
+        className={`absolute top-4 right-4 z-30 flex gap-1 rounded-lg border border-white/10 bg-black/60 p-1 backdrop-blur-xs transition-opacity duration-300 ${!isFullscreen || showControls ? "opacity-100" : "pointer-events-none opacity-0"}`}
+      >
+        {isFullscreen && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 cursor-pointer rounded-md text-white hover:bg-white/10"
+            onClick={toggleFullscreen}
+            title="Exit Fullscreen"
+          >
+            <Minimize className="h-3.5 w-3.5" />
+          </Button>
+        )}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 cursor-pointer rounded-md text-white hover:bg-white/10"
+          onClick={onZoomOut}
+          disabled={scale <= 1}
+          title="Zoom Out"
+        >
+          <ZoomOut className="h-3.5 w-3.5" />
+        </Button>
+        <span className="flex min-w-11 items-center justify-center px-2 font-mono text-2xs text-white">
+          {Math.round(scale * 100)}%
+        </span>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 cursor-pointer rounded-md text-white hover:bg-white/10"
+          onClick={onZoomIn}
+          disabled={scale >= 4}
+          title="Zoom In"
+        >
+          <ZoomIn className="h-3.5 w-3.5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 cursor-pointer rounded-md text-2xs font-semibold text-white hover:bg-white/10"
+          onClick={onZoomReset}
+          disabled={scale === 1}
+          title="Reset Zoom"
+        >
+          1:1
+        </Button>
+      </div>
+    )
+  }
+)
+ZoomControls.displayName = "ZoomControls"
+
 interface MediaPreviewProps {
   item: MediaItem | null
   onClose: () => void
@@ -48,28 +128,79 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
 }) => {
   const [showMetaPanel, setShowMetaPanel] = useState(false)
   const previewRef = useRef<HTMLDivElement>(null)
-  const videoPlayerRef = useRef<any>(null)
+  const videoPlayerRef = useRef<VideoPlayerRef | null>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [scale, setScale] = useState(1)
-  const [position, setPosition] = useState({ x: 0, y: 0 })
-  const [isPanning, setIsPanning] = useState(false)
-  const [panStart, setPanStart] = useState({ x: 0, y: 0 })
+  const scaleRef = useRef(1)
+  const positionRef = useRef({ x: 0, y: 0 })
+  const isPanningRef = useRef(false)
+  const panStartRef = useRef({ x: 0, y: 0 })
+  const transformElRef = useRef<HTMLDivElement>(null)
+  const scaleListenersRef = useRef<Set<(scale: number) => void>>(new Set())
+
+  const registerScaleListener = useCallback(
+    (listener: (scale: number) => void) => {
+      scaleListenersRef.current.add(listener)
+      listener(scaleRef.current)
+      return () => {
+        scaleListenersRef.current.delete(listener)
+      }
+    },
+    []
+  )
+
+  const updateTransform = useCallback((animated = false) => {
+    const el = transformElRef.current
+    if (!el) return
+    const s = scaleRef.current
+    const pos = positionRef.current
+    const panning = isPanningRef.current
+
+    if (s > 1) {
+      el.style.transform = `translate(${pos.x}px, ${pos.y}px) scale(${s})`
+      el.style.transitionDuration = panning || !animated ? "0s" : "0.15s"
+      el.style.cursor = panning ? "grabbing" : "grab"
+    } else {
+      el.style.transform = ""
+      el.style.transitionDuration = animated ? "0.15s" : "0s"
+      el.style.cursor = "default"
+    }
+  }, [])
+
+  const setScaleValue = useCallback(
+    (newScale: number, animated = true) => {
+      scaleRef.current = newScale
+      if (newScale === 1) {
+        positionRef.current = { x: 0, y: 0 }
+      }
+      updateTransform(animated)
+      scaleListenersRef.current.forEach((fn) => fn(newScale))
+    },
+    [updateTransform]
+  )
 
   const [showControls, setShowControls] = useState(true)
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const [activeItem, setActiveItem] = useState<MediaItem | null>(null)
+  const [activeItem, setActiveItem] = useState<MediaItem | null>(propItem)
+  const [prevPropItem, setPrevPropItem] = useState<MediaItem | null>(propItem)
+
+  if (propItem !== prevPropItem) {
+    setPrevPropItem(propItem)
+    setActiveItem(propItem)
+  }
 
   useEffect(() => {
-    setActiveItem(propItem)
+    const player = videoPlayerRef.current
     return () => {
-      if (videoPlayerRef.current?.pause) {
+      if (player?.pause) {
         try {
-          videoPlayerRef.current.pause()
-        } catch {}
+          player.pause()
+        } catch {
+          // Ignore pause error during unmount
+        }
       }
     }
-  }, [propItem])
+  }, [])
 
   const item = activeItem || propItem
 
@@ -152,11 +283,16 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
   }, [isFullscreen])
 
   useEffect(() => {
-    resetControlsTimeout()
+    if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current)
+    if (isFullscreen) {
+      controlsTimeoutRef.current = setTimeout(() => {
+        setShowControls(false)
+      }, 2000)
+    }
     return () => {
       if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current)
     }
-  }, [isFullscreen, resetControlsTimeout])
+  }, [isFullscreen])
 
   // Sync native fullscreen state changes
   useEffect(() => {
@@ -171,12 +307,18 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
 
   // Reset zoom whenever item changes
   useEffect(() => {
-    setScale(1)
-    setPosition({ x: 0, y: 0 })
+    scaleRef.current = 1
+    positionRef.current = { x: 0, y: 0 }
+    isPanningRef.current = false
+    if (transformElRef.current) {
+      transformElRef.current.style.transform = ""
+      transformElRef.current.style.cursor = "default"
+    }
+    scaleListenersRef.current.forEach((fn) => fn(1))
   }, [item?.id])
 
-  const toggleFullscreen = async () => {
-    if (isVideo && videoPlayerRef.current) {
+  const toggleFullscreen = useCallback(async () => {
+    if (item?.mediaType === "video" && videoPlayerRef.current) {
       await videoPlayerRef.current.requestFullscreen()
       return
     }
@@ -191,75 +333,83 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
     } catch (err) {
       console.error("Error toggling fullscreen:", err)
     }
-  }
+  }, [item?.mediaType])
 
-  const handleZoomIn = () => {
-    setScale((prev) => Math.min(prev + 0.5, 4))
-  }
+  const handleZoomIn = useCallback(() => {
+    setScaleValue(Math.min(scaleRef.current + 0.5, 4), true)
+  }, [setScaleValue])
 
-  const handleZoomOut = () => {
-    setScale((prev) => {
-      const next = Math.max(prev - 0.5, 1)
-      if (next === 1) setPosition({ x: 0, y: 0 })
-      return next
-    })
-  }
+  const handleZoomOut = useCallback(() => {
+    setScaleValue(Math.max(scaleRef.current - 0.5, 1), true)
+  }, [setScaleValue])
 
-  const handleZoomReset = () => {
-    setScale(1)
-    setPosition({ x: 0, y: 0 })
-  }
+  const handleZoomReset = useCallback(() => {
+    setScaleValue(1, true)
+  }, [setScaleValue])
 
-  const handleWheel = (e: React.WheelEvent) => {
-    const target = e.target as HTMLElement
-    if (
-      target.closest("button") ||
-      target.closest(".slider") ||
-      target.closest('[role="slider"]') ||
-      target.closest('[data-slot="slider"]')
-    ) {
-      return
-    }
+  const handleWheel = useCallback(
+    (e: React.WheelEvent) => {
+      const target = e.target as HTMLElement
+      if (
+        target.closest("button") ||
+        target.closest(".slider") ||
+        target.closest('[role="slider"]') ||
+        target.closest('[data-slot="slider"]')
+      ) {
+        return
+      }
 
-    const zoomFactor = 0.1
-    let newScale = scale + (e.deltaY < 0 ? zoomFactor : -zoomFactor)
-    newScale = Math.max(1, Math.min(newScale, 4))
+      const zoomFactor = 0.1
+      let newScale =
+        scaleRef.current + (e.deltaY < 0 ? zoomFactor : -zoomFactor)
+      newScale = Math.max(1, Math.min(newScale, 4))
+      setScaleValue(newScale, true)
+    },
+    [setScaleValue]
+  )
 
-    if (newScale === 1) {
-      setPosition({ x: 0, y: 0 })
-    }
-    setScale(newScale)
-  }
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      const target = e.target as HTMLElement
+      if (
+        target.closest("button") ||
+        target.closest("video") ||
+        target.closest(".slider") ||
+        target.closest('[role="slider"]') ||
+        target.closest('[data-slot="slider"]')
+      ) {
+        return
+      }
 
-  const handlePointerDown = (e: React.PointerEvent) => {
-    const target = e.target as HTMLElement
-    if (
-      target.closest("button") ||
-      target.closest("video") ||
-      target.closest(".slider") ||
-      target.closest('[role="slider"]') ||
-      target.closest('[data-slot="slider"]')
-    ) {
-      return
-    }
+      if (scaleRef.current <= 1) return
+      e.preventDefault()
+      isPanningRef.current = true
+      panStartRef.current = {
+        x: e.clientX - positionRef.current.x,
+        y: e.clientY - positionRef.current.y,
+      }
+      updateTransform(false)
+    },
+    [updateTransform]
+  )
 
-    if (scale <= 1) return
-    e.preventDefault()
-    setIsPanning(true)
-    setPanStart({ x: e.clientX - position.x, y: e.clientY - position.y })
-  }
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!isPanningRef.current) return
+      positionRef.current = {
+        x: e.clientX - panStartRef.current.x,
+        y: e.clientY - panStartRef.current.y,
+      }
+      updateTransform(false)
+    },
+    [updateTransform]
+  )
 
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (!isPanning) return
-    setPosition({
-      x: e.clientX - panStart.x,
-      y: e.clientY - panStart.y,
-    })
-  }
-
-  const handlePointerUp = () => {
-    setIsPanning(false)
-  }
+  const handlePointerUp = useCallback(() => {
+    if (!isPanningRef.current) return
+    isPanningRef.current = false
+    updateTransform(false)
+  }, [updateTransform])
 
   if (!item) return null
 
@@ -380,25 +530,10 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
               onPointerCancel={handlePointerUp}
               onPointerLeave={handlePointerUp}
               onMouseMove={resetControlsTimeout}
-              style={{
-                cursor:
-                  isFullscreen && !showControls
-                    ? "none"
-                    : scale > 1
-                      ? isPanning
-                        ? "grabbing"
-                        : "grab"
-                      : "default",
-              }}
             >
               <div
-                style={{
-                  transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
-                  transition: isPanning ? "none" : "transform 0.15s ease-out",
-                  cursor:
-                    scale > 1 ? (isPanning ? "grabbing" : "grab") : "default",
-                }}
-                className="pointer-events-none flex h-full w-full items-center justify-center"
+                ref={transformElRef}
+                className="pointer-events-none flex h-full w-full items-center justify-center transition-transform ease-out"
               >
                 <div className="pointer-events-auto max-h-full max-w-full">
                   {isVideo ? (
@@ -425,54 +560,15 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
               </div>
 
               {/* Zoom Controls */}
-              <div
-                className={`absolute top-4 right-4 z-30 flex gap-1 rounded-lg border border-white/10 bg-black/60 p-1 backdrop-blur-xs transition-opacity duration-300 ${!isFullscreen || showControls ? "opacity-100" : "pointer-events-none opacity-0"}`}
-              >
-                {isFullscreen && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 cursor-pointer rounded-md text-white hover:bg-white/10"
-                    onClick={toggleFullscreen}
-                    title="Exit Fullscreen"
-                  >
-                    <Minimize className="h-3.5 w-3.5" />
-                  </Button>
-                )}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 cursor-pointer rounded-md text-white hover:bg-white/10"
-                  onClick={handleZoomOut}
-                  disabled={scale <= 1}
-                  title="Zoom Out"
-                >
-                  <ZoomOut className="h-3.5 w-3.5" />
-                </Button>
-                <span className="flex min-w-11 items-center justify-center px-2 font-mono text-2xs text-white">
-                  {Math.round(scale * 100)}%
-                </span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 cursor-pointer rounded-md text-white hover:bg-white/10"
-                  onClick={handleZoomIn}
-                  disabled={scale >= 4}
-                  title="Zoom In"
-                >
-                  <ZoomIn className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 cursor-pointer rounded-md text-2xs font-semibold text-white hover:bg-white/10"
-                  onClick={handleZoomReset}
-                  disabled={scale === 1}
-                  title="Reset Zoom"
-                >
-                  1:1
-                </Button>
-              </div>
+              <ZoomControls
+                isFullscreen={isFullscreen}
+                showControls={showControls}
+                toggleFullscreen={toggleFullscreen}
+                onZoomIn={handleZoomIn}
+                onZoomOut={handleZoomOut}
+                onZoomReset={handleZoomReset}
+                registerScaleListener={registerScaleListener}
+              />
 
               {/* Previous Button */}
               {items && hasPrevious && (

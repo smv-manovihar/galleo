@@ -36,16 +36,17 @@ export function getFileSyncStats(
       birthtime: stats.birthtime.toISOString(),
       mtime: stats.mtime.toISOString(),
     })
-  } catch (e: any) {
-    if (e.code === "ENOENT") {
+  } catch (e: unknown) {
+    const err = e as { code?: string; message?: string }
+    if (err.code === "ENOENT") {
       return fail({ code: "FILE_NOT_FOUND", path: filePath })
     }
-    if (e.code === "EACCES") {
+    if (err.code === "EACCES") {
       return fail({ code: "PERMISSION_DENIED", path: filePath })
     }
     return fail({
       code: "UNKNOWN",
-      message: e.message || "Stats reading failed",
+      message: err.message || "Stats reading failed",
     })
   }
 }
@@ -68,7 +69,7 @@ export async function checkAvailableDiskSpace(
       }
     }
     return ok(undefined)
-  } catch (e: any) {
+  } catch {
     // If statfs fails or doesn't exist, proceed (better to try operation than block arbitrarily)
     return ok(undefined)
   }
@@ -87,16 +88,17 @@ export async function moveToTrash(filePath: string): Promise<Result<void>> {
     // trash takes absolute paths
     await trash([normalized])
     return ok(undefined)
-  } catch (e: any) {
-    if (e.code === "EACCES" || e.code === "EPERM") {
+  } catch (e: unknown) {
+    const err = e as { code?: string; message?: string }
+    if (err.code === "EACCES" || err.code === "EPERM") {
       return fail({ code: "PERMISSION_DENIED", path: filePath })
     }
-    if (e.code === "EBUSY") {
+    if (err.code === "EBUSY") {
       return fail({ code: "FILE_BUSY", path: filePath })
     }
     return fail({
       code: "UNKNOWN",
-      message: e.message || "Moving to trash failed",
+      message: err.message || "Moving to trash failed",
     })
   }
 }
@@ -123,8 +125,9 @@ export async function moveFile(
     // If it fails due to EXDEV (cross-device link), fallback to copy + unlink.
     try {
       await fs.rename(src, dest)
-    } catch (renameErr: any) {
-      if (renameErr.code === "EXDEV") {
+    } catch (renameErr: unknown) {
+      const err = renameErr as { code?: string }
+      if (err.code === "EXDEV") {
         await fs.copyFile(src, dest)
         await fs.unlink(src)
       } else {
@@ -133,14 +136,15 @@ export async function moveFile(
     }
 
     return ok(undefined)
-  } catch (e: any) {
-    if (e.code === "EACCES" || e.code === "EPERM") {
+  } catch (e: unknown) {
+    const err = e as { code?: string; message?: string }
+    if (err.code === "EACCES" || err.code === "EPERM") {
       return fail({ code: "PERMISSION_DENIED", path: srcPath })
     }
-    if (e.code === "EBUSY") {
+    if (err.code === "EBUSY") {
       return fail({ code: "FILE_BUSY", path: srcPath })
     }
-    return fail({ code: "UNKNOWN", message: e.message || "File move failed" })
+    return fail({ code: "UNKNOWN", message: err.message || "File move failed" })
   }
 }
 
@@ -164,13 +168,14 @@ export async function copyFile(
 
     await fs.copyFile(src, dest)
     return ok(undefined)
-  } catch (e: any) {
-    if (e.code === "EACCES" || e.code === "EPERM") {
+  } catch (e: unknown) {
+    const err = e as { code?: string; message?: string }
+    if (err.code === "EACCES" || err.code === "EPERM") {
       return fail({ code: "PERMISSION_DENIED", path: srcPath })
     }
-    if (e.code === "EBUSY") {
+    if (err.code === "EBUSY") {
       return fail({ code: "FILE_BUSY", path: srcPath })
     }
-    return fail({ code: "UNKNOWN", message: e.message || "File copy failed" })
+    return fail({ code: "UNKNOWN", message: err.message || "File copy failed" })
   }
 }

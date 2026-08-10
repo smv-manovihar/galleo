@@ -1,14 +1,15 @@
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
+import { useVirtualizer } from "@tanstack/react-virtual"
 import { useMediaStore } from "../../stores/media-store"
 import { useSettingsStore } from "../../stores/settings-store"
 import { Button } from "@/components/ui/button"
 import {
   Card,
+  CardContent,
+  CardFooter,
   CardHeader,
   CardTitle,
   CardDescription,
-  CardContent,
-  CardFooter,
 } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
@@ -99,66 +100,202 @@ const getAllFolderPaths = (node: FolderNode): string[] => {
   return paths
 }
 
-interface CustomTreeFolderProps {
-  node: FolderNode
-  depth: number
-  renderFile: (item: OrganizePreviewItem) => React.ReactNode
+const getTopLevelFolderPaths = (node: FolderNode): string[] => {
+  return Array.from(node.subfolders.values()).map((sub) => sub.path)
 }
 
-const CustomTreeFolder: React.FC<CustomTreeFolderProps> = ({
-  node,
-  depth,
-  renderFile,
-}) => {
-  const [isExpanded, setIsExpanded] = useState(true)
+interface FlatFolderNode {
+  type: "folder"
+  id: string
+  name: string
+  path: string
+  depth: number
+  isExpanded: boolean
+}
 
-  const handleToggle = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    setIsExpanded((prev) => !prev)
+interface FlatFileNode {
+  type: "file"
+  id: string
+  item: OrganizePreviewItem
+  depth: number
+}
+
+type FlatNode = FlatFolderNode | FlatFileNode
+
+function flattenFolderTree(
+  root: FolderNode,
+  expandedPaths: Set<string>
+): FlatNode[] {
+  const result: FlatNode[] = []
+
+  function traverse(node: FolderNode, depth: number) {
+    for (const sub of node.subfolders.values()) {
+      const isExpanded = expandedPaths.has(sub.path)
+      result.push({
+        type: "folder",
+        id: sub.path,
+        name: sub.name,
+        path: sub.path,
+        depth,
+        isExpanded,
+      })
+
+      if (isExpanded) {
+        traverse(sub, depth + 1)
+      }
+    }
+
+    for (let i = 0; i < node.files.length; i++) {
+      const file = node.files[i]
+      result.push({
+        type: "file",
+        id: `${node.path || "root"}_${file.mediaId}_${i}`,
+        item: file,
+        depth: node.path === "" ? depth : depth + 1,
+      })
+    }
   }
 
-  const subfolders = Array.from(node.subfolders.values())
+  traverse(root, 0)
+  return result
+}
+
+interface VirtualizedFolderTreeProps {
+  folderTree: FolderNode
+  renderFile: (item: OrganizePreviewItem) => React.ReactNode
+  allFolderPaths: string[]
+}
+
+const VirtualizedFolderTree: React.FC<VirtualizedFolderTreeProps> = ({
+  folderTree,
+  renderFile,
+  allFolderPaths,
+}) => {
+  const topLevelPaths = React.useMemo(
+    () => getTopLevelFolderPaths(folderTree),
+    [folderTree]
+  )
+
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => {
+    return allFolderPaths.length <= 30
+      ? new Set(allFolderPaths)
+      : new Set(topLevelPaths)
+  })
+
+  useEffect(() => {
+    setExpandedPaths(
+      allFolderPaths.length <= 30
+        ? new Set(allFolderPaths)
+        : new Set(topLevelPaths)
+    )
+  }, [allFolderPaths, topLevelPaths])
+
+  const toggleFolder = (path: string) => {
+    setExpandedPaths((prev) => {
+      const next = new Set(prev)
+      if (next.has(path)) {
+        next.delete(path)
+      } else {
+        next.add(path)
+      }
+      return next
+    })
+  }
+
+  const toggleAll = () => {
+    if (expandedPaths.size === allFolderPaths.length) {
+      setExpandedPaths(new Set())
+    } else {
+      setExpandedPaths(new Set(allFolderPaths))
+    }
+  }
+
+  const flatNodes = React.useMemo(() => {
+    return flattenFolderTree(folderTree, expandedPaths)
+  }, [folderTree, expandedPaths])
+
+  const parentRef = React.useRef<HTMLDivElement>(null)
+
+  const rowVirtualizer = useVirtualizer({
+    count: flatNodes.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 28,
+    overscan: 12,
+  })
 
   return (
-    <div className="flex flex-col gap-0.5">
-      {/* Folder Row */}
-      <div
-        onClick={handleToggle}
-        className="flex min-w-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-foreground transition-colors select-none hover:bg-accent/40"
-        style={{ paddingLeft: `${depth * 16 + 8}px` }}
-      >
-        <ChevronRight
-          className={cn(
-            "size-3 shrink-0 text-muted-foreground/75 transition-transform duration-150",
-            isExpanded && "rotate-90"
-          )}
-        />
-        {isExpanded ? (
-          <FolderOpen className="size-3.5 shrink-0 fill-amber-500/10 text-amber-500" />
-        ) : (
-          <FolderOpen className="size-3.5 shrink-0 fill-amber-500/5 text-amber-500" />
-        )}
-        <span className="truncate">{node.name}</span>
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex shrink-0 items-center justify-between border-b border-border/50 px-3 py-1.5 text-xs text-muted-foreground">
+        <span>
+          Showing <strong>{flatNodes.length}</strong> items in tree
+        </span>
+        <Button
+          variant="ghost"
+          size="xs"
+          className="h-6 cursor-pointer text-xs hover:text-foreground"
+          onClick={toggleAll}
+        >
+          {expandedPaths.size === allFolderPaths.length
+            ? "Collapse All"
+            : "Expand All"}
+        </Button>
       </div>
+      <div
+        ref={parentRef}
+        className="min-h-0 flex-1 overflow-y-auto scrollbar-thin p-2"
+      >
+        <div
+          style={{
+            height: `${rowVirtualizer.getTotalSize()}px`,
+            width: "100%",
+            position: "relative",
+          }}
+        >
+          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+            const node = flatNodes[virtualRow.index]
+            if (!node) return null
 
-      {/* Sub-items Container (Lazy-rendered) */}
-      {isExpanded && (
-        <div className="flex flex-col gap-0.5">
-          {subfolders.map((sub) => (
-            <CustomTreeFolder
-              key={sub.path}
-              node={sub}
-              depth={depth + 1}
-              renderFile={renderFile}
-            />
-          ))}
-          {node.files.map(renderFile).map((fileEl, idx) => (
-            <div key={idx} style={{ paddingLeft: `${(depth + 1) * 16 + 8}px` }}>
-              {fileEl}
-            </div>
-          ))}
+            return (
+              <div
+                key={virtualRow.key}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  height: `${virtualRow.size}px`,
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+              >
+                {node.type === "folder" ? (
+                  <div
+                    onClick={() => toggleFolder(node.path)}
+                    className="flex min-w-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-foreground transition-colors select-none hover:bg-accent/40"
+                    style={{ paddingLeft: `${node.depth * 16 + 8}px` }}
+                  >
+                    <ChevronRight
+                      className={cn(
+                        "size-3 shrink-0 text-muted-foreground/75 transition-transform duration-150",
+                        node.isExpanded && "rotate-90"
+                      )}
+                    />
+                    {node.isExpanded ? (
+                      <FolderOpen className="size-3.5 shrink-0 fill-amber-500/10 text-amber-500" />
+                    ) : (
+                      <FolderOpen className="size-3.5 shrink-0 fill-amber-500/5 text-amber-500" />
+                    )}
+                    <span className="truncate">{node.name}</span>
+                  </div>
+                ) : (
+                  <div style={{ paddingLeft: `${node.depth * 16 + 8}px` }}>
+                    {renderFile(node.item)}
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
-      )}
+      </div>
     </div>
   )
 }
@@ -216,7 +353,6 @@ export const DateOrganizer: React.FC = () => {
   const [progress, setProgress] = useState<OrganizeProgressPayload | null>(null)
   const [previewItem, setPreviewItem] = useState<MediaItem | null>(null)
   const [showHelpDialog, setShowHelpDialog] = useState(false)
-  const [visibleFileCount, setVisibleFileCount] = useState(100)
 
   const handleSelectDest = async () => {
     try {
@@ -281,11 +417,12 @@ export const DateOrganizer: React.FC = () => {
       toast.success("Files organized", {
         description: `Relocated ${count} media items to destination.`,
       })
-    } catch (e: any) {
-      console.error("Execution failed:", e)
+    } catch (e: unknown) {
+      const err = e as Error
+      console.error("Execution failed:", err)
       toast.error("File organization failed", {
         description:
-          e.message || "An unexpected error occurred during execution.",
+          err.message || "An unexpected error occurred during execution.",
       })
     } finally {
       cleanupProgress()
@@ -302,6 +439,15 @@ export const DateOrganizer: React.FC = () => {
     return buildFolderTree(previewItems)
   }, [previewItems])
 
+  const allFolderPaths = React.useMemo(() => {
+    return getAllFolderPaths(folderTree)
+  }, [folderTree])
+
+  const itemMap = React.useMemo(
+    () => new Map(items.map((i) => [i.id, i])),
+    [items]
+  )
+
   const renderFile = React.useCallback(
     (item: OrganizePreviewItem): React.ReactNode => {
       const filename = item.sourcePath.split(/[\\/]/).pop() || ""
@@ -309,7 +455,7 @@ export const DateOrganizer: React.FC = () => {
         <div
           className="group/file flex min-w-0 cursor-pointer items-center justify-between rounded-md px-2 py-1 text-xs transition-colors select-none hover:bg-accent/40"
           onClick={() => {
-            const mediaItem = items.find((i) => i.id === item.mediaId)
+            const mediaItem = itemMap.get(item.mediaId)
             if (mediaItem) setPreviewItem(mediaItem)
           }}
         >
@@ -329,42 +475,25 @@ export const DateOrganizer: React.FC = () => {
               className="h-5 w-5 cursor-pointer p-0 text-muted-foreground opacity-0 transition-opacity group-hover/file:opacity-100 hover:text-foreground"
               onClick={(e) => {
                 e.stopPropagation()
-                const mediaItem = items.find((i) => i.id === item.mediaId)
+                const mediaItem = itemMap.get(item.mediaId)
                 if (mediaItem) setPreviewItem(mediaItem)
               }}
             >
               <Eye className="h-3 w-3" />
             </Button>
-            {item.conflict &&
-              (item.conflictReason === "duplicate_source" ? (
-                preserveOriginals ? (
-                  <Badge
-                    variant="secondary"
-                    className="border border-border bg-muted px-1.5 py-0 text-3xs tracking-wider text-muted-foreground uppercase"
-                  >
-                    Duplicate (Skipped)
-                  </Badge>
-                ) : (
-                  <Badge
-                    variant="destructive"
-                    className="border border-amber-600/30 bg-amber-500 px-1.5 py-0 text-3xs tracking-wider text-white uppercase hover:bg-amber-600"
-                  >
-                    Duplicate (Trashed)
-                  </Badge>
-                )
-              ) : (
-                <Badge
-                  variant="destructive"
-                  className="bg-destructive/80 px-1.5 py-0 text-3xs tracking-wider uppercase"
-                >
-                  File Exists
-                </Badge>
-              ))}
+            {item.conflict && (
+              <Badge
+                variant="destructive"
+                className="bg-destructive/80 px-1.5 py-0 text-3xs tracking-wider uppercase"
+              >
+                File Exists
+              </Badge>
+            )}
           </div>
         </div>
       )
     },
-    [items]
+    [itemMap]
   )
 
   return (
@@ -656,29 +785,13 @@ export const DateOrganizer: React.FC = () => {
               )}
             </CardHeader>
 
-            {/* Table Content is Scrollable Internally */}
-            <CardContent className="min-h-0 flex-1 scrollbar-thin overflow-y-auto border-b border-border bg-muted/5 p-2">
-              <div className="flex w-full flex-col gap-0.5">
-                {Array.from(folderTree.subfolders.values()).map((sub) => (
-                  <CustomTreeFolder
-                    key={sub.path}
-                    node={sub}
-                    depth={0}
-                    renderFile={renderFile}
-                  />
-                ))}
-                {folderTree.files.slice(0, visibleFileCount).map(renderFile)}
-                {folderTree.files.length > visibleFileCount && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="mt-2 w-full text-xs text-muted-foreground hover:bg-muted/20"
-                    onClick={() => setVisibleFileCount((v) => v + 100)}
-                  >
-                    Show More ({folderTree.files.length - visibleFileCount} remaining)
-                  </Button>
-                )}
-              </div>
+            {/* Table Content with Virtualized Tree View */}
+            <CardContent className="min-h-0 flex-1 border-b border-border bg-muted/5 p-0">
+              <VirtualizedFolderTree
+                folderTree={folderTree}
+                renderFile={renderFile}
+                allFolderPaths={allFolderPaths}
+              />
             </CardContent>
 
             <CardFooter className="flex shrink-0 justify-end gap-3 bg-muted/10 p-4">

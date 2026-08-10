@@ -10,7 +10,8 @@ export function getDatabasePath(): string {
     const isDev = !app.isPackaged || process.env.NODE_ENV === "development"
     let targetDir: string
     if (isDev) {
-      targetDir = path.join(process.cwd(), ".data")
+      // targetDir = path.join(process.cwd(), ".data")
+      targetDir = app.getPath("userData")
     } else {
       targetDir = app.getPath("userData")
     }
@@ -166,6 +167,15 @@ export function initDatabase(): Database.Database {
       // Column may already exist
     }
     db.pragma("user_version = 1")
+  }
+
+  if (currentVersion < 2) {
+    try {
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_media_lower_path ON media_items(path COLLATE NOCASE);`)
+    } catch {
+      // Index may already exist
+    }
+    db.pragma("user_version = 2")
   }
 
   dbInstance = db

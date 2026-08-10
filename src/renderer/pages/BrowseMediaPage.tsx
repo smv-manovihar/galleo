@@ -52,7 +52,6 @@ export const BrowseMediaPage: React.FC = () => {
   const searchQuery = useMediaStore((s) => s.searchQuery)
   const getFilteredItems = useMediaStore((s) => s.getFilteredItems)
 
-
   const {
     initSession,
     submitDecision,
@@ -111,7 +110,6 @@ export const BrowseMediaPage: React.FC = () => {
   // Hybrid Semantic Search Effect
   useEffect(() => {
     if (!searchQuery.trim()) {
-      setSearchResults(null)
       return
     }
 
@@ -164,28 +162,33 @@ export const BrowseMediaPage: React.FC = () => {
     return map
   }, [searchResults])
 
-  const filteredItems = React.useMemo(() => {
-    const base = getFilteredItems()
-    if (searchResults) {
-      return searchResults.map((r) => r.item)
-    }
-    return base
-  }, [getFilteredItems, searchResults])
+  const isLoading = useMediaStore((s) => s.isLoading)
 
-  const handleSelectToggle = React.useCallback(
-    (id: string, _e: React.MouseEvent) => {
-      setSelectedIds((prev) => {
-        const next = new Set(prev)
-        if (next.has(id)) {
-          next.delete(id)
-        } else {
-          next.add(id)
-        }
-        return next
-      })
-    },
-    []
-  )
+  const activeSearchResults = searchQuery.trim() ? searchResults : null
+
+  const rawFilteredItems = getFilteredItems()
+  const filteredItems = React.useMemo(() => {
+    if (activeSearchResults) {
+      const searchMap = new Set(activeSearchResults.map((r) => r.mediaId))
+      return rawFilteredItems.filter((item) => searchMap.has(item.id))
+    }
+    return rawFilteredItems
+  }, [rawFilteredItems, activeSearchResults])
+
+  const deferredFilteredItems = React.useDeferredValue(filteredItems)
+  const isPending = isLoading || deferredFilteredItems !== filteredItems
+
+  const handleSelectToggle = React.useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }, [])
 
   const handleReviewAction = React.useCallback(
     async (
@@ -197,11 +200,6 @@ export const BrowseMediaPage: React.FC = () => {
       const item = currentItems.find((i) => i.id === mediaId)
       if (item) {
         await submitDecision(mediaId, state, item, "browse", batchId)
-        useMediaStore.setState((prev) => ({
-          items: prev.items.map((i) =>
-            i.id === mediaId ? { ...i, reviewState: state } : i
-          ),
-        }))
       }
     },
     [submitDecision]
@@ -250,14 +248,19 @@ export const BrowseMediaPage: React.FC = () => {
   }
 
   return (
-    <PageContainer className="h-full select-none gap-3 md:gap-3.5" maxWidth="full">
+    <PageContainer
+      className="h-full gap-3 select-none md:gap-3.5"
+      maxWidth="full"
+    >
       {/* Filters & Toolbar Header */}
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2.5 rounded-lg border border-border bg-card/45 p-2.5 backdrop-blur-md">
         {/* Group 1: Tabs (Type & Review State) - stays in one line */}
         <div className="flex shrink-0 items-center gap-2.5">
           <Tabs
             value={filterType}
-            onValueChange={(val: string) => setFilterType(val as any)}
+            onValueChange={(val) =>
+              setFilterType(val as "all" | "photo" | "video")
+            }
           >
             <TabsList className="h-8 rounded-lg border border-border bg-background p-0.5">
               <TabsTrigger
@@ -284,7 +287,9 @@ export const BrowseMediaPage: React.FC = () => {
           {/* Review State Tabs (All, Pending, Kept, To Delete) */}
           <Tabs
             value={filterReviewState}
-            onValueChange={(val: string) => setFilterReviewState(val as any)}
+            onValueChange={(val) =>
+              setFilterReviewState(val as "all" | "pending" | "kept" | "trash")
+            }
           >
             <TabsList className="h-8 rounded-lg border border-border bg-background p-0.5">
               <TabsTrigger
@@ -344,7 +349,17 @@ export const BrowseMediaPage: React.FC = () => {
           {/* Quality & Feature Filters Dropdown Select */}
           <Select
             value={filterQuality}
-            onValueChange={(val: any) => setFilterQuality(val)}
+            onValueChange={(val) =>
+              setFilterQuality(
+                val as
+                  | "all"
+                  | "blurry"
+                  | "dark"
+                  | "duplicates"
+                  | "screenshots"
+                  | "small"
+              )
+            }
           >
             <SelectTrigger className="h-8 w-auto min-w-32 rounded-lg border border-border bg-background px-2.5 text-xs font-medium text-foreground hover:bg-accent">
               <SelectValue placeholder="Quality Features" />
@@ -359,7 +374,20 @@ export const BrowseMediaPage: React.FC = () => {
             </SelectContent>
           </Select>
 
-          <Select value={sortBy} onValueChange={(val: any) => setSortBy(val)}>
+          <Select
+            value={sortBy}
+            onValueChange={(val) =>
+              setSortBy(
+                val as
+                  | "date-desc"
+                  | "date-asc"
+                  | "score-desc"
+                  | "score-asc"
+                  | "size-desc"
+                  | "size-asc"
+              )
+            }
+          >
             <SelectTrigger className="h-8 w-auto max-w-40 min-w-28 rounded-lg border border-border bg-background px-2.5 text-xs font-medium text-foreground hover:bg-accent">
               <SelectValue placeholder="Sort" />
             </SelectTrigger>
@@ -376,7 +404,7 @@ export const BrowseMediaPage: React.FC = () => {
           {/* Layout Mode Toggle: Card vs List */}
           <Tabs
             value={layoutMode}
-            onValueChange={(val: string) => setLayoutMode(val as any)}
+            onValueChange={(val) => setLayoutMode(val as "card" | "list")}
           >
             <TabsList className="h-8 rounded-lg border border-border bg-background p-0.5">
               <TabsTrigger
@@ -401,7 +429,7 @@ export const BrowseMediaPage: React.FC = () => {
           {/* Grouping Mode Toggle: Normal vs Date */}
           <Tabs
             value={groupMode}
-            onValueChange={(val: string) => setGroupMode(val as any)}
+            onValueChange={(val) => setGroupMode(val as "normal" | "date")}
           >
             <TabsList className="h-8 rounded-lg border border-border bg-background p-0.5">
               <TabsTrigger
@@ -500,9 +528,12 @@ export const BrowseMediaPage: React.FC = () => {
 
       {/* Main browser viewport panels */}
       <div className="relative min-h-0 flex-1">
+        {isPending && (
+          <div className="pointer-events-none absolute inset-0 z-20 bg-background/30 backdrop-blur-xs transition-opacity duration-150" />
+        )}
         {layoutMode === "card" && groupMode === "normal" && (
           <MediaGrid
-            items={filteredItems}
+            items={deferredFilteredItems}
             selectedIds={selectedIds}
             onSelectToggle={handleSelectToggle}
             onPreviewOpen={handleSetPreviewItem}
@@ -516,7 +547,7 @@ export const BrowseMediaPage: React.FC = () => {
         )}
         {layoutMode === "card" && groupMode === "date" && (
           <MediaTimeline
-            items={filteredItems}
+            items={deferredFilteredItems}
             selectedIds={selectedIds}
             onSelectToggle={handleSelectToggle}
             onPreviewOpen={handleSetPreviewItem}
@@ -527,7 +558,7 @@ export const BrowseMediaPage: React.FC = () => {
         )}
         {layoutMode === "list" && (
           <MediaList
-            items={filteredItems}
+            items={deferredFilteredItems}
             selectedIds={selectedIds}
             onSelectToggle={handleSelectToggle}
             onPreviewOpen={handleSetPreviewItem}
@@ -584,8 +615,8 @@ export const BrowseMediaPage: React.FC = () => {
                 className="h-9 flex-1 text-xs"
                 onClick={async () => {
                   const deleteIds = Object.entries(decisions)
-                    .filter(([_, state]) => state === "delete")
-                    .map(([mediaId]) => mediaId)
+                    .filter(([, state]) => state === "delete")
+                    .map(([entryMediaId]) => entryMediaId)
                   if (deleteIds.length > 0) {
                     await commitDeletions(deleteIds)
                   }

@@ -75,26 +75,12 @@ export const AppSidebar: React.FC = () => {
     }
   }, [hasRunInitialUpdateCheck, checkForUpdates])
   const activeRootPath = useMediaStore((s) => s.activeRootPath)
-  const items = useMediaStore((s) => s.items)
   const fetchMediaItems = useMediaStore((s) => s.fetchMediaItems)
   const startScan = useScanStore((s) => s.startScan)
   const isScanning = useScanStore((s) => s.isScanning)
   const folderCounts = useScanStore((s) => s.folderCounts)
 
-  // Derive per-root indexed item count from the live media store.
-  // Used to compute isPartial: scanned && dbCount < totalDiscoveredCount.
-  const rootItemCountMap = React.useMemo(() => {
-    const map = new Map<string, number>()
-    for (const root of settings.folders.roots) {
-      if (!root.scanned) continue
-      const norm = root.path.replace(/\\/g, "/").toLowerCase()
-      const count = items.filter((item) =>
-        item.path.replace(/\\/g, "/").toLowerCase().startsWith(norm)
-      ).length
-      map.set(root.path, count)
-    }
-    return map
-  }, [items, settings.folders.roots])
+  const rootItemCountMap = useMediaStore((s) => s.cachedRootItemCounts)
 
   const [folderToDelete, setFolderToDelete] = useState<string | null>(null)
   const [showScanPrompt, setShowScanPrompt] = useState(false)
@@ -224,7 +210,6 @@ export const AppSidebar: React.FC = () => {
                       isActive={activeRootPath === "all"}
                       onClick={handleAllMediaClick}
                       className="w-full justify-start gap-3 px-3 py-2 text-sm font-medium transition-colors"
-                      disabled={isScanning}
                     >
                       <Library
                         className={`h-4 w-4 shrink-0 ${
@@ -284,6 +269,7 @@ export const AppSidebar: React.FC = () => {
                   const needsRescan = !!folderData?.needsRescan
                   const dbCount = rootItemCountMap.get(root.path) ?? 0
                   const isPartial =
+                    !isScanning &&
                     isScanned &&
                     liveDiskCount !== undefined &&
                     liveDiskCount > 0 &&

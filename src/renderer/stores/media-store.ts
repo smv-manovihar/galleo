@@ -3,8 +3,31 @@ import type { MediaItem } from "../../shared/types/media"
 import { useSettingsStore } from "./settings-store"
 import { useSessionStore } from "./session-store"
 
+export interface CachedDashboardMetrics {
+  totalFiles: number
+  photoCount: number
+  videoCount: number
+  totalSize: number
+  keptCount: number
+  trashCount: number
+  pendingCount: number
+  reviewedCount: number
+  reviewProgress: number
+  blurryItems: MediaItem[]
+  darkItems: MediaItem[]
+  duplicateItems: MediaItem[]
+  screenshotItems: MediaItem[]
+  smallItems: MediaItem[]
+  duplicateGroupsCount: number
+  duplicateSavedBytes: number
+  blurrySavedBytes: number
+}
+
 interface MediaState {
   items: MediaItem[]
+  cachedMetrics: CachedDashboardMetrics
+  cachedDuplicateGroups: MediaItem[][]
+  cachedRootItemCounts: Map<string, number>
   selectedItemId: string | null
   isLoading: boolean
   searchQuery: string
@@ -27,6 +50,7 @@ interface MediaState {
   activeRootPath: string | null
 
   fetchMediaItems: (folderPath: string) => Promise<void>
+  setItems: (items: MediaItem[]) => void
   setSearchQuery: (query: string) => void
   setFilterType: (type: "all" | "photo" | "video") => void
   setFilterReviewState: (state: "all" | "pending" | "kept" | "trash") => void
@@ -51,10 +75,142 @@ interface MediaState {
   setSelectedItemId: (id: string | null) => void
   setActiveRootPath: (path: string | null) => void
   getFilteredItems: () => MediaItem[]
+  getDashboardMetrics: () => CachedDashboardMetrics
+}
+
+const DEFAULT_METRICS: CachedDashboardMetrics = {
+  totalFiles: 0,
+  photoCount: 0,
+  videoCount: 0,
+  totalSize: 0,
+  keptCount: 0,
+  trashCount: 0,
+  pendingCount: 0,
+  reviewedCount: 0,
+  reviewProgress: 0,
+  blurryItems: [],
+  darkItems: [],
+  duplicateItems: [],
+  screenshotItems: [],
+  smallItems: [],
+  duplicateGroupsCount: 0,
+  duplicateSavedBytes: 0,
+  blurrySavedBytes: 0,
+}
+
+function computeMetricsForItems(items: MediaItem[]): CachedDashboardMetrics {
+  let photoCount = 0
+  let videoCount = 0
+  let totalSize = 0
+  let keptCount = 0
+  let trashCount = 0
+  let pendingCount = 0
+  const blurryItems: MediaItem[] = []
+  const darkItems: MediaItem[] = []
+  const duplicateItems: MediaItem[] = []
+  const screenshotItems: MediaItem[] = []
+  const smallItems: MediaItem[] = []
+  const groupsSet = new Set<string>()
+
+  const sessionDecisions = useSessionStore.getState().decisions
+  for (const item of items) {
+    if (item.mediaType === "photo") photoCount++
+    else if (item.mediaType === "video") videoCount++
+    totalSize += item.size || 0
+
+    const activeState = sessionDecisions[item.id] || item.reviewState
+    if (activeState === "keep") keptCount++
+    else if (activeState === "delete") trashCount++
+    else pendingCount++
+
+    if (item.quality?.isBlurry) blurryItems.push(item)
+    if (item.quality?.isDark) darkItems.push(item)
+    if (item.isDuplicate) {
+      if (!item.isBestInDuplicateGroup) duplicateItems.push(item)
+      if (item.duplicateGroupId) {
+        groupsSet.add(item.duplicateGroupId)
+      }
+    }
+    if (item.quality?.isScreenshot) screenshotItems.push(item)
+    if (item.quality?.isSmall) smallItems.push(item)
+  }
+
+  const totalFiles = items.length
+  const reviewedCount = keptCount + trashCount
+  const reviewProgress = totalFiles > 0 ? Math.round((reviewedCount / totalFiles) * 100) : 0
+  const duplicateSavedBytes = duplicateItems.reduce((sum, i) => sum + (i.size || 0), 0)
+  const blurrySavedBytes = blurryItems.reduce((sum, i) => sum + (i.size || 0), 0)
+
+  return {
+    totalFiles,
+    photoCount,
+    videoCount,
+    totalSize,
+    keptCount,
+    trashCount,
+    pendingCount,
+    reviewedCount,
+    reviewProgress,
+    blurryItems,
+    darkItems,
+    duplicateItems,
+    screenshotItems,
+    smallItems,
+    duplicateGroupsCount: groupsSet.size,
+    duplicateSavedBytes,
+    blurrySavedBytes,
+  }
+}
+
+function computeCaches(
+  items: MediaItem[],
+  activeRootPath: string | null = null
+) {
+  let targetItems = items
+  if (activeRootPath && activeRootPath !== "all") {
+    const normRoot = activeRootPath.replace(/\\/g, "/").toLowerCase().replace(/\/+$/, "")
+    targetItems = items.filter((item) => {
+      const itemNorm = item.path.replace(/\\/g, "/").toLowerCase()
+      return itemNorm === normRoot || itemNorm.startsWith(normRoot + "/")
+    })
+  }
+
+  const cachedMetrics = computeMetricsForItems(targetItems)
+
+  const dupGroupsMap: Record<string, MediaItem[]> = {}
+  const { settings } = useSettingsStore.getState()
+  const roots = settings.folders.roots
+    .filter((r) => r.scanned)
+    .map((r) => ({ rawPath: r.path, norm: r.path.replace(/\\/g, "/").toLowerCase() }))
+  const rootItemCounts = new Map<string, number>()
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]
+    if (item.isDuplicate && item.duplicateGroupId) {
+      if (!dupGroupsMap[item.duplicateGroupId]) {
+        dupGroupsMap[item.duplicateGroupId] = []
+      }
+      dupGroupsMap[item.duplicateGroupId].push(item)
+    }
+
+    const normPath = item.path.replace(/\\/g, "/").toLowerCase()
+    for (let rIdx = 0; rIdx < roots.length; rIdx++) {
+      if (normPath.startsWith(roots[rIdx].norm)) {
+        rootItemCounts.set(roots[rIdx].rawPath, (rootItemCounts.get(roots[rIdx].rawPath) || 0) + 1)
+      }
+    }
+  }
+
+  const cachedDuplicateGroups = Object.values(dupGroupsMap).filter((g) => g.length > 1)
+
+  return { cachedMetrics, cachedDuplicateGroups, cachedRootItemCounts: rootItemCounts }
 }
 
 export const useMediaStore = create<MediaState>((set, get) => ({
   items: [],
+  cachedMetrics: DEFAULT_METRICS,
+  cachedDuplicateGroups: [],
+  cachedRootItemCounts: new Map(),
   selectedItemId: null,
   isLoading: false,
   searchQuery: "",
@@ -64,10 +220,18 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   sortBy: "date-desc",
   activeRootPath: null,
 
+  setItems: (items) => {
+    const { activeRootPath } = get()
+    const { cachedMetrics, cachedDuplicateGroups, cachedRootItemCounts } =
+      computeCaches(items, activeRootPath)
+    set({ items, cachedMetrics, cachedDuplicateGroups, cachedRootItemCounts })
+  },
+
   fetchMediaItems: async (folderPath: string) => {
     set({ isLoading: true, activeRootPath: folderPath })
     try {
-      const items = await window.api.getMediaItems(folderPath)
+      // Always fetch all items to keep full store items map intact for all roots
+      const items = await window.api.getMediaItems("all")
 
       // Filter out items belonging to disabled root folders
       const { settings } = useSettingsStore.getState()
@@ -85,7 +249,15 @@ export const useMediaStore = create<MediaState>((set, get) => ({
               )
             })
 
-      set({ items: visibleItems, isLoading: false })
+      const { cachedMetrics, cachedDuplicateGroups, cachedRootItemCounts } =
+        computeCaches(visibleItems, folderPath)
+      set({
+        items: visibleItems,
+        cachedMetrics,
+        cachedDuplicateGroups,
+        cachedRootItemCounts,
+        isLoading: false,
+      })
 
       // Automatically sync session checkpoint on fetch
       if (visibleItems.length > 0) {
@@ -95,7 +267,13 @@ export const useMediaStore = create<MediaState>((set, get) => ({
           .catch(() => {})
       }
     } catch {
-      set({ items: [], isLoading: false })
+      set({
+        items: [],
+        cachedMetrics: DEFAULT_METRICS,
+        cachedDuplicateGroups: [],
+        cachedRootItemCounts: new Map(),
+        isLoading: false,
+      })
     }
   },
 
@@ -105,11 +283,39 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   setFilterQuality: (filterQuality) => set({ filterQuality }),
   setSortBy: (sortBy) => set({ sortBy }),
   setSelectedItemId: (selectedItemId) => set({ selectedItemId }),
-  setActiveRootPath: (activeRootPath) => set({ activeRootPath }),
+  setActiveRootPath: (activeRootPath) => {
+    const { items } = get()
+    const { cachedMetrics, cachedDuplicateGroups, cachedRootItemCounts } =
+      computeCaches(items, activeRootPath)
+    set({
+      activeRootPath,
+      cachedMetrics,
+      cachedDuplicateGroups,
+      cachedRootItemCounts,
+    })
+  },
+
+  getDashboardMetrics: () => {
+    const { items, activeRootPath } = get()
+    const targetItems =
+      !activeRootPath || activeRootPath === "all"
+        ? items
+        : items.filter((item) => {
+            const normRoot = activeRootPath
+              .replace(/\\/g, "/")
+              .toLowerCase()
+              .replace(/\/+$/, "")
+            const itemNorm = item.path.replace(/\\/g, "/").toLowerCase()
+            return itemNorm === normRoot || itemNorm.startsWith(normRoot + "/")
+          })
+
+    return computeMetricsForItems(targetItems)
+  },
 
   getFilteredItems: () => {
     const {
       items,
+      activeRootPath,
       searchQuery,
       filterType,
       filterReviewState,
@@ -117,6 +323,15 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       sortBy,
     } = get()
     let result = [...items]
+
+    // 0. Active Root Path Filter
+    if (activeRootPath && activeRootPath !== "all") {
+      const normRoot = activeRootPath.replace(/\\/g, "/").toLowerCase().replace(/\/+$/, "")
+      result = result.filter((item) => {
+        const itemNorm = item.path.replace(/\\/g, "/").toLowerCase()
+        return itemNorm === normRoot || itemNorm.startsWith(normRoot + "/")
+      })
+    }
 
     // 1. Text Search Filter
     if (searchQuery.trim().length > 0) {
@@ -134,14 +349,17 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     }
 
     // 3. Review State Filter
+    const sessionDecisions = useSessionStore.getState().decisions
     if (filterReviewState !== "all") {
-      if (filterReviewState === "pending") {
-        result = result.filter((item) => item.reviewState === "pending")
-      } else if (filterReviewState === "kept") {
-        result = result.filter((item) => item.reviewState === "keep")
-      } else if (filterReviewState === "trash") {
-        result = result.filter((item) => item.reviewState === "delete")
-      }
+      result = result.filter((item) => {
+        const state: string =
+          sessionDecisions[item.id] || item.reviewState || "pending"
+        if (filterReviewState === "pending")
+          return state === "pending" || state === "skipped"
+        if (filterReviewState === "kept") return state === "keep"
+        if (filterReviewState === "trash") return state === "delete"
+        return true
+      })
     }
 
     // 4. Quality Metrics Filter
@@ -159,13 +377,17 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       }
     }
 
-    // 4. Sorting logic
+    // 5. Fast Sorting logic (avoid expensive Intl.Collator / localeCompare)
     result.sort((a, b) => {
       if (sortBy === "date-desc") {
-        return (b.dateTarget || "").localeCompare(a.dateTarget || "")
+        const dA = a.dateTarget || ""
+        const dB = b.dateTarget || ""
+        return dB < dA ? -1 : dB > dA ? 1 : 0
       }
       if (sortBy === "date-asc") {
-        return (a.dateTarget || "").localeCompare(b.dateTarget || "")
+        const dA = a.dateTarget || ""
+        const dB = b.dateTarget || ""
+        return dA < dB ? -1 : dA > dB ? 1 : 0
       }
       if (sortBy === "score-desc") {
         const scoreA = a.quality?.compositeScore ?? 0

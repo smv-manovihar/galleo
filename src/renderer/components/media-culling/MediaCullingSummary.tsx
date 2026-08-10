@@ -52,7 +52,7 @@ export const MediaCullingSummary: React.FC<MediaCullingSummaryProps> = ({
 
   const handleCommit = async () => {
     const deleteIds = Object.entries(decisions)
-      .filter(([_, s]) => s === "delete")
+      .filter(([, s]) => s === "delete")
       .map(([id]) => id)
     const size = details.reclaimableSize
     const count = deleteIds.length

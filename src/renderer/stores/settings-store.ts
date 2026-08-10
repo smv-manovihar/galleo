@@ -27,9 +27,16 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     try {
       const settings = await window.api.getSettings()
       set({ settings, isLoading: false, isInitialized: true })
-    } catch (e: any) {
+      if (settings.folders.roots.length > 0) {
+        const mediaStore = useMediaStore.getState()
+        if (mediaStore.items.length === 0 && !mediaStore.isLoading) {
+          mediaStore.fetchMediaItems(mediaStore.activeRootPath || "all")
+        }
+      }
+    } catch (e: unknown) {
+      const err = e as Error
       set({
-        error: e.message || "Failed to load settings",
+        error: err.message || "Failed to load settings",
         isLoading: false,
         isInitialized: true,
       })
@@ -51,8 +58,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         set({ error: errorMsg, isLoading: false })
         return false
       }
-    } catch (e: any) {
-      set({ error: e.message || "Failed to save settings", isLoading: false })
+    } catch (e: unknown) {
+      const err = e as Error
+      set({ error: err.message || "Failed to save settings", isLoading: false })
       return false
     }
   },

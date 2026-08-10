@@ -3,6 +3,7 @@ import { Loader2 } from "lucide-react"
 import { useUIStore } from "../../stores/ui-store"
 import { useSettingsStore } from "../../stores/settings-store"
 import { useMediaStore } from "../../stores/media-store"
+import { useScanStore } from "../../stores/scan-store"
 import { useTheme } from "@/components/theme-provider"
 import { AppSidebar } from "./AppSidebar"
 import { TopBar } from "./TopBar"
@@ -28,8 +29,10 @@ export const AppShell: React.FC = () => {
   const fetchSettings = useSettingsStore((s) => s.fetchSettings)
   const isInitialized = useSettingsStore((s) => s.isInitialized)
   const hasItems = useMediaStore((s) => s.items.length > 0)
+  const isLoading = useMediaStore((s) => s.isLoading)
   const fetchMediaItems = useMediaStore((s) => s.fetchMediaItems)
   const activeRootPath = useMediaStore((s) => s.activeRootPath)
+  const checkActiveScanStatus = useScanStore((s) => s.checkActiveScanStatus)
 
   const isScanned = React.useMemo(() => {
     if (settings.folders.roots.length === 0) return true
@@ -43,9 +46,10 @@ export const AppShell: React.FC = () => {
   }, [activeRootPath, settings.folders.roots])
 
   useEffect(() => {
-    // Initial settings load from database
+    // Initial settings load and active scan check on mount
     fetchSettings()
-  }, [fetchSettings])
+    checkActiveScanStatus()
+  }, [fetchSettings, checkActiveScanStatus])
 
   useEffect(() => {
     // Sync theme settings class list
@@ -66,12 +70,23 @@ export const AppShell: React.FC = () => {
   }, [settings.ui.fontSize])
 
   useEffect(() => {
-    // Auto-load all items on startup only — do not re-fetch when a folder
-    // is explicitly selected (even if it returns 0 items, e.g. unscanned).
-    if (settings.folders.roots.length > 0 && !hasItems && activeRootPath === null) {
-      fetchMediaItems("all")
+    // Auto-load items on startup or when root folders exist but store has no items
+    if (
+      isInitialized &&
+      settings.folders.roots.length > 0 &&
+      !hasItems &&
+      !isLoading
+    ) {
+      fetchMediaItems(activeRootPath || "all")
     }
-  }, [settings.folders.roots, fetchMediaItems, hasItems, activeRootPath])
+  }, [
+    isInitialized,
+    settings.folders.roots.length,
+    fetchMediaItems,
+    hasItems,
+    isLoading,
+    activeRootPath,
+  ])
 
   const isElectron = typeof window !== "undefined" && window.api !== undefined
 

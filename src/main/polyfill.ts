@@ -12,11 +12,11 @@ if (typeof (globalThis as Record<string, unknown>)["__dirname"] === "undefined")
 }
 
 // Polyfill DOMParser globally in the Node.js main process to suppress warnings from exifreader
-if (typeof (globalThis as any).DOMParser === "undefined") {
+if (typeof (globalThis as Record<string, unknown>).DOMParser === "undefined") {
   class MockDOMParser {
     parseFromString() {
       return null
     }
   }
-  ;(globalThis as any).DOMParser = MockDOMParser
+  ;(globalThis as Record<string, unknown>).DOMParser = MockDOMParser
 }

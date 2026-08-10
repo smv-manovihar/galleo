@@ -1,9 +1,6 @@
 import { SessionRepository } from "../repositories/session.repository"
 import { MediaRepository } from "../repositories/media.repository"
-import type {
-  SessionCheckpoint,
-  UndoableAction,
-} from "../../shared/types/session"
+import type { SessionCheckpoint } from "../../shared/types/session"
 import { type Result, ok, fail } from "../../shared/types/results"
 
 export class SessionService {
@@ -22,10 +19,11 @@ export class SessionService {
     try {
       this.sessionRepo.saveCheckpoint(checkpoint)
       return ok(undefined)
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const err = e as Error
       return fail({
         code: "UNKNOWN",
-        message: e.message || "Saving session checkpoint failed",
+        message: err.message || "Saving session checkpoint failed",
       })
     }
   }
@@ -35,8 +33,10 @@ export class SessionService {
    */
   public updateReviews(
     _sessionId: string,
-    updates: { mediaId: string; state: "keep" | "delete" | "skipped" }[],
-    _undoAction?: UndoableAction
+    updates: {
+      mediaId: string
+      state: "keep" | "delete" | "skipped" | "pending"
+    }[]
   ): Result<void> {
     try {
       const timestamp = new Date().toISOString()
@@ -48,14 +48,12 @@ export class SessionService {
       // Update states in SQLite
       this.mediaRepo.updateReviewStatesBatch(mappedUpdates, timestamp)
 
-      // If we got an undoable action to register in the session checkpoint
-      // the caller is expected to pass it, and saveCheckpoint will store it.
-
       return ok(undefined)
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const err = e as Error
       return fail({
         code: "UNKNOWN",
-        message: e.message || "Updating review decisions failed",
+        message: err.message || "Updating review decisions failed",
       })
     }
   }
@@ -68,10 +66,11 @@ export class SessionService {
       this.sessionRepo.clearCheckpoint(folderPath)
       this.mediaRepo.resetReviewStatesByFolder(folderPath)
       return ok(undefined)
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const err = e as Error
       return fail({
         code: "UNKNOWN",
-        message: e.message || "Clearing session failed",
+        message: err.message || "Clearing session failed",
       })
     }
   }

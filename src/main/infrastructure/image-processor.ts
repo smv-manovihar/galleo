@@ -1,13 +1,13 @@
 import sharp, { type Sharp } from "sharp"
 import fs from "fs/promises"
-import { existsSync } from "fs"
+import { existsSync, mkdirSync } from "fs"
 import path from "path"
 import { app } from "electron"
 import { type Result, fail, ok } from "../../shared/types/results"
 import { bmvbhash } from "blockhash-core"
 
 // Bound Sharp native Libvips C++ memory pool to prevent excessive RAM accumulation while preserving file handle & buffer caching
-sharp.cache({ memory: 256, items: 500, files: 20 })
+sharp.cache({ memory: 64, items: 100, files: 10 })
 
 export interface ImageAnalysisResult {
   blurScore: number // 0 - 100
@@ -22,7 +22,8 @@ export function getThumbnailCacheDir(): string {
   try {
     const isDev = !app.isPackaged || process.env.NODE_ENV === "development"
     cachePath = isDev
-      ? path.join(process.cwd(), ".data", "thumbnails")
+      // ? path.join(process.cwd(), ".data", "thumbnails")
+      ? path.join(app.getPath("userData"), "thumbnails")
       : path.join(app.getPath("userData"), "thumbnails")
   } catch {
     cachePath = path.join(process.cwd(), ".data", "thumbnails")
@@ -31,9 +32,10 @@ export function getThumbnailCacheDir(): string {
   if (!existsSync(cachePath)) {
     // Create sync to avoid race conditions
     try {
-      const fsSync = require("fs")
-      fsSync.mkdirSync(cachePath, { recursive: true })
-    } catch {}
+      mkdirSync(cachePath, { recursive: true })
+    } catch {
+      // ignore
+    }
   }
   return cachePath
 }
@@ -53,7 +55,9 @@ export async function generateImageThumbnail(
     try {
       await fs.access(thumbnailPath)
       return ok(thumbnailPath)
-    } catch {}
+    } catch {
+      // ignore
+    }
 
     // Resize image to 800x800 (high quality retina preview), keep aspect ratio, output as compressed webp
     await sharp(imagePath)
@@ -67,11 +71,12 @@ export async function generateImageThumbnail(
       .toFile(thumbnailPath)
 
     return ok(thumbnailPath)
-  } catch (e: any) {
+  } catch (e: unknown) {
+    const err = e as Error
     return fail({
       code: "THUMBNAIL_FAILED",
       path: imagePath,
-      reason: e.message || "Sharp thumbnail generation failed",
+      reason: err.message || "Sharp thumbnail generation failed",
     })
   }
 }
@@ -169,7 +174,6 @@ async function computeBlurScore(image: Sharp): Promise<number> {
     const patchSums = new Array(16).fill(0)
     const patchSumSquares = new Array(16).fill(0)
     let globalSum = 0
-    let globalSumSquares = 0
 
     for (let y = 0; y < size; y++) {
       const patchY = Math.floor(y / patchSize)
@@ -183,7 +187,6 @@ async function computeBlurScore(image: Sharp): Promise<number> {
         patchSumSquares[patchIdx] += val * val
 
         globalSum += val
-        globalSumSquares += val * val
       }
     }
 
@@ -221,7 +224,7 @@ async function computeBlurScore(image: Sharp): Promise<number> {
     }
 
     return blurScore
-  } catch (err) {
+  } catch {
     return 80 // default to ok quality on failure
   }
 }
@@ -229,11 +232,12 @@ async function computeBlurScore(image: Sharp): Promise<number> {
 /**
  * Generates an 8x8 (64-bit) perceptual hash using blockhash-core.
  */
-async function computePerceptualHash(imagePath: string): Promise<string> {
+async function computePerceptualHash(image: Sharp): Promise<string> {
   try {
     // blockhash-core expects raw RGBA data
     const size = 16 // 16x16 blockhash yields 256 bits = 64 characters hex
-    const { data, info } = await sharp(imagePath)
+    const { data, info } = await image
+      .clone()
       .resize(size, size, { fit: "fill" })
       .raw()
       .toBuffer({ resolveWithObject: true })
@@ -264,7 +268,7 @@ export async function analyzeImage(
 
     const brightnessMetricsPromise = computeBrightnessMetrics(img)
     const blurScorePromise = computeBlurScore(img)
-    const hashPromise = computePerceptualHash(imagePath)
+    const hashPromise = computePerceptualHash(img)
 
     const [brightnessMetrics, blurScore, hash] = await Promise.all([
       brightnessMetricsPromise,
@@ -279,10 +283,11 @@ export async function analyzeImage(
       contrast: brightnessMetrics.contrast,
       hash,
     })
-  } catch (e: any) {
+  } catch (e: unknown) {
+    const err = e as Error
     return fail({
       code: "UNKNOWN",
-      message: e.message || "Image analysis failed",
+      message: err.message || "Image analysis failed",
     })
   }
 }

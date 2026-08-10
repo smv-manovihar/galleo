@@ -1,6 +1,8 @@
 import React from "react"
 import { useMediaStore } from "../stores/media-store"
 import { useUIStore } from "../stores/ui-store"
+import { useSettingsStore } from "../stores/settings-store"
+import { Skeleton } from "@/components/ui/skeleton"
 
 import {
   Card,
@@ -37,71 +39,38 @@ import { formatBytes } from "../lib/format"
 
 export const DashboardPage: React.FC = () => {
   const items = useMediaStore((s) => s.items)
+  const activeRootPath = useMediaStore((s) => s.activeRootPath)
+  const getDashboardMetrics = useMediaStore((s) => s.getDashboardMetrics)
+  const isLoading = useMediaStore((s) => s.isLoading)
+  const fetchMediaItems = useMediaStore((s) => s.fetchMediaItems)
+  const isInitialized = useSettingsStore((s) => s.isInitialized)
+  const roots = useSettingsStore((s) => s.settings.folders.roots)
+
+  // Ensure media items are fetched if roots exist but store has no items
+  React.useEffect(() => {
+    if (isInitialized && roots.length > 0 && items.length === 0 && !isLoading) {
+      fetchMediaItems(activeRootPath || "all")
+    }
+  }, [
+    isInitialized,
+    roots.length,
+    items.length,
+    isLoading,
+    fetchMediaItems,
+    activeRootPath,
+  ])
+
+  const metrics = getDashboardMetrics()
+
   const setFilterQuality = useMediaStore((s) => s.setFilterQuality)
   const setFilterType = useMediaStore((s) => s.setFilterType)
   const setSortBy = useMediaStore((s) => s.setSortBy)
   const setFilterReviewState = useMediaStore((s) => s.setFilterReviewState)
   const { setCurrentView, setActiveSettingsTab } = useUIStore()
 
-  const metrics = React.useMemo(() => {
-    let photoCount = 0
-    let videoCount = 0
-    let totalSize = 0
-    let keptCount = 0
-    let trashCount = 0
-    let pendingCount = 0
-    const blurryItems: typeof items = []
-    const darkItems: typeof items = []
-    const duplicateItems: typeof items = []
-    const screenshotItems: typeof items = []
-    const smallItems: typeof items = []
-    const groups = new Set<string>()
-
-    for (const i of items) {
-      if (i.mediaType === "photo") photoCount++
-      else if (i.mediaType === "video") videoCount++
-      totalSize += i.size || 0
-
-      if (i.reviewState === "keep") keptCount++
-      else if (i.reviewState === "delete") trashCount++
-      else pendingCount++
-
-      if (i.quality?.isBlurry) blurryItems.push(i)
-      if (i.quality?.isDark) darkItems.push(i)
-      if (i.isDuplicate) {
-        if (!i.isBestInDuplicateGroup) duplicateItems.push(i)
-        if (i.duplicateGroupId) groups.add(i.duplicateGroupId)
-      }
-      if (i.quality?.isScreenshot) screenshotItems.push(i)
-      if (i.quality?.isSmall) smallItems.push(i)
-    }
-
-    const totalFiles = items.length
-    const reviewedCount = keptCount + trashCount
-    const reviewProgress = totalFiles > 0 ? Math.round((reviewedCount / totalFiles) * 100) : 0
-    const duplicateSavedBytes = duplicateItems.reduce((sum, i) => sum + (i.size || 0), 0)
-    const blurrySavedBytes = blurryItems.reduce((sum, i) => sum + (i.size || 0), 0)
-
-    return {
-      totalFiles,
-      photoCount,
-      videoCount,
-      totalSize,
-      keptCount,
-      trashCount,
-      pendingCount,
-      reviewedCount,
-      reviewProgress,
-      blurryItems,
-      darkItems,
-      duplicateItems,
-      screenshotItems,
-      smallItems,
-      duplicateGroupsCount: groups.size,
-      duplicateSavedBytes,
-      blurrySavedBytes,
-    }
-  }, [items])
+  const showSkeleton =
+    (isLoading || !isInitialized || (roots.length > 0 && items.length === 0)) &&
+    items.length === 0
 
   const {
     totalFiles,
@@ -156,17 +125,27 @@ export const DashboardPage: React.FC = () => {
           </CardHeader>
           <CardContent>
             <CardTitle className="mt-0.5 font-heading text-xl font-bold text-foreground">
-              {totalFiles}
+              {showSkeleton ? (
+                <Skeleton className="h-7 w-16" />
+              ) : (
+                totalFiles
+              )}
             </CardTitle>
             <div className="mt-1 flex items-center gap-2 text-2xs text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <ImageIcon className="size-3 text-muted-foreground" />{" "}
-                {photoCount}
-              </span>
-              <span>•</span>
-              <span className="flex items-center gap-1">
-                <Film className="size-3 text-muted-foreground" /> {videoCount}
-              </span>
+              {showSkeleton ? (
+                <Skeleton className="h-3.5 w-28" />
+              ) : (
+                <>
+                  <span className="flex items-center gap-1">
+                    <ImageIcon className="size-3 text-muted-foreground" />{" "}
+                    {photoCount}
+                  </span>
+                  <span>•</span>
+                  <span className="flex items-center gap-1">
+                    <Film className="size-3 text-muted-foreground" /> {videoCount}
+                  </span>
+                </>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -180,7 +159,11 @@ export const DashboardPage: React.FC = () => {
           </CardHeader>
           <CardContent>
             <CardTitle className="mt-0.5 font-heading text-xl font-bold text-foreground">
-              {formatBytes(totalSize)}
+              {showSkeleton ? (
+                <Skeleton className="h-7 w-24" />
+              ) : (
+                formatBytes(totalSize)
+              )}
             </CardTitle>
             <p className="mt-1 text-2xs text-muted-foreground">
               Total disk space utilized
@@ -198,7 +181,11 @@ export const DashboardPage: React.FC = () => {
           </CardHeader>
           <CardContent>
             <CardTitle className="mt-0.5 font-heading text-xl font-bold text-foreground">
-              {formatBytes(totalWastedBytes)}
+              {showSkeleton ? (
+                <Skeleton className="h-7 w-24" />
+              ) : (
+                formatBytes(totalWastedBytes)
+              )}
             </CardTitle>
             <p className="mt-1 text-2xs text-muted-foreground">
               From duplicates and blurry media
@@ -215,12 +202,20 @@ export const DashboardPage: React.FC = () => {
           </CardHeader>
           <CardContent>
             <CardTitle className="mt-0.5 font-heading text-xl font-bold text-foreground">
-              {duplicateItems.length}
+              {showSkeleton ? (
+                <Skeleton className="h-7 w-16" />
+              ) : (
+                duplicateItems.length
+              )}
             </CardTitle>
             <p className="mt-1 text-2xs text-muted-foreground">
-              {duplicateGroupsCount > 0
-                ? `${duplicateGroupsCount} duplicate stacks`
-                : "No redundant files"}
+              {showSkeleton ? (
+                <Skeleton className="h-3.5 w-28" />
+              ) : duplicateGroupsCount > 0 ? (
+                `${duplicateGroupsCount} duplicate stacks`
+              ) : (
+                "No redundant files"
+              )}
             </p>
           </CardContent>
         </Card>
@@ -231,7 +226,7 @@ export const DashboardPage: React.FC = () => {
         {/* Left 2 Columns: Review Status + Cleanup Shortcuts */}
         <div className="space-y-6 lg:col-span-2">
           {/* Library Review Status Hero */}
-          {totalFiles > 0 && (
+          {(totalFiles > 0 || showSkeleton) && (
             <Card className="border-border bg-card/60">
               <CardContent className="space-y-3 p-5">
                 <div className="flex items-center justify-between">
@@ -241,12 +236,20 @@ export const DashboardPage: React.FC = () => {
                       Library Review Status
                     </span>
                   </div>
-                  <Badge variant="secondary" className="text-2xs font-medium">
-                    {reviewProgress}% Reviewed ({reviewedCount}/{totalFiles})
-                  </Badge>
+                  {showSkeleton ? (
+                    <Skeleton className="h-5 w-32" />
+                  ) : (
+                    <Badge variant="secondary" className="text-2xs font-medium">
+                      {reviewProgress}% Reviewed ({reviewedCount}/{totalFiles})
+                    </Badge>
+                  )}
                 </div>
 
-                <Progress value={reviewProgress} className="h-2 w-full" />
+                {showSkeleton ? (
+                  <Skeleton className="h-2 w-full" />
+                ) : (
+                  <Progress value={reviewProgress} className="h-2 w-full" />
+                )}
 
                 <div className="flex flex-wrap items-center gap-5 pt-1 text-2xs">
                   <div className="flex items-center gap-1.5 font-medium text-emerald-600 dark:text-emerald-400">

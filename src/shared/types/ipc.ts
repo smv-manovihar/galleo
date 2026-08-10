@@ -9,10 +9,13 @@ export const IPC_CHANNELS = {
   FOLDERS_SELECT: "folders:select",
   SCAN_START: "scan:start",
   SCAN_CANCEL: "scan:cancel",
+  SCAN_GET_STATUS: "scan:get-status",
   SCAN_COUNT_FOLDERS: "scan:count-folders",
   SCAN_FOLDER_COUNTS_UPDATED: "scan:folder-counts-updated",
   SCAN_PROGRESS: "scan:progress", // Main -> Renderer event
   SCAN_COMPLETE: "scan:complete", // Main -> Renderer event
+  SCAN_POST_PROCESSING_COMPLETE: "scan:post-processing-complete", // Main -> Renderer event (duplicates + similarity done)
+  SCAN_INTERRUPTED_CHECK: "scan:interrupted-check",
   MEDIA_GET: "media:get",
   MEDIA_UPDATE_REVIEWS: "media:update-reviews",
   SESSION_GET_CHECKPOINT: "session:get-checkpoint",
@@ -113,13 +116,19 @@ export interface GalleoAPI {
     callback: (payload: ScanProgressPayload) => void
   ) => () => void
   onScanComplete: (callback: () => void) => () => void
+  onScanPostProcessingComplete: (callback: () => void) => () => void
   onFolderCountsUpdated: (
     callback: (counts: FolderCountResult[]) => void
   ) => () => void
+  checkScanInterrupted: () => Promise<boolean>
+  getScanStatus: () => Promise<boolean>
   getMediaItems: (folderPath: string) => Promise<MediaItem[]>
   updateReviews: (
     sessionId: string,
-    updates: { mediaId: string; state: "keep" | "delete" | "skipped" }[],
+    updates: {
+      mediaId: string
+      state: "keep" | "delete" | "skipped" | "pending"
+    }[],
     undoAction?: UndoableAction
   ) => Promise<Result<void>>
   getSessionCheckpoint: (

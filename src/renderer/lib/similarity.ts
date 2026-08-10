@@ -39,67 +39,94 @@ export function sortBySimilarity(items: MediaItem[]): MediaItem[] {
   const unhashed = items.filter((i) => !i.hash)
   if (hashed.length === 0) return items
 
-  // Pre-parse hex pHash strings to BigInts for ultra-fast bitwise XOR distance calculation
-  const bigHashes: (bigint | null)[] = new Array(hashed.length)
-  let allBigIntValid = true
-  for (let i = 0; i < hashed.length; i++) {
+  // Step 1: Pre-parse hex pHash strings to BigInts
+  const parsed: { item: MediaItem; big: bigint }[] = []
+  for (const item of hashed) {
     try {
-      bigHashes[i] = BigInt("0x" + hashed[i].hash!)
+      parsed.push({ item, big: BigInt("0x" + item.hash!) })
     } catch {
-      allBigIntValid = false
-      break
+      unhashed.push(item)
     }
   }
 
-  const visited = new Uint8Array(hashed.length)
+  if (parsed.length === 0) return items
+
+  // Step 2: Pre-sort by BigInt pHash numerical value (O(N log N) - ~2ms for 20k items).
+  // This clusters visually similar photos close to each other in index space.
+  parsed.sort((a, b) => (a.big < b.big ? -1 : a.big > b.big ? 1 : 0))
+
+  const n = parsed.length
+  // For small collections <= 300, search full array. For large collections, search window around current item.
+  const WINDOW_SIZE = n > 300 ? 64 : n
+  const visited = new Uint8Array(n)
   const result: MediaItem[] = []
 
   let currentIdx = 0
   visited[currentIdx] = 1
-  result.push(hashed[currentIdx])
+  result.push(parsed[currentIdx].item)
+  let firstUnvisited = 1
 
-  if (allBigIntValid) {
-    for (let step = 1; step < hashed.length; step++) {
-      const currentBig = bigHashes[currentIdx]!
-      let bestIdx = -1
-      let bestDist = Infinity
+  for (let step = 1; step < n; step++) {
+    const currentBig = parsed[currentIdx].big
+    let bestIdx = -1
+    let bestDist = Infinity
 
-      for (let j = 0; j < hashed.length; j++) {
-        if (visited[j]) continue
-        let x = currentBig ^ bigHashes[j]!
-        let dist = 0
-        while (x > 0n) {
-          x &= x - 1n
-          dist++
-        }
-        if (dist < bestDist) {
-          bestDist = dist
-          bestIdx = j
-          if (dist === 0) break
-        }
+    // Search window centered around current index in pHash-sorted space
+    const searchStart = Math.max(0, currentIdx - WINDOW_SIZE)
+    const searchEnd = Math.min(n, currentIdx + WINDOW_SIZE)
+
+    for (let j = searchStart; j < searchEnd; j++) {
+      if (visited[j]) continue
+      let x = currentBig ^ parsed[j].big
+      let dist = 0
+      while (x > 0n) {
+        x &= x - 1n
+        dist++
       }
-
-      currentIdx = bestIdx
-      visited[currentIdx] = 1
-      result.push(hashed[currentIdx])
+      if (dist < bestDist) {
+        bestDist = dist
+        bestIdx = j
+        if (dist <= 2) break
+      }
     }
-  } else {
-    for (let step = 1; step < hashed.length; step++) {
-      const currentHash = hashed[currentIdx].hash!
-      let bestIdx = -1
-      let bestDist = Infinity
-      for (let j = 0; j < hashed.length; j++) {
-        if (visited[j]) continue
-        const dist = hammingDistance(currentHash, hashed[j].hash!)
-        if (dist < bestDist) {
-          bestDist = dist
-          bestIdx = j
-          if (dist === 0) break
+
+    // Fallback if all window neighbors are already visited: pick closest unvisited starting from firstUnvisited
+    if (bestIdx === -1) {
+      for (let j = firstUnvisited; j < n; j++) {
+        if (!visited[j]) {
+          let x = currentBig ^ parsed[j].big
+          let dist = 0
+          while (x > 0n) {
+            x &= x - 1n
+            dist++
+          }
+          if (dist < bestDist) {
+            bestDist = dist
+            bestIdx = j
+            if (dist <= 2) break
+          }
         }
       }
+    }
+
+    // Secondary fallback: pick first unvisited
+    if (bestIdx === -1) {
+      for (let j = firstUnvisited; j < n; j++) {
+        if (!visited[j]) {
+          bestIdx = j
+          break
+        }
+      }
+    }
+
+    if (bestIdx !== -1) {
       currentIdx = bestIdx
       visited[currentIdx] = 1
-      result.push(hashed[currentIdx])
+      result.push(parsed[currentIdx].item)
+    }
+
+    while (firstUnvisited < n && visited[firstUnvisited]) {
+      firstUnvisited++
     }
   }
 

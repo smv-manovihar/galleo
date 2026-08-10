@@ -58,6 +58,7 @@ export const TopBar: React.FC = () => {
   const setSearchQuery = useMediaStore((state) => state.setSearchQuery)
   const isScanning = useScanStore((state) => state.isScanning)
   const isStopping = useScanStore((state) => state.isStopping)
+  const isPostProcessing = useScanStore((state) => state.isPostProcessing)
   const startScan = useScanStore((state) => state.startScan)
   const cancelScan = useScanStore((state) => state.cancelScan)
   const scanProgress = useScanStore((state) => state.scanProgress)
@@ -181,7 +182,44 @@ export const TopBar: React.FC = () => {
     }
   }
 
+  const activeRootPath = useMediaStore((state) => state.activeRootPath)
+  const isFolderViewActive = Boolean(
+    activeRootPath && activeRootPath !== "all"
+  )
+  const activeFolderName = React.useMemo(() => {
+    if (!activeRootPath || activeRootPath === "all") return null
+    const root = settings.folders.roots.find(
+      (r) => r.path.toLowerCase() === activeRootPath.toLowerCase()
+    )
+    return (
+      root?.label ||
+      activeRootPath.split(/[\\/]/).filter(Boolean).pop() ||
+      "Active Folder"
+    )
+  }, [activeRootPath, settings.folders.roots])
+
   const handleScanClick = () => {
+    if (isScanning) {
+      cancelScan()
+    } else {
+      const enabledRoots = settings.folders.roots.filter((r) => r.enabled)
+      if (activeRootPath && activeRootPath !== "all") {
+        const match = enabledRoots.find(
+          (r) => r.path.toLowerCase() === activeRootPath.toLowerCase()
+        )
+        if (match) {
+          startScan([match.path])
+          return
+        }
+      }
+      const enabledPaths = enabledRoots.map((r) => r.path)
+      if (enabledPaths.length > 0) {
+        startScan(enabledPaths)
+      }
+    }
+  }
+
+  const handleScanAllFolders = () => {
     if (isScanning) {
       cancelScan()
     } else {
@@ -234,16 +272,19 @@ export const TopBar: React.FC = () => {
   // Active task helper state calculations for TopBar
   const isAIDownloadingActive = ENABLE_AI_FEATURES && isDownloadingAI
   const isScanActive = isScanning
+  const isPostProcessingActive = isPostProcessing && !isScanning
   const isAIIndexingActive =
     ENABLE_AI_FEATURES &&
     !isScanning &&
+    !isPostProcessing &&
     Boolean(aiIndexingProgress?.isIndexing)
 
   const activeTasks: Array<{
-    id: "ai-download" | "scan" | "ai-index"
+    id: "ai-download" | "scan" | "post-processing" | "ai-index"
     title: string
     subtitle: string
     progress: number
+    isIndeterminate?: boolean
     icon: React.ReactNode
     action?: React.ReactNode
   }> = []
@@ -294,6 +335,19 @@ export const TopBar: React.FC = () => {
             {isStopping ? "Stopping scan..." : "Stop Scan"}
           </TooltipContent>
         </Tooltip>
+      ),
+    })
+  }
+
+  if (isPostProcessingActive) {
+    activeTasks.push({
+      id: "post-processing",
+      title: "Post-Processing",
+      subtitle: "Analyzing duplicates & similarity...",
+      progress: 100,
+      isIndeterminate: true,
+      icon: (
+        <Loader2 className="h-3.5 w-3.5 text-primary animate-spin shrink-0" />
       ),
     })
   }
@@ -512,6 +566,26 @@ export const TopBar: React.FC = () => {
                     </div>
                   </div>
                 </div>
+              ) : activeTasks[0].id === "post-processing" ? (
+                <div className="flex shrink-0 items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 py-1.5 px-3">
+                  <div className="flex w-36 sm:w-44 flex-col gap-1">
+                    <div className="flex items-center justify-between text-2xs leading-tight">
+                      <span className="flex items-center gap-1.5 font-semibold text-primary truncate">
+                        <Loader2 className="h-3 w-3 shrink-0 animate-spin text-primary" />
+                        <span className="truncate">Post-Processing</span>
+                      </span>
+                    </div>
+                    <div className="relative h-1 w-full overflow-hidden rounded-full bg-muted/60">
+                      <div className="absolute inset-y-0 w-1/2 animate-pulse bg-primary rounded-full" />
+                    </div>
+                    <div
+                      className="truncate text-2xs text-muted-foreground leading-tight py-0.5"
+                      title={activeTasks[0].subtitle}
+                    >
+                      {activeTasks[0].subtitle}
+                    </div>
+                  </div>
+                </div>
               ) : activeTasks[0].id === "ai-index" ? (
                 <div className="flex shrink-0 items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 py-1.5 px-3">
                   <div className="flex w-36 sm:w-44 flex-col gap-1">
@@ -592,8 +666,12 @@ export const TopBar: React.FC = () => {
                   onClick={handleScanClick}
                 >
                   <Play className="h-3.5 w-3.5 fill-current" />
-                  <span className="hidden lg:inline">Scan Folders</span>
-                  <span className="inline lg:hidden">Scan</span>
+                  <span className="hidden lg:inline">
+                    {isFolderViewActive ? `Scan ${activeFolderName}` : "Scan All Folders"}
+                  </span>
+                  <span className="inline lg:hidden">
+                    {isFolderViewActive ? "Scan Folder" : "Scan All"}
+                  </span>
                 </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -607,21 +685,30 @@ export const TopBar: React.FC = () => {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent
                     align="end"
-                    className="w-44 border-border bg-card/95 font-sans text-xs text-foreground backdrop-blur-md"
+                    className="w-52 border-border bg-card/95 font-sans text-xs text-foreground backdrop-blur-md"
                   >
+                    {isFolderViewActive && (
+                      <DropdownMenuItem
+                        onClick={handleScanClick}
+                        className="cursor-pointer gap-2"
+                      >
+                        <Play className="h-3.5 w-3.5 text-primary" />
+                        Scan {activeFolderName}
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem
-                      onClick={handleScanClick}
+                      onClick={handleScanAllFolders}
                       className="cursor-pointer gap-2"
                     >
                       <Play className="h-3.5 w-3.5" />
-                      Standard Scan
+                      Scan All Folders
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={handleOpenRescanDialog}
                       className="cursor-pointer gap-2 font-medium text-primary focus:text-primary"
                     >
                       <Play className="h-3.5 w-3.5 fill-primary/10" />
-                      Force Rescan
+                      Force Rescan...
                     </DropdownMenuItem>
                     {ENABLE_AI_FEATURES && aiStatus?.isDownloaded && (
                       <DropdownMenuItem

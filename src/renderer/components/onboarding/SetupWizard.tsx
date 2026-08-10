@@ -411,9 +411,10 @@ export const SetupWizard: React.FC = () => {
           )
         }
       }
-    } catch (e: any) {
-      console.error("Wizard folder select failed:", e)
-      setError(e.message || "Folder selection failed")
+    } catch (e: unknown) {
+      const err = e as Error
+      console.error("Wizard folder select failed:", err)
+      setError(err.message || "Folder selection failed")
     }
   }
 

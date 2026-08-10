@@ -26,18 +26,21 @@ export async function readExifMetadata(
     const slicedBuffer = buffer.subarray(0, bytesRead)
 
     // Parse using ExifReader with expanded: true to get nested tags cleanly
-    const tags = ExifReader.load(slicedBuffer, { expanded: true }) as any
+    const tags = ExifReader.load(slicedBuffer, { expanded: true }) as Record<
+      string,
+      Record<string, { description?: string; value?: unknown }>
+    >
 
     let dateOriginal: string | null = null
     let width: number | null = null
     let height: number | null = null
 
     // Extract Date Original
-    if (tags.exif?.DateTimeOriginal) {
+    if (tags.exif?.DateTimeOriginal?.description) {
       dateOriginal = tags.exif.DateTimeOriginal.description
-    } else if (tags.exif?.CreateDate) {
+    } else if (tags.exif?.CreateDate?.description) {
       dateOriginal = tags.exif.CreateDate.description
-    } else if (tags.image?.DateTime) {
+    } else if (tags.image?.DateTime?.description) {
       dateOriginal = tags.image.DateTime.description
     }
 

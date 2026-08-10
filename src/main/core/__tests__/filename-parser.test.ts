@@ -67,6 +67,11 @@ describe("extractDateFromFilename", () => {
     expect(date!.getMonth()).toBe(2) // March
   })
 
+  it("returns null for Snapchat filenames to prevent false date inference from internal IDs", () => {
+    expect(extractDateFromFilename("Snapchat-1234567890.jpg")).toBeNull()
+    expect(extractDateFromFilename("Snapchat_9876543210.jpg")).toBeNull()
+  })
+
   it("returns null for names without dates", () => {
     expect(extractDateFromFilename("vacation.jpg")).toBeNull()
     expect(extractDateFromFilename("image123.png")).toBeNull()

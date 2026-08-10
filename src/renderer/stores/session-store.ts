@@ -22,11 +22,89 @@ interface SessionState {
     batchId?: string
   ) => Promise<void>
   undo: (sourceFilter?: "culling" | "browse" | "duplicates") => Promise<boolean>
+  bulkChangeDecisions: (
+    mediaIds: string[],
+    newDecision: "keep" | "delete"
+  ) => Promise<void>
   commitDeletions: (
     specificMediaIds?: string[]
   ) => Promise<{ successCount: number; failedPaths: string[] | null }>
   clearSession: () => Promise<void>
   getProgress: () => { reviewed: number; total: number; percentage: number }
+  saveCheckpointDebounced: (checkpoint: SessionCheckpoint) => void
+}
+
+const CHECKPOINT_SAVE_DEBOUNCE_MS = 800
+const REVIEW_FLUSH_DEBOUNCE_MS = 800
+
+// --- Checkpoint save machinery ---
+let checkpointSaveTimer: ReturnType<typeof setTimeout> | null = null
+let pendingCheckpoint: SessionCheckpoint | null = null
+
+function scheduleCheckpointSave(checkpoint: SessionCheckpoint): void {
+  pendingCheckpoint = checkpoint
+  if (checkpointSaveTimer !== null) return
+  checkpointSaveTimer = setTimeout(() => {
+    checkpointSaveTimer = null
+    const checkpointToSave = pendingCheckpoint
+    pendingCheckpoint = null
+    if (checkpointToSave !== null) {
+      void window.api.saveSessionCheckpoint(checkpointToSave)
+    }
+  }, CHECKPOINT_SAVE_DEBOUNCE_MS)
+}
+
+export function cancelPendingCheckpointSave(): void {
+  if (checkpointSaveTimer !== null) {
+    clearTimeout(checkpointSaveTimer)
+    checkpointSaveTimer = null
+    pendingCheckpoint = null
+  }
+}
+
+export function flushPendingCheckpointSave(): void {
+  if (checkpointSaveTimer !== null) {
+    clearTimeout(checkpointSaveTimer)
+    checkpointSaveTimer = null
+    if (pendingCheckpoint !== null) {
+      void window.api.saveSessionCheckpoint(pendingCheckpoint)
+      pendingCheckpoint = null
+    }
+  }
+}
+
+// --- Review write queue (Map: last-write-wins per mediaId) ---
+const pendingReviews = new Map<string, "keep" | "delete" | "skipped" | "pending">()
+let reviewFlushTimer: ReturnType<typeof setTimeout> | null = null
+
+function scheduleReviewFlush(sessionId: string): void {
+  if (reviewFlushTimer !== null) return // timer already running — map will accumulate
+  reviewFlushTimer = setTimeout(() => {
+    reviewFlushTimer = null
+    const batch = [...pendingReviews.entries()]
+    pendingReviews.clear()
+    if (batch.length > 0) {
+      void window.api.updateReviews(
+        sessionId,
+        batch.map(([mediaId, state]) => ({ mediaId, state }))
+      )
+    }
+  }, REVIEW_FLUSH_DEBOUNCE_MS)
+}
+
+export function flushPendingReviews(sessionId: string): void {
+  if (reviewFlushTimer !== null) {
+    clearTimeout(reviewFlushTimer)
+    reviewFlushTimer = null
+  }
+  const batch = [...pendingReviews.entries()]
+  pendingReviews.clear()
+  if (batch.length > 0) {
+    void window.api.updateReviews(
+      sessionId,
+      batch.map(([mediaId, state]) => ({ mediaId, state }))
+    )
+  }
 }
 
 export const useSessionStore = create<SessionState>((set, get) => ({
@@ -54,9 +132,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
             if (checkpoint.decisions[item.id]) {
               return { ...item, reviewState: checkpoint.decisions[item.id] }
             }
-            return item
+            return { ...item, reviewState: "pending" as const }
           })
-          useMediaStore.setState({ items: updatedItems })
+          useMediaStore.getState().setItems(updatedItems)
         }
 
         set({
@@ -77,6 +155,17 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           savedAt: new Date().toISOString(),
         }
         await window.api.saveSessionCheckpoint(freshCheckpoint)
+
+        // For a fresh session, reset reviewState in mediaStore to pending
+        const mediaStore = useMediaStore.getState()
+        if (mediaStore.items.length > 0) {
+          const updatedItems = mediaStore.items.map((item) => ({
+            ...item,
+            reviewState: "pending" as const,
+          }))
+          useMediaStore.getState().setItems(updatedItems)
+        }
+
         set({
           checkpoint: freshCheckpoint,
           currentIndex: 0,
@@ -131,7 +220,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       savedAt: new Date().toISOString(),
     }
 
-    // Update state locally
+    // Update state locally synchronously
     set({
       checkpoint: updatedCheckpoint,
       currentIndex: nextIndex,
@@ -141,21 +230,17 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
     // Update media store review state synchronously
     const mediaStore = useMediaStore.getState()
-    useMediaStore.setState({
-      items: mediaStore.items.map((i) =>
+    useMediaStore.getState().setItems(
+      mediaStore.items.map((i) =>
         i.id === mediaId ? { ...i, reviewState: state } : i
-      ),
-    })
-
-    // Save checkpoint in database
-    await window.api.saveSessionCheckpoint(updatedCheckpoint)
-
-    // Save decision directly on media_items table in SQLite
-    await window.api.updateReviews(
-      checkpoint.sessionId,
-      [{ mediaId, state }],
-      undoAction
+      )
     )
+    // Schedule debounced checkpoint save in background (non-blocking)
+    scheduleCheckpointSave(updatedCheckpoint)
+
+    // Queue review write — flushed as a batch on trailing-edge throttle
+    pendingReviews.set(mediaId, state)
+    scheduleReviewFlush(checkpoint.sessionId)
   },
 
   undo: async (sourceFilter?: "culling" | "browse" | "duplicates") => {
@@ -202,15 +287,16 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }[] = []
 
     for (const action of actionsToRevert) {
-      const prevReviewState = action.previousState.reviewState || "pending"
+      const prevReviewState = (action.previousState.reviewState ||
+        "pending") as "keep" | "delete" | "skipped" | "pending"
       if (prevReviewState === "pending") {
         delete updatedDecisions[action.mediaId]
       } else {
-        updatedDecisions[action.mediaId] = prevReviewState as any
+        updatedDecisions[action.mediaId] = prevReviewState
       }
       reviewsToUpdate.push({
         mediaId: action.mediaId,
-        state: prevReviewState as any,
+        state: prevReviewState,
       })
     }
 
@@ -229,21 +315,29 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
     // Revert media store review states synchronously before setting state
     const mediaStore = useMediaStore.getState()
-    const actionMap = new Map(
+    const actionMap = new Map<
+      string,
+      "keep" | "delete" | "skipped" | "pending"
+    >(
       actionsToRevert.map((a) => [
         a.mediaId,
-        a.previousState.reviewState || "pending",
+        (a.previousState.reviewState || "pending") as
+          | "keep"
+          | "delete"
+          | "skipped"
+          | "pending",
       ])
     )
 
-    useMediaStore.setState({
-      items: mediaStore.items.map((i) => {
-        if (actionMap.has(i.id)) {
-          return { ...i, reviewState: actionMap.get(i.id) as any }
+    useMediaStore.getState().setItems(
+      mediaStore.items.map((i) => {
+        const prevState = actionMap.get(i.id)
+        if (prevState) {
+          return { ...i, reviewState: prevState }
         }
         return i
-      }),
-    })
+      })
+    )
 
     set({
       checkpoint: updatedCheckpoint,
@@ -252,13 +346,72 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       undoStack: poppedStack,
     })
 
-    // Save checkpoint
-    await window.api.saveSessionCheckpoint(updatedCheckpoint)
+    // Schedule debounced checkpoint save in background (non-blocking)
+    scheduleCheckpointSave(updatedCheckpoint)
 
-    // Revert database reviews
-    await window.api.updateReviews(checkpoint.sessionId, reviewsToUpdate as any)
+    // Queue reverted review states — Map overwrites any previous pending writes
+    for (const { mediaId, state } of reviewsToUpdate) {
+      pendingReviews.set(mediaId, state)
+    }
+    scheduleReviewFlush(checkpoint.sessionId)
 
     return true
+  },
+
+  bulkChangeDecisions: async (
+    mediaIds: string[],
+    newDecision: "keep" | "delete"
+  ) => {
+    const { checkpoint, decisions, undoStack } = get()
+    if (!checkpoint) return
+
+    const mediaIdSet = new Set(mediaIds)
+    const updatedDecisions = { ...decisions }
+
+    const updatedUndoStack = undoStack.map((a) => {
+      if (mediaIdSet.has(a.mediaId)) {
+        updatedDecisions[a.mediaId] = newDecision
+        return {
+          ...a,
+          type:
+            newDecision === "keep"
+              ? ("mark-keep" as const)
+              : ("mark-delete" as const),
+          newState: { ...a.newState, reviewState: newDecision },
+        }
+      }
+      return a
+    })
+
+    const updatedCheckpoint: SessionCheckpoint = {
+      ...checkpoint,
+      decisions: updatedDecisions,
+      undoStack: updatedUndoStack,
+      savedAt: new Date().toISOString(),
+    }
+
+    // Sync media store review states
+    const mediaStore = useMediaStore.getState()
+    useMediaStore.getState().setItems(
+      mediaStore.items.map((i) =>
+        mediaIdSet.has(i.id) ? { ...i, reviewState: newDecision } : i
+      )
+    )
+
+    set({
+      decisions: updatedDecisions,
+      undoStack: updatedUndoStack,
+      checkpoint: updatedCheckpoint,
+    })
+
+    // Schedule debounced checkpoint save
+    scheduleCheckpointSave(updatedCheckpoint)
+
+    // Queue all changed reviews
+    for (const mediaId of mediaIds) {
+      pendingReviews.set(mediaId, newDecision)
+    }
+    scheduleReviewFlush(checkpoint.sessionId)
   },
 
   commitDeletions: async (specificMediaIds?: string[]) => {
@@ -300,6 +453,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }
 
     if (specificMediaIds) {
+      // Flush queued reviews before committing so DB is consistent
+      flushPendingReviews(checkpoint.sessionId)
       // Partial commit (e.g. for exact duplicates)
       const updatedDecisions = { ...decisions }
       for (const mediaId of specificMediaIds) {
@@ -321,6 +476,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         savedAt: new Date().toISOString(),
       }
 
+      cancelPendingCheckpointSave()
       await window.api.saveSessionCheckpoint(updatedCheckpoint)
       await useMediaStore.getState().fetchMediaItems(checkpoint.folderPath)
 
@@ -332,7 +488,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         isCommitting: false,
       })
     } else {
-      // Full commit: Clear session checkpoint since reviews are committed
+      // Full commit: Flush queued reviews then clear session.
+      // Cancel any queued debounced save first so a stale timer cannot
+      // re-create the session row after it was deleted.
+      flushPendingReviews(checkpoint.sessionId)
+      cancelPendingCheckpointSave()
       await window.api.clearSession(checkpoint.folderPath)
 
       // Clear localStorage active tab and group index for this folder
@@ -361,6 +521,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const { checkpoint } = get()
     if (!checkpoint) return
 
+    flushPendingReviews(checkpoint.sessionId)
+    cancelPendingCheckpointSave()
     await window.api.clearSession(checkpoint.folderPath)
 
     // Clear localStorage active tab and group index for this folder
@@ -389,4 +551,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
     return { reviewed, total, percentage }
   },
+
+  saveCheckpointDebounced: (checkpoint) => scheduleCheckpointSave(checkpoint),
 }))

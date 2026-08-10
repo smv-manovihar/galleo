@@ -8,15 +8,14 @@ import {
   Play,
   FileImage,
   Trash2,
-  Check,
   Eye,
   ChevronRight,
   FolderSearch,
   ExternalLink,
   FolderOpen,
   Info,
-  Bookmark,
   Sparkles,
+  Bookmark,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useMediaStore } from "../../stores/media-store"
@@ -239,7 +238,7 @@ const MediaListRow = React.memo<MediaListRowProps>(
                     className="h-6.5 w-6.5 cursor-pointer rounded text-muted-foreground hover:bg-green-500/10 hover:text-green-500"
                     onClick={() => onReviewAction(item.id, "keep")}
                   >
-                    <Check className="h-3.5 w-3.5" />
+                    <Bookmark className="h-3.5 w-3.5" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="top">Keep</TooltipContent>

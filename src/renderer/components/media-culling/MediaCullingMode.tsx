@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo } from "react"
+import { Loader2 } from "lucide-react"
 import { useSessionStore } from "../../stores/session-store"
 import type { MediaItem } from "../../../shared/types/media"
 import { MediaCullingProgress } from "./MediaCullingProgress"
@@ -23,7 +24,7 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
   onlyShowFlagged,
   onOnlyShowFlaggedChange,
 }) => {
-  const { submitDecision, undo, undoStack, decisions } = useSessionStore()
+  const { submitDecision, undo, undoStack, decisions, bulkChangeDecisions } = useSessionStore()
 
   const [swipeClass, setSwipeClass] = useState<
     "slide-left" | "slide-right" | ""
@@ -34,88 +35,145 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
     direction: "left" | "right"
   } | null>(null)
   const [isVideoPlaying, setIsVideoPlaying] = useState(false)
-  const videoPlayerRef = useRef<any>(null)
-  const [recentlyUndoneIds, setRecentlyUndoneIds] = useState<string[]>([])
-  const pendingActionRef = useRef<{
-    timeoutId: ReturnType<typeof setTimeout>
-    targetId: string
-    state: "keep" | "delete"
-    item: MediaItem
-  } | null>(null)
+  const videoPlayerRef = useRef<HTMLVideoElement | null>(null)
 
-  const prevUnreviewedCountRef = useRef(0)
+  const [animatingOutId, setAnimatingOutId] = useState<string | null>(null)
+  const animationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const [isProcessing, setIsProcessing] = useState(true)
+  const [sortedItems, setSortedItems] = useState<MediaItem[]>([])
+
+  useEffect(() => {
+    let active = true
+    const timer = setTimeout(() => {
+      if (!active) return
+      const sorted = getSimilaritySortedItems(items)
+      React.startTransition(() => {
+        setSortedItems(sorted)
+        setIsProcessing(false)
+      })
+    }, 0)
+    return () => {
+      active = false
+      clearTimeout(timer)
+    }
+  }, [items])
 
   const filteredItems = useMemo(() => {
-    const sortedAll = getSimilaritySortedItems(items)
     if (onlyShowFlagged) {
-      return sortedAll.filter(
+      return sortedItems.filter(
         (item) =>
           item.isDuplicate ||
           (item.quality !== undefined &&
-            (item.quality.isBlurry ||
+            (item.quality.compositeScore < 50 ||
+              item.quality.isBlurry ||
               item.quality.isDark ||
               item.quality.isScreenshot ||
               item.quality.isSmall))
       )
     }
-    return sortedAll
-  }, [items, onlyShowFlagged])
+    return sortedItems
+  }, [sortedItems, onlyShowFlagged])
 
-  const unreviewedItems = useMemo(() => {
-    const pending = filteredItems.filter(
-      (item) =>
-        decisions[item.id] === undefined &&
-        (!item.reviewState || item.reviewState === "pending")
-    )
-    const undoneSet = new Set(recentlyUndoneIds)
-    const undoneItemsOrdered = recentlyUndoneIds
-      .map((id) => pending.find((item) => item.id === id))
-      .filter((item): item is MediaItem => !!item)
-    const otherPending = pending.filter((item) => !undoneSet.has(item.id))
-    return [...undoneItemsOrdered, ...otherPending]
-  }, [filteredItems, decisions, recentlyUndoneIds])
+  const unreviewedItems = useMemo(() =>
+    filteredItems.filter((item) => decisions[item.id] === undefined),
+    [filteredItems, decisions]
+  )
 
-  const lastReviewedItem = useMemo(() => {
+  const currentItem = unreviewedItems.length > 0 ? unreviewedItems[0] : null
+
+  /** Commits a decision immediately to the store and triggers visual exit animation. */
+  const commitAction = (item: MediaItem, state: "keep" | "delete") => {
+    setIsVideoPlaying(false)
+
+    // Snap any in-progress animation immediately so the deck doesn't stall
+    if (animationTimerRef.current) {
+      clearTimeout(animationTimerRef.current)
+      animationTimerRef.current = null
+      setAnimatingOutId(null)
+      setSwipeClass("")
+    }
+
+    const isLastItem = unreviewedItems.length <= 1
+
+    // Commit to store immediately — unreviewedItems updates on next render
+    void submitDecision(item.id, state, item, "culling")
+
+    // Visual exit animation (purely presentational)
+    setAnimatingOutId(item.id)
+    setSwipeClass(state === "keep" ? "slide-right" : "slide-left")
+
+    animationTimerRef.current = setTimeout(() => {
+      animationTimerRef.current = null
+      setAnimatingOutId(null)
+      setSwipeClass("")
+      if (isLastItem) onComplete()
+    }, 300)
+  }
+
+  const handleAction = (state: "keep" | "delete") => {
+    const item = unreviewedItems[0]
+    if (!item) return
+    commitAction(item, state)
+  }
+
+  const handleUndo = async () => {
+    setIsVideoPlaying(false)
+
+    if (animationTimerRef.current) {
+      // Decision was already committed — cancel animation and undo it
+      clearTimeout(animationTimerRef.current)
+      animationTimerRef.current = null
+      setAnimatingOutId(null)
+      setSwipeClass("")
+      await undo("culling")
+      return
+    }
+
     const cullingActions = undoStack.filter(
       (a) => a.newState.source === "culling"
     )
-    if (cullingActions.length > 0) {
-      const lastAction = cullingActions[cullingActions.length - 1]
-      const found = filteredItems.find((i) => i.id === lastAction.mediaId)
-      if (found) return found
+    if (cullingActions.length === 0) return
+
+    const lastAction = cullingActions[cullingActions.length - 1]
+    const direction = lastAction.type === "mark-keep" ? "right" : "left"
+
+    const success = await undo("culling")
+    if (success) {
+      setRestoringItem({ id: lastAction.mediaId, direction })
     }
-    return filteredItems.length > 0
-      ? filteredItems[filteredItems.length - 1]
-      : items[items.length - 1] || null
-  }, [undoStack, items, filteredItems])
+  }
 
-  const currentItem =
-    unreviewedItems.length > 0 ? unreviewedItems[0] : lastReviewedItem
-
-  const handleKeyDownRef = useRef<(e: KeyboardEvent) => Promise<void>>(async () => {})
-
-  useEffect(() => {
-    setIsVideoPlaying(false)
-  }, [currentItem?.id])
+  const handleKeyDownRef = useRef<(e: KeyboardEvent) => Promise<void> | void>(() => {})
 
   useEffect(() => {
     if (restoringItem) {
-      const id = requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          setRestoringItem(null)
-        })
-      })
-      return () => cancelAnimationFrame(id)
+      const timer = setTimeout(() => {
+        setRestoringItem(null)
+      }, 40)
+      return () => clearTimeout(timer)
     }
   }, [restoringItem])
 
-  // Deck: current + next few for stacked visuals
-  const deckItems = useMemo(() => {
-    if (unreviewedItems.length > 0) {
-      return unreviewedItems.slice(0, DECK_SIZE)
+  // Cleanup animation timer on unmount
+  useEffect(() => {
+    return () => {
+      if (animationTimerRef.current) {
+        clearTimeout(animationTimerRef.current)
+      }
     }
-    return lastReviewedItem ? [lastReviewedItem] : []
-  }, [unreviewedItems, lastReviewedItem])
+  }, [])
+
+  // Deck: current + next few for stacked visuals. Inject animating-out card at front.
+  const deckItems = useMemo(() => {
+    if (animatingOutId) {
+      const animatingItem = sortedItems.find((i) => i.id === animatingOutId)
+      if (animatingItem) {
+        return [animatingItem, ...unreviewedItems.slice(0, DECK_SIZE - 1)]
+      }
+    }
+    return unreviewedItems.slice(0, DECK_SIZE)
+  }, [unreviewedItems, animatingOutId, sortedItems])
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -134,7 +192,7 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
         return
       }
 
-      if (!currentItem || swipeClass !== "") return
+      if (!currentItem) return
 
       // Preview: ↑ / W
       if (e.key === "ArrowUp" || key === "w") {
@@ -143,17 +201,16 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
         return
       }
 
-      // Delete: ← / A / Del
       if (e.key === "ArrowLeft" || key === "a" || e.key === "Delete") {
         e.preventDefault()
-        await handleAction("delete")
+        handleAction("delete")
         return
       }
 
       // Keep: → / D / Enter
       if (e.key === "ArrowRight" || key === "d" || e.key === "Enter") {
         e.preventDefault()
-        await handleAction("keep")
+        handleAction("keep")
         return
       }
     }
@@ -171,177 +228,29 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
     }
   }, [])
 
-  const handleAction = async (state: "keep" | "delete") => {
-    if (!currentItem) return
 
-    const isLastItem = unreviewedItems.length <= 1
+  const progress = useMemo(() => {
+    const total = filteredItems.length
+    const reviewed = filteredItems.filter(
+      (item) => decisions[item.id] !== undefined
+    ).length
+    const percentage = total > 0 ? Math.round((reviewed / total) * 100) : 0
+    return { reviewed, total, percentage }
+  }, [filteredItems, decisions])
 
-    // If there's a pending swipe timer running, commit it immediately before starting new action
-    if (pendingActionRef.current) {
-      clearTimeout(pendingActionRef.current.timeoutId)
-      const pending = pendingActionRef.current
-      pendingActionRef.current = null
-      await submitDecision(
-        pending.targetId,
-        pending.state,
-        pending.item,
-        "culling"
-      )
-      setRecentlyUndoneIds((prev) =>
-        prev.filter((id) => id !== pending.targetId)
-      )
-    }
-
-    if (state === "keep") {
-      setSwipeClass("slide-right")
-    } else {
-      setSwipeClass("slide-left")
-    }
-
-    const targetId = currentItem.id
-    const targetItem = currentItem
-
-    const timeoutId = setTimeout(async () => {
-      pendingActionRef.current = null
-      await submitDecision(targetId, state, targetItem, "culling")
-      setRecentlyUndoneIds((prev) => prev.filter((id) => id !== targetId))
-      setSwipeClass("")
-      if (isLastItem) {
-        onComplete()
-      }
-    }, 400)
-
-    pendingActionRef.current = { timeoutId, targetId, state, item: targetItem }
-  }
-
-  const handleUndo = async () => {
-    // 1. If a card swipe animation is currently pending, cancel it immediately!
-    if (pendingActionRef.current) {
-      clearTimeout(pendingActionRef.current.timeoutId)
-      pendingActionRef.current = null
-      setSwipeClass("")
-      return
-    }
-
-    // 2. Otherwise pop the last committed action from sessionStore undoStack
-    const cullingActions = undoStack.filter(
-      (a) => a.newState.source === "culling"
-    )
-    if (cullingActions.length === 0) return
-
-    // Determine which direction the card should slide back from
-    const lastAction = cullingActions[cullingActions.length - 1]
-    const direction = lastAction.type === "mark-keep" ? "right" : "left"
-
-    setSwipeClass("")
-
-    const success = await undo("culling")
-    if (success) {
-      setRestoringItem({ id: lastAction.mediaId, direction })
-      setRecentlyUndoneIds((prev) => [lastAction.mediaId, ...prev])
-    }
-  }
-
-  /** Override the decisions for past actions without undoing the stack position */
-  const handleBulkChangeDecisions = async (
-    mediaIds: string[],
-    newDecision: "keep" | "delete"
-  ) => {
-    const store = useSessionStore.getState()
-    const checkpoint = store.checkpoint
-    if (!checkpoint) return
-
-    const decisions = { ...store.decisions }
-    const mediaIdSet = new Set(mediaIds)
-
-    const updatedUndoStack = store.undoStack.map((a) => {
-      if (mediaIdSet.has(a.mediaId)) {
-        decisions[a.mediaId] = newDecision
-        return {
-          ...a,
-          type:
-            newDecision === "keep"
-              ? ("mark-keep" as const)
-              : ("mark-delete" as const),
-          newState: { ...a.newState, reviewState: newDecision },
-        }
-      }
-      return a
-    })
-
-    const updatedCheckpoint = {
-      ...checkpoint,
-      decisions,
-      savedAt: new Date().toISOString(),
-    }
-
-    useSessionStore.setState({
-      decisions,
-      checkpoint: { ...updatedCheckpoint, undoStack: updatedUndoStack },
-      undoStack: updatedUndoStack,
-    })
-
-    await window.api.saveSessionCheckpoint({
-      ...updatedCheckpoint,
-      undoStack: updatedUndoStack,
-    })
-
-    const reviewsToUpdate = mediaIds.map((mediaId) => ({
-      mediaId,
-      state: newDecision,
-    }))
-    await window.api.updateReviews(checkpoint.sessionId, reviewsToUpdate)
-    setRecentlyUndoneIds((prev) => prev.filter((id) => !mediaIdSet.has(id)))
-  }
-
-  // Initialize ref with initial count of unreviewed items upon mounting
+  // Auto-complete when all items reviewed (guard against firing during animation)
+  const prevUnreviewedCountRef = useRef(unreviewedItems.length)
   useEffect(() => {
-    prevUnreviewedCountRef.current = unreviewedItems.length
-  }, [])
-
-  useEffect(() => {
-    // Only auto-complete if the count transitioned from > 0 to 0
     if (
       prevUnreviewedCountRef.current > 0 &&
       unreviewedItems.length === 0 &&
-      items.length > 0
+      items.length > 0 &&
+      animatingOutId === null
     ) {
       onComplete()
     }
     prevUnreviewedCountRef.current = unreviewedItems.length
-  }, [unreviewedItems.length, items.length, onComplete])
-
-  const progress = useMemo(() => {
-    const cullingDecidedIds = new Set<string>()
-    const lastSourceMap = new Map<string, string>()
-    for (const action of undoStack) {
-      const source = action.newState.source
-      if (source) {
-        lastSourceMap.set(action.mediaId, source)
-      }
-    }
-
-    for (const [mediaId, decision] of Object.entries(decisions)) {
-      if (decision && lastSourceMap.get(mediaId) === "culling") {
-        cullingDecidedIds.add(mediaId)
-      }
-    }
-
-    const cullingItems = items.filter((item) => {
-      const hasDecision =
-        decisions[item.id] !== undefined || item.reviewState !== "pending"
-      if (!hasDecision) return true
-      return cullingDecidedIds.has(item.id)
-    })
-
-    const total = cullingItems.length
-    const reviewed = cullingItems.filter((item) =>
-      cullingDecidedIds.has(item.id)
-    ).length
-    const percentage = total > 0 ? Math.round((reviewed / total) * 100) : 0
-
-    return { reviewed, total, percentage }
-  }, [items, decisions, undoStack])
+  }, [unreviewedItems.length, items.length, onComplete, animatingOutId])
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col gap-4 overflow-hidden px-6 pt-4 pb-6 font-sans text-xs select-none md:pb-8">
@@ -354,43 +263,45 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
         onViewSummary={onComplete}
       />
 
-      {/* Swipeable Card Deck Viewport (Layered OVER controls) */}
+      {/* Swipeable Card Deck Viewport */}
       <div
         className="relative z-10 flex min-h-0 w-full flex-1 items-center justify-center py-2"
         style={{ overflow: "visible" }}
       >
-        {[...deckItems].reverse().map((item, reverseIdx) => {
-          const deckIndex = deckItems.length - 1 - reverseIdx
-          const isTopCard = deckIndex === 0
+        {isProcessing ? (
+          <div className="flex flex-col items-center justify-center gap-3 py-12 text-center text-muted-foreground animate-pulse">
+            <div className="relative flex h-64 w-80 max-w-full items-center justify-center rounded-2xl border border-border/40 bg-card/30 backdrop-blur-md shadow-inner">
+              <Loader2 className="h-7 w-7 animate-spin text-primary/70" />
+            </div>
+            <span className="text-2xs font-medium tracking-wide text-muted-foreground/80">
+              Preparing media deck...
+            </span>
+          </div>
+        ) : (
+          [...deckItems].reverse().map((item, reverseIdx) => {
+            const deckIndex = deckItems.length - 1 - reverseIdx
+            const isTopCard = deckIndex === 0
 
-          return (
-            <MediaCullingCard
-              key={item.id}
-              item={item}
-              deckIndex={deckIndex}
-              isTopCard={isTopCard}
-              swipeClass={isTopCard ? swipeClass : undefined}
-              restoringDirection={
-                restoringItem?.id === item.id ? restoringItem.direction : null
-              }
-              isVideoPlaying={isVideoPlaying}
-              videoPlayerRef={videoPlayerRef}
-              onDoubleClick={() => setShowPreview(true)}
-              onFullscreen={() => setShowPreview(true)}
-              onPlayStateChange={setIsVideoPlaying}
-              onSwipeComplete={async (action) => {
-                const isLastItem = unreviewedItems.length <= 1
-                await submitDecision(item.id, action, item, "culling")
-                setRecentlyUndoneIds((prev) =>
-                  prev.filter((id) => id !== item.id)
-                )
-                if (isLastItem) {
-                  onComplete()
+            return (
+              <MediaCullingCard
+                key={item.id}
+                item={item}
+                deckIndex={deckIndex}
+                isTopCard={isTopCard}
+                swipeClass={isTopCard ? swipeClass : undefined}
+                restoringDirection={
+                  restoringItem?.id === item.id ? restoringItem.direction : null
                 }
-              }}
-            />
-          )
-        })}
+                isVideoPlaying={isVideoPlaying}
+                videoPlayerRef={videoPlayerRef}
+                onDoubleClick={() => setShowPreview(true)}
+                onFullscreen={() => setShowPreview(true)}
+                onPlayStateChange={setIsVideoPlaying}
+                onSwipeComplete={(action) => commitAction(item, action)}
+              />
+            )
+          })
+        )}
       </div>
 
       <MediaCullingControls
@@ -399,7 +310,7 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
         onUndo={handleUndo}
         onDelete={() => handleAction("delete")}
         onKeep={() => handleAction("keep")}
-        onBulkChangeDecisions={handleBulkChangeDecisions}
+        onBulkChangeDecisions={bulkChangeDecisions}
       />
 
       <MediaPreview

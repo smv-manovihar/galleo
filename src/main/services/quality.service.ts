@@ -63,10 +63,11 @@ export class QualityService {
 
         return ok({ quality })
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const err = e as { message?: string }
       return fail({
         code: "UNKNOWN",
-        message: e.message || "Quality service item analysis failed",
+        message: err.message || "Quality service item analysis failed",
       })
     }
   }

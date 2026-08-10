@@ -64,10 +64,11 @@ export class MetadataService {
         dateTarget: dateRes.targetDate,
         dateTargetSource: dateRes.source,
       })
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const err = e as { message?: string }
       return fail({
         code: "UNKNOWN",
-        message: e.message || "Metadata extraction failed",
+        message: err.message || "Metadata extraction failed",
       })
     }
   }

@@ -60,24 +60,24 @@ describe("findDuplicates", () => {
     },
   })
 
-  it("groups items within Hamming distance threshold", () => {
+  it("groups items within Hamming distance threshold", async () => {
     const item1 = createMockItem("item1", "ffff", 90)
     const item2 = createMockItem("item2", "fffe", 95) // 1 bit diff (duplicate)
     const item3 = createMockItem("item3", "0000", 80) // very different
 
-    const groups = findDuplicates([item1, item2, item3], 4)
+    const groups = await findDuplicates([item1, item2, item3], 4)
     expect(groups.length).toBe(1)
     expect(groups[0].items.length).toBe(2)
     expect(groups[0].items.map((i) => i.id)).toContain("item1")
     expect(groups[0].items.map((i) => i.id)).toContain("item2")
   })
 
-  it("selects the best quality item as best in group for exact duplicates", () => {
+  it("selects the best quality item as best in group for exact duplicates", async () => {
     const item1 = createMockItem("item1", "ffff", 80, 500, "copy") // same name, same size
     const item2 = createMockItem("item2", "fffe", 90, 500, "copy") // same name, same size
     const item3 = createMockItem("item3", "fff0", 80, 500, "copy") // same name, same size
 
-    const groups = findDuplicates([item1, item2, item3], 4)
+    const groups = await findDuplicates([item1, item2, item3], 4)
     expect(groups.length).toBe(1)
 
     const itemsInGroup = groups[0].items
@@ -86,11 +86,11 @@ describe("findDuplicates", () => {
     expect(best!.id).toBe("item2")
   })
 
-  it("does not set isBestInDuplicateGroup to true for similar media (different filenames)", () => {
+  it("does not set isBestInDuplicateGroup to true for similar media (different filenames)", async () => {
     const item1 = createMockItem("item1", "ffff", 80, 500, "photo1")
     const item2 = createMockItem("item2", "fffe", 90, 400, "photo2")
 
-    const groups = findDuplicates([item1, item2], 4)
+    const groups = await findDuplicates([item1, item2], 4)
     expect(groups.length).toBe(1)
 
     const itemsInGroup = groups[0].items

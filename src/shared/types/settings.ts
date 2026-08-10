@@ -11,6 +11,9 @@ export type DuplicateStrategy =
   | "keep_newest"
   | "keep_most_grouped"
   | "keep_shortest_path"
+  | "keep_preferred_folder"
+  | "delete_preferred_folder"
+  | "folder_rules"
 
 export interface AppSettings {
   folders: {
@@ -40,6 +43,10 @@ export interface AppSettings {
     conflictResolution: "rename" | "skip" | "overwrite"
     preserveOriginals: boolean // Copy instead of move
     duplicateStrategy: DuplicateStrategy // Which copy to keep when auto-cleaning exact duplicates
+    preferredFolderPath?: string // Target folder for keep_preferred_folder / delete_preferred_folder strategies
+    preferredFolderPaths?: string[] // Target folders array for multi-select folder strategies
+    preferredKeepFolderPaths?: string[] // Folders where photos are preferred to be KEPT
+    preferredDeleteFolderPaths?: string[] // Folders where photos are preferred to be DELETED
   }
   ui: {
     theme: "dark" | "light" | "system"

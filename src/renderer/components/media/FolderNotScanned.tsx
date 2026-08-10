@@ -17,6 +17,7 @@ export const FolderNotScanned: React.FC<FolderNotScannedProps> = ({
 }) => {
   const items = useMediaStore((s) => s.items)
   const folderCounts = useScanStore((s) => s.folderCounts)
+  const isScanning = useScanStore((s) => s.isScanning)
 
   const hasScannedItems = React.useMemo(() => {
     if (activeRootPath === "all" || !activeRootPath) {
@@ -27,6 +28,10 @@ export const FolderNotScanned: React.FC<FolderNotScannedProps> = ({
       item.path.replace(/\\/g, "/").toLowerCase().startsWith(normalizedRoot)
     )
   }, [activeRootPath, items])
+
+  if (isScanning) {
+    return null
+  }
 
   const folderData = folderCounts.get(activeRootPath)
   const liveDiskCount = folderData?.count

@@ -91,15 +91,16 @@ export const ResetConfig: React.FC = () => {
       } else {
         const errMsg =
           res.error.code === "UNKNOWN"
-            ? (res.error as any).message
+            ? (res.error as { message?: string }).message || "Unknown error"
             : `Error: ${res.error.code}`
         toast.error("Application reset failed", {
           description: errMsg,
         })
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const err = e as Error
       toast.error("Application reset failed", {
-        description: e.message || "Unknown error",
+        description: err.message || "Unknown error",
       })
     } finally {
       setIsLoading(false)

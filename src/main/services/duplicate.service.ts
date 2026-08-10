@@ -9,10 +9,10 @@ export class DuplicateService {
   /**
    * Scans a list of items for duplicates, updates their DB states, and returns the list of groups.
    */
-  public resolveDuplicatesInFolder(
+  public async resolveDuplicatesInFolder(
     folderPath: string,
     maxDistance: number
-  ): Result<MediaItem[]> {
+  ): Promise<Result<MediaItem[]>> {
     return this.resolveDuplicatesInFolders([folderPath], maxDistance)
   }
 
@@ -21,10 +21,10 @@ export class DuplicateService {
    * in a single combined pass so duplicates that span multiple registered root
    * folders are correctly detected.
    */
-  public resolveDuplicatesInFolders(
+  public async resolveDuplicatesInFolders(
     folderPaths: string[],
     maxDistance: number
-  ): Result<MediaItem[]> {
+  ): Promise<Result<MediaItem[]>> {
     try {
       // Load all items from all roots combined (deduplicating by id)
       const itemMap = new Map<string, MediaItem>()
@@ -36,8 +36,8 @@ export class DuplicateService {
       }
       const items = Array.from(itemMap.values())
 
-      // Find and group duplicate photos using blockhash logic
-      const groups = findDuplicates(items, maxDistance)
+      // Find and group duplicate photos using blockhash logic asynchronously
+      const groups = await findDuplicates(items, maxDistance)
 
       // Map groups by item ID
       const groupMap = new Map<string, MediaItem>()
@@ -81,10 +81,11 @@ export class DuplicateService {
       }
 
       return ok(allFinalItems)
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const err = e as { message?: string }
       return fail({
         code: "UNKNOWN",
-        message: e.message || "Duplicate resolution failed",
+        message: err.message || "Duplicate resolution failed",
       })
     }
   }

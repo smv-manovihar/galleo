@@ -34,8 +34,8 @@ export function registerIpcHandlers(window: BrowserWindow): void {
   ipcMain.handle(IPC_CHANNELS.SETTINGS_SAVE, async (_, settings) => {
     const res = await settingsService.saveSettings(settings)
     const enabledRoots = settings.folders.roots
-      .filter((r: any) => r.enabled)
-      .map((r: any) => r.path)
+      .filter((r: { enabled: boolean; path: string }) => r.enabled)
+      .map((r: { enabled: boolean; path: string }) => r.path)
     scannerService.watchFolders(window, enabledRoots)
     return res
   })
@@ -76,10 +76,23 @@ export function registerIpcHandlers(window: BrowserWindow): void {
     scannerService.cancelScan()
   })
 
+  ipcMain.handle(IPC_CHANNELS.SCAN_GET_STATUS, () => {
+    return scannerService.getIsScanning()
+  })
+
   ipcMain.handle(
     IPC_CHANNELS.SCAN_COUNT_FOLDERS,
     (_event, rootPaths: string[]) => scannerService.countMediaFiles(rootPaths)
   )
+
+  ipcMain.handle(IPC_CHANNELS.SCAN_INTERRUPTED_CHECK, () => {
+    const wasInterrupted = scannerService.isScanInterrupted()
+    // Clear the flag so it doesn't fire again on subsequent checks
+    if (wasInterrupted) {
+      scannerService["clearScanInProgress"]()
+    }
+    return wasInterrupted
+  })
 
   // Media queries
   ipcMain.handle(IPC_CHANNELS.MEDIA_GET, (_, folderPath: string) => {
@@ -90,18 +103,19 @@ export function registerIpcHandlers(window: BrowserWindow): void {
     try {
       mediaRepository.clearByFolder(folderPath)
       return ok(undefined)
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const err = e as Error
       return fail({
         code: "UNKNOWN",
-        message: e.message || "Clearing folder index failed",
+        message: err.message || "Clearing folder index failed",
       })
     }
   })
 
   ipcMain.handle(
     IPC_CHANNELS.MEDIA_UPDATE_REVIEWS,
-    (_, { sessionId, updates, undoAction }) => {
-      return sessionService.updateReviews(sessionId, updates, undoAction)
+    (_, { sessionId, updates }) => {
+      return sessionService.updateReviews(sessionId, updates)
     }
   )
 
@@ -145,10 +159,11 @@ export function registerIpcHandlers(window: BrowserWindow): void {
         })
 
         return ok(plan)
-      } catch (e: any) {
+      } catch (e: unknown) {
+        const err = e as Error
         return fail({
           code: "UNKNOWN",
-          message: e.message || "Organization preview planning failed",
+          message: err.message || "Organization preview planning failed",
         })
       }
     }
@@ -218,10 +233,11 @@ export function registerIpcHandlers(window: BrowserWindow): void {
         }
 
         return ok(undefined)
-      } catch (e: any) {
+      } catch (e: unknown) {
+        const err = e as Error
         return fail({
           code: "UNKNOWN",
-          message: e.message || "App reset failed",
+          message: err.message || "App reset failed",
         })
       }
     }
@@ -242,10 +258,11 @@ export function registerIpcHandlers(window: BrowserWindow): void {
       }
       shell.openExternal(url.trim())
       return ok(undefined)
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const err = e as Error
       return fail({
         code: "UNKNOWN",
-        message: e.message || "Opening URL failed",
+        message: err.message || "Opening URL failed",
       })
     }
   })
@@ -355,7 +372,9 @@ async function scanFilesFlat(dir: string, outSet: Set<string>, maxDepth: number 
           outSet.add(fullPath.replace(/\\/g, "/").toLowerCase())
         }
       }
-    } catch {}
+    } catch {
+      // ignore
+    }
   }
 }
 

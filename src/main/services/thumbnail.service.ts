@@ -18,11 +18,12 @@ export class ThumbnailService {
       } else {
         return await generateVideoThumbnail(filePath, mediaId)
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const err = e as { message?: string }
       return fail({
         code: "THUMBNAIL_FAILED",
         path: filePath,
-        reason: e.message || "Thumbnail service failure",
+        reason: err.message || "Thumbnail service failure",
       })
     }
   }

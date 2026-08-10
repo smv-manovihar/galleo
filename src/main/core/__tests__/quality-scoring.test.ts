@@ -7,7 +7,10 @@ describe("isScreenshotByName", () => {
     expect(isScreenshotByName("screenshot.jpg")).toBe(true)
     expect(isScreenshotByName("SS_2024.png")).toBe(true)
     expect(isScreenshotByName("Screen_Shot_file.png")).toBe(true)
+    expect(isScreenshotByName("Capture_2024.png")).toBe(true)
+    expect(isScreenshotByName("screen_capture_01.png")).toBe(true)
     expect(isScreenshotByName("photo.jpg")).toBe(false)
+    expect(isScreenshotByName("recapture_family.jpg")).toBe(false)
   })
 })
 

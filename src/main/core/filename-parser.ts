@@ -50,6 +50,11 @@ export function cleanFilename(filename: string): string {
 export function extractDateFromFilename(filename: string): Date | null {
   const clean = cleanFilename(filename)
 
+  // Skip app exports/downloads that use non-standard internal ID numbers in filenames (e.g. Snapchat)
+  if (/\bsnapchat\b/i.test(clean)) {
+    return null
+  }
+
   // ──────────────────────────────────────────────────────────────────────────
   // P1 — Google Pixel: PXL_YYYYMMDD_HHMMSSMMM[...]
   //      e.g. PXL_20240301_090000000.jpg, PXL_20240301_090000000.MP.jpg

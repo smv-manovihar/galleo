@@ -194,6 +194,32 @@ export class MediaRepository {
   }
 
   /**
+   * Retrieves multiple MediaItems by their IDs in a single query.
+   * Uses chunked IN clauses to respect SQLite parameter limits.
+   */
+  public getByIds(ids: string[]): Map<string, MediaItem> {
+    if (ids.length === 0) return new Map()
+    const db = this.getDb()
+    const result = new Map<string, MediaItem>()
+    const chunkSize = 500
+
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const chunk = ids.slice(i, i + chunkSize)
+      const placeholders = chunk.map(() => "?").join(",")
+      const stmt = db.prepare(
+        `SELECT * FROM media_items WHERE id IN (${placeholders})`
+      )
+      const rows = stmt.all(...chunk)
+      for (const row of rows) {
+        const item = this.rowToMediaItem(row)
+        result.set(item.id, item)
+      }
+    }
+
+    return result
+  }
+
+  /**
    * Retrieves all scanned media items inside a target root directory path (including subdirectories).
    */
   public getByFolderPath(folderPath: string): MediaItem[] {
@@ -216,7 +242,7 @@ export class MediaRepository {
     // We match any item whose path starts with the folderPath
     const stmt = db.prepare(`
        SELECT * FROM media_items 
-       WHERE LOWER(path) LIKE ? ESCAPE '\\'
+       WHERE path COLLATE NOCASE LIKE ? ESCAPE '\\'
        ORDER BY date_target DESC
      `)
 
@@ -245,7 +271,10 @@ export class MediaRepository {
    * Updates multiple review actions at once
    */
   public updateReviewStatesBatch(
-    updates: { mediaId: string; state: "keep" | "delete" | "skipped" }[],
+    updates: {
+      mediaId: string
+      state: "keep" | "delete" | "skipped" | "pending"
+    }[],
     reviewedAt?: string
   ): void {
     const db = this.getDb()
@@ -257,7 +286,9 @@ export class MediaRepository {
 
     const transaction = db.transaction((batch: typeof updates) => {
       for (const update of batch) {
-        stmt.run(update.state, reviewedAt ?? null, update.mediaId)
+        const timestamp =
+          update.state === "pending" ? null : (reviewedAt ?? null)
+        stmt.run(update.state, timestamp, update.mediaId)
       }
     })
 

@@ -21,6 +21,10 @@ export default defineConfig([
     },
     rules: {
       'react-compiler/react-compiler': 'error',
+      'react-refresh/only-export-components': [
+        'warn',
+        { allowConstantExport: true },
+      ],
     },
     languageOptions: {
       globals: globals.browser,

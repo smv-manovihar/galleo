@@ -118,7 +118,7 @@ export const MediaCompactList: React.FC<MediaCompactListProps> = ({
                         <Checkbox
                           checked={isSelected}
                           onCheckedChange={() =>
-                            onSelectToggle(item.id, { shiftKey: false } as any)
+                            onSelectToggle(item.id, { shiftKey: false } as unknown as React.MouseEvent)
                           }
                           className="h-3.5 w-3.5 cursor-pointer border-border focus-visible:ring-1"
                         />

@@ -25,20 +25,31 @@ export function getModelCacheDir(): string {
   return cacheDir
 }
 
-export function cosineSimilarity(a: Float32Array, b: Float32Array): number {
+export function cosineSimilarity(
+  a: Float32Array,
+  b: Float32Array,
+  preNormalized = false
+): number {
   if (a.length !== b.length || a.length === 0) return 0
   let dotProduct = 0
-  let normA = 0
-  let normB = 0
   for (let i = 0; i < a.length; i++) {
-    const valA = a[i]
-    const valB = b[i]
-    dotProduct += valA * valB
-    normA += valA * valA
-    normB += valB * valB
+    dotProduct += a[i] * b[i]
   }
-  if (normA === 0 || normB === 0) return 0
-  const rawCos = dotProduct / (Math.sqrt(normA) * Math.sqrt(normB))
+
+  let rawCos: number
+  if (preNormalized) {
+    rawCos = dotProduct
+  } else {
+    let normA = 0
+    let normB = 0
+    for (let i = 0; i < a.length; i++) {
+      normA += a[i] * a[i]
+      normB += b[i] * b[i]
+    }
+    if (normA === 0 || normB === 0) return 0
+    rawCos = dotProduct / (Math.sqrt(normA) * Math.sqrt(normB))
+  }
+
   // Normalized rescaling from [-1.0, 1.0] to [0.0, 1.0] range
   return (rawCos + 1) / 2
 }

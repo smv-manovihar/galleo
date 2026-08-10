@@ -67,6 +67,7 @@ export const DEFAULT_EXCLUDE_PATTERNS = [
   "obj",
   ".DS_Store",
   "Thumbs.db",
+  ".thumbnails",
   "desktop.ini",
   "*.log",
   "*.tmp",

@@ -15,6 +15,7 @@ import { type Result, ok, fail } from "../../shared/types/results"
 import type { MediaItem } from "../../shared/types/media"
 import { IPC_CHANNELS, type FolderCountResult, type FileChangeEvent } from "../../shared/types/ipc"
 import { ENABLE_AI_FEATURES } from "../../shared/constants"
+import { initDatabase } from "../infrastructure/database"
 
 import { aiIndexerService } from "./ai-indexer.service"
 
@@ -43,10 +44,50 @@ export class ScannerService {
     Map<string, "added" | "deleted" | "modified">
   >()
 
+  public getIsScanning(): boolean {
+    return this.isScanning
+  }
+
   public cancelScan(): void {
     if (this.isScanning) {
       this.isCancelled = true
       this.aiIndexerService.stopIndexing()
+    }
+  }
+
+  /**
+   * Persists a flag in the database indicating a scan is in progress.
+   * Used to detect crash-interrupted scans on next app startup.
+   */
+  private markScanInProgress(): void {
+    try {
+      const db = initDatabase()
+      db.prepare(`
+        INSERT INTO settings (key, value)
+        VALUES ('scan_in_progress', '1')
+        ON CONFLICT(key) DO UPDATE SET value = '1'
+      `).run()
+    } catch {
+      // Non-critical — best-effort crash detection
+    }
+  }
+
+  private clearScanInProgress(): void {
+    try {
+      const db = initDatabase()
+      db.prepare(`DELETE FROM settings WHERE key = 'scan_in_progress'`).run()
+    } catch {
+      // Non-critical
+    }
+  }
+
+  public isScanInterrupted(): boolean {
+    try {
+      const db = initDatabase()
+      const row = db.prepare(`SELECT value FROM settings WHERE key = 'scan_in_progress'`).get() as { value: string } | undefined
+      return row?.value === "1"
+    } catch {
+      return false
     }
   }
 
@@ -146,7 +187,7 @@ export class ScannerService {
           this.folderNetChanges.set(normRoot, new Map())
         }
 
-        const watcher = nodeFs.watch(rootPath, { recursive: true }, (_eventType, filename) => {
+        const watcher = nodeFs.watch(rootPath, { recursive: true }, async (_eventType, filename) => {
           if (!filename) return
 
           const settings = this.settingsService.getSettings()
@@ -182,7 +223,7 @@ export class ScannerService {
 
           if (exists) {
             try {
-              const stat = nodeFs.statSync(fullPath)
+              const stat = await fs.stat(fullPath)
               if (initialExisted && baseline) {
                 // If file size AND mtime match DB baseline (within 2s tolerance), file is in baseline state
                 const mtimeDiff = Math.abs(stat.mtimeMs - baseline.mtime)
@@ -300,6 +341,7 @@ export class ScannerService {
 
     this.isScanning = true
     this.isCancelled = false
+    this.markScanInProgress()
 
     try {
       const settings = this.settingsService.getSettings()
@@ -342,11 +384,27 @@ export class ScannerService {
       if (!this.isCancelled) {
         const totalCount = scanList.length
         let scannedCount = 0
+        let lastProgressTime = 0
         const batchSize = settings.performance.scanBatchSize || 50
         const concurrency = Math.max(
           1,
           settings.performance.maxConcurrentOps || 4
         )
+
+        const sendProgressThrottled = (file: ScanFileData, force = false) => {
+          const now = Date.now()
+          if (force || now - lastProgressTime >= 100) {
+            lastProgressTime = now
+            if (this.isWindowAlive(window)) {
+              window.webContents.send(IPC_CHANNELS.SCAN_PROGRESS, {
+                scannedCount,
+                totalCount,
+                currentFile: file.name,
+                items: [],
+              })
+            }
+          }
+        }
 
         // 3. Process discovered files in batches, with up to `concurrency` files in-flight at once
         for (let i = 0; i < totalCount; i += batchSize) {
@@ -375,14 +433,7 @@ export class ScannerService {
                   !isOldThumb
                 ) {
                   scannedCount++
-                  if (this.isWindowAlive(window)) {
-                    window.webContents.send(IPC_CHANNELS.SCAN_PROGRESS, {
-                      scannedCount,
-                      totalCount,
-                      currentFile: file.name,
-                      items: [],
-                    })
-                  }
+                  sendProgressThrottled(file)
                   return
                 }
 
@@ -390,14 +441,7 @@ export class ScannerService {
                 const metaRes = await this.metadataService.extractMetadata(file)
                 if (!metaRes.ok) {
                   scannedCount++
-                  if (this.isWindowAlive(window)) {
-                    window.webContents.send(IPC_CHANNELS.SCAN_PROGRESS, {
-                      scannedCount,
-                      totalCount,
-                      currentFile: file.name,
-                      items: [],
-                    })
-                  }
+                  sendProgressThrottled(file)
                   return
                 }
 
@@ -475,32 +519,23 @@ export class ScannerService {
                 processedItems.push(item)
 
                 scannedCount++
-
-                if (this.isWindowAlive(window)) {
-                  window.webContents.send(IPC_CHANNELS.SCAN_PROGRESS, {
-                    scannedCount,
-                    totalCount,
-                    currentFile: file.name,
-                    items: [],
-                  })
-                }
+                sendProgressThrottled(file)
               } catch {
                 scannedCount++
-                if (this.isWindowAlive(window)) {
-                  window.webContents.send(IPC_CHANNELS.SCAN_PROGRESS, {
-                    scannedCount,
-                    totalCount,
-                    currentFile: file.name,
-                    items: [],
-                  })
-                }
+                sendProgressThrottled(file)
               }
             }
           )
 
+          // Yield to event loop between batches so IPC + window stay responsive
+          await new Promise(r => setImmediate(r))
+
           // Save batch to SQLite and stream new items to the frontend
           if (processedItems.length > 0) {
             this.mediaRepository.upsertMany(processedItems)
+
+            // Yield after synchronous DB write to let IPC messages drain
+            await new Promise(r => setImmediate(r))
 
             if (this.isWindowAlive(window)) {
               window.webContents.send(IPC_CHANNELS.SCAN_PROGRESS, {
@@ -519,12 +554,9 @@ export class ScannerService {
       //    all paths yet, so we must not delete items that simply weren't reached.
       if (!this.isCancelled) {
         const deletedPaths: string[] = []
-        for (const root of rootPaths) {
-          const dbItems = this.mediaRepository.getByFolderPath(root)
-          for (const dbItem of dbItems) {
-            if (!discoveredPaths.has(dbItem.path.toLowerCase())) {
-              deletedPaths.push(dbItem.path)
-            }
+        for (const [normPath, cachedItem] of cacheMap.entries()) {
+          if (!discoveredPaths.has(normPath)) {
+            deletedPaths.push(cachedItem.path)
           }
         }
         if (deletedPaths.length > 0) {
@@ -562,39 +594,54 @@ export class ScannerService {
         }
       }
 
-      // 5. Post-scan duplicate + similarity analysis.
-      //    Always runs - even on cancellation - so users can see results for the
-      //    items that were already indexed and written to the database.
+      // 5. Signal scan completion to the frontend IMMEDIATELY so the UI unlocks.
+      //    Post-scan analysis (duplicates + similarity) runs asynchronously after.
+      this.isScanning = false
+
+      if (this.isWindowAlive(window)) {
+        window.webContents.send(IPC_CHANNELS.SCAN_COMPLETE)
+      }
+
+      // 6. Post-scan duplicate + similarity analysis runs in the background.
+      //    Wrapped in setImmediate to yield the event loop so IPC messages drain first.
       const allEnabledRoots = settings.folders.roots
         .filter((r) => r.enabled)
         .map((r) => r.path)
       const foldersToAnalyze = allEnabledRoots.length > 0 ? allEnabledRoots : rootPaths
 
-      this.duplicateService.resolveDuplicatesInFolders(
-        foldersToAnalyze,
-        settings.quality.duplicateHashDistance
-      )
+      setImmediate(async () => {
+        try {
+          await this.duplicateService.resolveDuplicatesInFolders(
+            foldersToAnalyze,
+            settings.quality.duplicateHashDistance
+          )
 
-      // 6. Pre-calculate similarity sorting index
-      this.similarityService.resolveSimilarityInFolders(foldersToAnalyze)
+          await this.similarityService.resolveSimilarityInFolders(foldersToAnalyze)
 
-      // 7. Always signal completion to the frontend so it can clean up its scan
-      //    state and load whatever items were indexed. Guard against a window that
-      //    was closed before the scan finished (force-quit scenario).
-      if (this.isWindowAlive(window)) {
-        window.webContents.send(IPC_CHANNELS.SCAN_COMPLETE)
-      }
+          // Notify renderer that post-processing is done so it can re-fetch updated items
+          if (this.isWindowAlive(window)) {
+            window.webContents.send(IPC_CHANNELS.SCAN_POST_PROCESSING_COMPLETE)
+          }
 
-      this.isScanning = false
-
-      // Trigger background AI indexing queue post-scan once main scanning and analysis complete
-      if (ENABLE_AI_FEATURES && !this.isCancelled) {
-        this.aiIndexerService.startIndexing(window, () => this.isScanning).catch(() => {})
-      }
+          // Trigger background AI indexing queue post-scan
+          if (ENABLE_AI_FEATURES && !this.isCancelled) {
+            this.aiIndexerService.startIndexing(window, () => this.isScanning).catch(() => {})
+          }
+        } catch {
+          // Post-processing failed silently — items are still indexed,
+          // duplicates/similarity just won't be resolved this cycle.
+          if (this.isWindowAlive(window)) {
+            window.webContents.send(IPC_CHANNELS.SCAN_POST_PROCESSING_COMPLETE)
+          }
+        } finally {
+          this.clearScanInProgress()
+        }
+      })
 
       return ok(undefined)
     } catch (e: unknown) {
       this.isScanning = false
+      this.clearScanInProgress()
       // Attempt to notify the renderer even on an unexpected crash so the UI
       // doesn't get stuck in the 'scanning' state.
       if (this.isWindowAlive(window)) {
@@ -683,6 +730,15 @@ export class ScannerService {
     return results
   }
 
+  private buildExcludeRegex(excludePatterns: string[]): RegExp | null {
+    if (!excludePatterns || excludePatterns.length === 0) return null
+    const escaped = excludePatterns
+      .map((p) => p.replace(/\*/g, "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      .filter(Boolean)
+    if (escaped.length === 0) return null
+    return new RegExp(escaped.join("|"), "i")
+  }
+
   /**
    * Iterative readdir traversal that counts matching files without stat calls.
    * Symlinks are skipped to match the behaviour of discoverFiles.
@@ -694,17 +750,15 @@ export class ScannerService {
   ): Promise<number> {
     const stack = [dir]
     let count = 0
+    const excludeRegex = this.buildExcludeRegex(excludePatterns)
     while (stack.length > 0) {
       const current = stack.pop()!
       try {
         const entries = await fs.readdir(current, { withFileTypes: true })
         for (const entry of entries) {
           const fullPath = path.join(current, entry.name)
-          const normalized = fullPath.replace(/\\/g, "/").toLowerCase()
-          const shouldSkip = excludePatterns.some((p) =>
-            normalized.includes(p.replace(/\*/g, "").toLowerCase())
-          )
-          if (shouldSkip || entry.isSymbolicLink()) continue
+          const normalized = fullPath.replace(/\\/g, "/")
+          if ((excludeRegex && excludeRegex.test(normalized)) || entry.isSymbolicLink()) continue
           if (entry.isDirectory()) {
             stack.push(fullPath)
           } else if (entry.isFile()) {
@@ -721,6 +775,7 @@ export class ScannerService {
 
   /**
    * Runs up to `concurrency` async tasks at once over an array of items.
+   * Yields to the event loop between each item so IPC and window rendering stay responsive.
    */
   private async processWithConcurrency<T>(
     items: T[],
@@ -732,6 +787,9 @@ export class ScannerService {
       while (idx < items.length) {
         const item = items[idx++]
         await fn(item)
+        // Yield to the event loop after each file so the main thread can
+        // process IPC messages, repaint the window, and handle user input
+        await new Promise(r => setImmediate(r))
       }
     }
     await Promise.all(
@@ -751,10 +809,17 @@ export class ScannerService {
     outList: ScanFileData[]
   ): Promise<void> {
     const stack: string[] = [startDir]
+    let dirCount = 0
+    const excludeRegex = this.buildExcludeRegex(excludePatterns)
 
     while (stack.length > 0) {
       if (this.isCancelled) break
       const currentDir = stack.pop()!
+
+      dirCount++
+      if (dirCount % 50 === 0) {
+        await new Promise((r) => setImmediate(r))
+      }
 
       try {
         const entries = await fs.readdir(currentDir, { withFileTypes: true })
@@ -774,18 +839,9 @@ export class ScannerService {
           const normalizedPath = fullPath.replace(/\\/g, "/")
 
           // Check if excluded by simple match
-          let shouldSkip = false
-          for (const pattern of excludePatterns) {
-            if (
-              normalizedPath
-                .toLowerCase()
-                .includes(pattern.replace(/\*/g, "").toLowerCase())
-            ) {
-              shouldSkip = true
-              break
-            }
+          if (excludeRegex && excludeRegex.test(normalizedPath)) {
+            continue
           }
-          if (shouldSkip) continue
 
           if (entry.isSymbolicLink()) {
             continue

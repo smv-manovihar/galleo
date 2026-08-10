@@ -121,7 +121,7 @@ export class SearchEngineService {
         if (item.mediaType === "photo") {
           const imgVector = imageVectorMap.get(item.id)
           if (imgVector) {
-            semanticScore = Math.max(0, cosineSimilarity(promptVector, imgVector))
+            semanticScore = Math.max(0, cosineSimilarity(promptVector, imgVector, true))
           }
         } else if (item.mediaType === "video") {
           const frames = videoFramesMap.get(item.id)
@@ -132,7 +132,7 @@ export class SearchEngineService {
             for (const frame of frames) {
               const frameSim = Math.max(
                 0,
-                cosineSimilarity(promptVector, frame.embedding)
+                cosineSimilarity(promptVector, frame.embedding, true)
               )
               if (frameSim > bestFrameScore) {
                 bestFrameScore = frameSim
@@ -221,19 +221,23 @@ export class SearchEngineService {
       { score: number; frame?: { timestampSeconds: number; thumbnailPath?: string } }
     >()
 
+    let compareCount = 0
     // Compare with image embeddings
     for (const rec of allMediaEmbeddings) {
       if (rec.mediaId === mediaId) continue
-      const sim = Math.max(0, cosineSimilarity(targetVector, rec.embedding))
+      const sim = Math.max(0, cosineSimilarity(targetVector, rec.embedding, true))
       if (sim > 0.3) {
         itemSimMap.set(rec.mediaId, { score: sim })
+      }
+      if (++compareCount % 500 === 0) {
+        await new Promise((r) => setImmediate(r))
       }
     }
 
     // Compare with video frame embeddings
     for (const frame of allFrameEmbeddings) {
       if (frame.mediaId === mediaId) continue
-      const sim = Math.max(0, cosineSimilarity(targetVector, frame.embedding))
+      const sim = Math.max(0, cosineSimilarity(targetVector, frame.embedding, true))
       const existing = itemSimMap.get(frame.mediaId)
       if (!existing || sim > existing.score) {
         itemSimMap.set(frame.mediaId, {
@@ -244,13 +248,19 @@ export class SearchEngineService {
           },
         })
       }
+      if (++compareCount % 500 === 0) {
+        await new Promise((r) => setImmediate(r))
+      }
     }
 
     const matchedMediaIds = Array.from(itemSimMap.keys())
     const results: SearchResultItem[] = []
 
+    // Batch lookup: single query instead of N individual getById calls
+    const itemMap = this.mediaRepository.getByIds(matchedMediaIds)
+
     for (const id of matchedMediaIds) {
-      const item = this.mediaRepository.getById(id)
+      const item = itemMap.get(id)
       if (!item) continue
       const data = itemSimMap.get(id)!
       results.push({
@@ -292,7 +302,7 @@ export class SearchEngineService {
       }
     }
 
-    return matches > 0 ? (matches / queryTokens.length) * 0.5 : 0
+    return matches > 0 ? Math.min(1.0, (matches / queryTokens.length) * 0.5) : 0
   }
 
   /**

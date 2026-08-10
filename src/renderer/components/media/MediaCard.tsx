@@ -33,9 +33,10 @@ import {
 import { Button } from "@/components/ui/button"
 import {
   Tooltip,
-  TooltipContent,
   TooltipTrigger,
+  TooltipContent,
 } from "@/components/ui/tooltip"
+import { QualityScoreHoverCard } from "./QualityScoreHoverCard"
 
 interface MediaCardProps {
   item: MediaItem
@@ -164,44 +165,24 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
             {/* Quality Score & Warning Badge (Top-Left) */}
             {hasQuality && (
               <div className="absolute top-2 left-2 z-20">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div
-                      className={`flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-semibold shadow-xs backdrop-blur-md transition-colors ${
-                        isFlagged
-                          ? "border border-amber-500/40 bg-amber-950/85 text-amber-200"
-                          : item.quality!.compositeScore < 50
-                            ? "border border-red-500/40 bg-red-950/85 text-red-200"
-                            : "border border-white/15 bg-black/75 text-white/90"
-                      }`}
-                    >
-                      {isFlagged && (
-                        <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
-                      )}
-                      <span className="tabular-nums">
-                        {item.quality!.compositeScore}
-                      </span>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="font-sans text-xs">
-                    {isFlagged ? (
-                      <div className="space-y-0.5">
-                        <div className="flex items-center gap-1 font-semibold text-amber-400 dark:text-amber-800">
-                          <AlertTriangle className="h-3.5 w-3.5" />
-                          <span>Flagged for Quality</span>
-                        </div>
-                        <p className="text-2xs text-muted-foreground">
-                          {qualityFlags.join(" • ")} (Score:{" "}
-                          {item.quality!.compositeScore})
-                        </p>
-                      </div>
-                    ) : (
-                      <span>
-                        Quality Score: {item.quality!.compositeScore}/100
-                      </span>
+                <QualityScoreHoverCard item={item} side="top">
+                  <div
+                    className={`flex cursor-help items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-semibold shadow-xs backdrop-blur-md transition-colors ${
+                      isFlagged
+                        ? "border border-amber-500/40 bg-amber-950/85 text-amber-200"
+                        : item.quality!.compositeScore < 50
+                          ? "border border-red-500/40 bg-red-950/85 text-red-200"
+                          : "border border-white/15 bg-black/75 text-white/90"
+                    }`}
+                  >
+                    {isFlagged && (
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
                     )}
-                  </TooltipContent>
-                </Tooltip>
+                    <span className="tabular-nums">
+                      {item.quality!.compositeScore}
+                    </span>
+                  </div>
+                </QualityScoreHoverCard>
               </div>
             )}
 

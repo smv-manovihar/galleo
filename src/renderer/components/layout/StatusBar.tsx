@@ -32,6 +32,7 @@ import { toast } from "sonner"
 
 export const StatusBar: React.FC = () => {
   const items = useMediaStore((s) => s.items)
+  const getDashboardMetrics = useMediaStore((s) => s.getDashboardMetrics)
   const checkpoint = useSessionStore((s) => s.checkpoint)
   const decisions = useSessionStore((s) => s.decisions)
   const commitDeletions = useSessionStore((s) => s.commitDeletions)
@@ -40,14 +41,11 @@ export const StatusBar: React.FC = () => {
 
   const [showConfirm, setShowConfirm] = useState(false)
 
-  const totalBytes = items.reduce((sum, item) => sum + item.size, 0)
+  const metrics = getDashboardMetrics()
 
-  const reviewedCount = items.filter(
-    (item) => decisions[item.id] !== undefined || item.reviewState !== "pending"
-  ).length
-
-  const progressPercentage =
-    items.length > 0 ? Math.round((reviewedCount / items.length) * 100) : 0
+  const totalBytes = metrics.totalSize
+  const reviewedCount = metrics.reviewedCount
+  const progressPercentage = metrics.reviewProgress
 
   const deleteDetails = React.useMemo(() => {
     let count = 0

@@ -17,23 +17,12 @@ export const MediaCullingPage: React.FC = () => {
   const { initSession } = useSessionStore()
 
   const [onlyShowFlagged, setOnlyShowFlagged] = useState(false)
-  const decisions = useSessionStore((s) => s.decisions)
-
-  const isAllReviewed = React.useMemo(() => {
-    if (items.length === 0) return false
-    return items.every(
-      (item) =>
-        decisions[item.id] !== undefined ||
-        (item.reviewState && item.reviewState !== "pending")
-    )
-  }, [items, decisions])
-
-  const [showSummary, setShowSummary] = useState<boolean>(() => isAllReviewed)
+  const [showSummary, setShowSummary] = useState<boolean>(false)
   const [prevRootPath, setPrevRootPath] = useState<string | null>(activeRootPath)
 
   if (activeRootPath !== prevRootPath) {
     setPrevRootPath(activeRootPath)
-    setShowSummary(isAllReviewed)
+    setShowSummary(false)
   }
 
   // Initialize review session
@@ -50,7 +39,8 @@ export const MediaCullingPage: React.FC = () => {
         (item) =>
           item.isDuplicate ||
           (item.quality !== undefined &&
-            (item.quality.isBlurry ||
+            (item.quality.compositeScore < 50 ||
+              item.quality.isBlurry ||
               item.quality.isDark ||
               item.quality.isScreenshot ||
               item.quality.isSmall))
@@ -58,16 +48,6 @@ export const MediaCullingPage: React.FC = () => {
     }
     return items
   }, [items, onlyShowFlagged])
-
-  if (!activeRootPath) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 font-sans text-xs text-muted-foreground select-none">
-        <span>
-          Please select a folder from the sidebar directory listing to begin.
-        </span>
-      </div>
-    )
-  }
 
   const { settings } = useSettingsStore()
 
@@ -79,6 +59,16 @@ export const MediaCullingPage: React.FC = () => {
       (r) => r.path.toLowerCase() === activeRootPath.toLowerCase()
     )?.scanned
   }, [activeRootPath, settings.folders.roots])
+
+  if (!activeRootPath) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-2 font-sans text-xs text-muted-foreground select-none">
+        <span>
+          Please select a folder from the sidebar directory listing to begin.
+        </span>
+      </div>
+    )
+  }
 
   if (items.length === 0) {
     return (

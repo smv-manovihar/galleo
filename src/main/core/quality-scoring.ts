@@ -25,7 +25,7 @@ export function isScreenshotByName(filename: string): boolean {
   return (
     name.includes("screenshot") ||
     name.includes("screen_shot") ||
-    name.includes("capture") ||
+    /(?:^|[_\-. ])capture(?:[_\-. ]|$)/i.test(name) ||
     name.startsWith("ss_")
   )
 }

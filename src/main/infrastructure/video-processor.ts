@@ -42,7 +42,9 @@ export function generateVideoThumbnail(
         killed = true
         try {
           command.kill("SIGKILL")
-        } catch {}
+        } catch {
+          // ignore kill error
+        }
       }, 15000)
 
       command
@@ -54,7 +56,9 @@ export function generateVideoThumbnail(
           clearTimeout(timeout)
           try {
             command.kill("SIGKILL")
-          } catch {}
+          } catch {
+            // ignore kill error
+          }
           resolve(
             fail({
               code: "THUMBNAIL_FAILED",
@@ -70,12 +74,13 @@ export function generateVideoThumbnail(
           folder: cacheDir,
           size: "1080x?", // resize keeping aspect ratio (high quality)
         })
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const err = e as { message?: string }
       resolve(
         fail({
           code: "THUMBNAIL_FAILED",
           path: videoPath,
-          reason: e.message || "Video frame extraction failed",
+          reason: err.message || "Video frame extraction failed",
         })
       )
     }

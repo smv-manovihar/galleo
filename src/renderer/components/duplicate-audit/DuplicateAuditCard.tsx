@@ -1,7 +1,6 @@
 import React, { useMemo } from "react"
 import type { MediaItem } from "../../../shared/types/media"
 import { Card } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Bookmark, Trash2, Maximize, Play, Sparkles } from "lucide-react"
 import { formatBytes } from "../../lib/format"
@@ -10,11 +9,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip"
-import {
-  HoverCard,
-  HoverCardTrigger,
-  HoverCardContent,
-} from "@/components/ui/hover-card"
+import { QualityScoreHoverCard } from "../media/QualityScoreHoverCard"
 
 interface DuplicateAuditCardProps {
   item: MediaItem
@@ -89,91 +84,23 @@ export const DuplicateAuditCard: React.FC<DuplicateAuditCardProps> = ({
           )}
 
           {item.quality && (
-            <HoverCard openDelay={200}>
-              <HoverCardTrigger asChild>
-                <div
-                  className={`flex cursor-help items-center gap-1.5 rounded-md border px-2 py-0.5 text-[0.7rem] font-semibold shadow-xs backdrop-blur-md ${
-                    item.quality.compositeScore >= 85
-                      ? "border-green-500/40 bg-green-950/85 text-green-200"
-                      : item.quality.compositeScore >= 70
-                        ? "border-blue-500/40 bg-blue-950/85 text-blue-200"
-                        : item.quality.compositeScore >= 50
-                          ? "border-amber-500/40 bg-amber-950/85 text-amber-200"
-                          : "border-red-500/40 bg-red-950/85 text-red-200"
-                  }`}
-                >
-                  <span className="tabular-nums">
-                    Score: {item.quality.compositeScore}
-                  </span>
-                </div>
-              </HoverCardTrigger>
-              <HoverCardContent
-                side="bottom"
-                className="pointer-events-auto z-50 w-64 space-y-2 rounded-xl border border-border bg-card/95 p-3.5 font-sans text-xs text-foreground shadow-xl backdrop-blur-md select-none"
+            <QualityScoreHoverCard item={item} side="bottom">
+              <div
+                className={`flex cursor-help items-center gap-1.5 rounded-md border px-2 py-0.5 text-[0.7rem] font-semibold shadow-xs backdrop-blur-md ${
+                  item.quality.compositeScore >= 85
+                    ? "border-green-500/40 bg-green-950/85 text-green-200"
+                    : item.quality.compositeScore >= 70
+                      ? "border-blue-500/40 bg-blue-950/85 text-blue-200"
+                      : item.quality.compositeScore >= 50
+                        ? "border-amber-500/40 bg-amber-950/85 text-amber-200"
+                        : "border-red-500/40 bg-red-950/85 text-red-200"
+                }`}
               >
-                <div className="flex items-center justify-between border-b border-border/60 pb-1.5 font-sans">
-                  <span className="font-bold text-foreground">
-                    Quality Analytics
-                  </span>
-                  <Badge
-                    variant="outline"
-                    className={`h-4.5 border-none px-1.5 text-2xs font-semibold ${
-                      item.quality.compositeScore >= 85
-                        ? "bg-green-500/10 text-green-600 dark:text-green-400"
-                        : item.quality.compositeScore >= 70
-                          ? "bg-blue-500/10 text-blue-600 dark:text-blue-400"
-                          : item.quality.compositeScore >= 50
-                            ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                            : "bg-destructive/10 text-destructive"
-                    }`}
-                  >
-                    {item.quality.compositeScore >= 85
-                      ? "Excellent"
-                      : item.quality.compositeScore >= 70
-                        ? "Good"
-                        : item.quality.compositeScore >= 50
-                          ? "Fair"
-                          : "Poor"}
-                  </Badge>
-                </div>
-
-                <div className="space-y-1.5 font-sans">
-                  <div className="flex items-center justify-between text-2xs">
-                    <span className="text-muted-foreground">Focus & Sharpness</span>
-                    <span
-                      className={`font-semibold ${item.quality.isBlurry ? "text-amber-500" : "text-emerald-500"}`}
-                    >
-                      {item.quality.isBlurry ? "Blurry" : "Sharp"}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between text-2xs">
-                    <span className="text-muted-foreground">Lighting & Exposure</span>
-                    <span
-                      className={`font-semibold ${item.quality.isDark ? "text-amber-500" : "text-emerald-500"}`}
-                    >
-                      {item.quality.isDark ? "Dark/Underexposed" : "Well Exposed"}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between text-2xs">
-                    <span className="text-muted-foreground">Resolution check</span>
-                    <span
-                      className={`font-semibold ${item.quality.isSmall ? "text-rose-500" : "text-emerald-500"}`}
-                    >
-                      {item.quality.isSmall ? "Low Res" : "High Res"}
-                    </span>
-                  </div>
-
-                  {item.quality.isScreenshot && (
-                    <div className="flex items-center justify-between text-2xs border-t border-border/30 pt-1">
-                      <span className="text-muted-foreground">File Type Check</span>
-                      <span className="font-semibold text-amber-500">Screenshot</span>
-                    </div>
-                  )}
-                </div>
-              </HoverCardContent>
-            </HoverCard>
+                <span className="tabular-nums">
+                  Score: {item.quality.compositeScore}
+                </span>
+              </div>
+            </QualityScoreHoverCard>
           )}
         </div>
 

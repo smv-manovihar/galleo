@@ -53,6 +53,7 @@ interface VideoPlayerProps {
 
 export interface VideoPlayerRef {
   requestFullscreen: () => Promise<void>
+  pause?: () => void
 }
 
 function formatTime(seconds: number): string {
@@ -79,6 +80,23 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
   ) => {
     const videoRef = useRef<HTMLVideoElement>(null)
     const containerRef = useRef<HTMLDivElement>(null)
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        requestFullscreen: async () => {
+          if (containerRef.current?.requestFullscreen) {
+            await containerRef.current.requestFullscreen()
+          }
+        },
+        pause: () => {
+          if (videoRef.current) {
+            videoRef.current.pause()
+          }
+        },
+      }),
+      []
+    )
     const [containerElement, setContainerElement] =
       useState<HTMLDivElement | null>(null)
     const [isNarrow, setIsNarrow] = useState(false)

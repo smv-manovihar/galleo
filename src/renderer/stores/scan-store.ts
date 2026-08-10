@@ -33,6 +33,7 @@ export interface AIIndexingProgress {
 interface ScanState {
   isScanning: boolean
   isStopping: boolean
+  isPostProcessing: boolean
   scanProgress: ScanProgress
   pendingScan: PendingScan | null
   showAIConsentDialog: boolean
@@ -44,6 +45,7 @@ interface ScanState {
   folderCounts: Map<string, FolderCountResult>
 
   checkAIStatus: () => Promise<void>
+  checkActiveScanStatus: () => Promise<void>
   startScan: (rootPaths: string[], forceRescan?: boolean) => Promise<void>
   executeScan: (rootPaths: string[], forceRescan?: boolean) => Promise<void>
   confirmScanWithAIDownload: () => Promise<void>
@@ -54,10 +56,12 @@ interface ScanState {
 
 let _cleanupProgress: (() => void) | null = null
 let _cleanupComplete: (() => void) | null = null
+let _cleanupPostProcessing: (() => void) | null = null
 
 export const useScanStore = create<ScanState>((set, get) => ({
   isScanning: false,
   isStopping: false,
+  isPostProcessing: false,
   scanProgress: {
     scannedCount: 0,
     totalCount: 0,
@@ -169,12 +173,19 @@ export const useScanStore = create<ScanState>((set, get) => ({
   executeScan: async (rootPaths: string[], forceRescan: boolean = false) => {
     _cleanupProgress?.()
     _cleanupComplete?.()
+    _cleanupPostProcessing?.()
     _cleanupProgress = null
     _cleanupComplete = null
+    _cleanupPostProcessing = null
+
+    // Ensure store has current items pre-loaded before scan starts
+    const activeRoot = useMediaStore.getState().activeRootPath
+    await useMediaStore.getState().fetchMediaItems(activeRoot || "all")
 
     set({
       isScanning: true,
       isStopping: false,
+      isPostProcessing: false,
       scanProgress: {
         scannedCount: 0,
         totalCount: 0,
@@ -184,28 +195,37 @@ export const useScanStore = create<ScanState>((set, get) => ({
 
     let pendingItemsBuffer: MediaItem[] = []
     let flushTimeout: ReturnType<typeof setTimeout> | null = null
+    let rafProgressId: number | null = null
+    let latestPayload: { scannedCount: number; totalCount: number; currentFile?: string } | null = null
 
     const flushBuffer = () => {
       if (pendingItemsBuffer.length === 0) return
       const batch = pendingItemsBuffer
       pendingItemsBuffer = []
-      useMediaStore.setState((mediaState) => {
-        const itemMap = new Map(mediaState.items.map((i) => [i.id, i]))
-        for (const item of batch) {
-          itemMap.set(item.id, item)
-        }
-        return { items: Array.from(itemMap.values()) }
-      })
+      const currentItems = useMediaStore.getState().items
+      const itemMap = new Map(currentItems.map((i) => [i.id, i]))
+      for (const item of batch) {
+        itemMap.set(item.id, item)
+      }
+      useMediaStore.getState().setItems(Array.from(itemMap.values()))
     }
 
     _cleanupProgress = window.api.onScanProgress((payload) => {
-      set({
-        scanProgress: {
-          scannedCount: payload.scannedCount,
-          totalCount: payload.totalCount,
-          currentFile: payload.currentFile,
-        },
-      })
+      latestPayload = payload
+      if (!rafProgressId) {
+        rafProgressId = requestAnimationFrame(() => {
+          rafProgressId = null
+          if (latestPayload) {
+            set({
+              scanProgress: {
+                scannedCount: latestPayload.scannedCount,
+                totalCount: latestPayload.totalCount,
+                currentFile: latestPayload.currentFile,
+              },
+            })
+          }
+        })
+      }
 
       if (payload.items && payload.items.length > 0) {
         pendingItemsBuffer.push(...payload.items)
@@ -219,6 +239,10 @@ export const useScanStore = create<ScanState>((set, get) => ({
     })
 
     _cleanupComplete = window.api.onScanComplete(async () => {
+      if (rafProgressId) {
+        cancelAnimationFrame(rafProgressId)
+        rafProgressId = null
+      }
       if (flushTimeout) {
         clearTimeout(flushTimeout)
         flushTimeout = null
@@ -226,24 +250,30 @@ export const useScanStore = create<ScanState>((set, get) => ({
       flushBuffer()
 
       const wasPartialScan = get().isStopping
+      const currentTotal = get().scanProgress.totalCount
 
       _cleanupProgress?.()
       _cleanupComplete?.()
       _cleanupProgress = null
       _cleanupComplete = null
 
-      set({ isScanning: false, isStopping: false })
+      set({
+        isScanning: false,
+        isStopping: false,
+        isPostProcessing: !wasPartialScan,
+        scanProgress: {
+          scannedCount: currentTotal,
+          totalCount: currentTotal,
+          currentFile: wasPartialScan ? "Stopped" : "Scan complete (100%)",
+        },
+      })
 
       // Reload media in every case — partial scans still produced indexed items
       const activeRootPath = useMediaStore.getState().activeRootPath
-      if (activeRootPath) {
-        await useMediaStore.getState().fetchMediaItems(activeRootPath)
-      }
+      await useMediaStore.getState().fetchMediaItems(activeRootPath || "all")
 
       // Re-fetch settings so the totalDiscoveredCount written by the scanner
-      // during discovery is included. Then:
-      //   - Partial scan: keep totalDiscoveredCount so isPartial stays derived correctly.
-      //   - Full scan:    clear it — the DB is now truth, no stale count should linger.
+      // during discovery is included.
       const settingsStore = useSettingsStore.getState()
       const latestSettings = await window.api.getSettings()
       const updatedRoots = latestSettings.folders.roots.map((r) => {
@@ -275,39 +305,87 @@ export const useScanStore = create<ScanState>((set, get) => ({
         .join(", ")
       toast.success("Folder scan completed successfully", {
         id: "scan-complete-toast",
-        description: `Successfully indexed files in ${folderNames}.`,
+        description: `Successfully indexed files in ${folderNames}. Analyzing duplicates in background...`,
       })
     })
 
-    const res = await window.api.startScan(rootPaths, forceRescan)
-    if (!res.ok) {
+    // Listen for background post-processing completion (duplicates + similarity)
+    _cleanupPostProcessing = window.api.onScanPostProcessingComplete(async () => {
+      _cleanupPostProcessing?.()
+      _cleanupPostProcessing = null
+      set({ isPostProcessing: false })
+
+      // Re-fetch media items so duplicate/similarity data is reflected in the UI
+      const activeRootPath = useMediaStore.getState().activeRootPath
+      await useMediaStore.getState().fetchMediaItems(activeRootPath || "all")
+    })
+
+    // Fire-and-forget: don't block the store on the full scan IPC response.
+    // Completion is handled by onScanComplete listener above.
+    window.api.startScan(rootPaths, forceRescan).then((res) => {
+      if (!res.ok) {
+        if (
+          res.error?.code === "UNKNOWN" &&
+          res.error?.message === "Scan already in progress"
+        ) {
+          toast.info("Scan in progress", {
+            id: "scan-complete-toast",
+            description: "Re-attached to active scan...",
+          })
+          return
+        }
+
+        _cleanupProgress?.()
+        _cleanupComplete?.()
+        _cleanupPostProcessing?.()
+        _cleanupProgress = null
+        _cleanupComplete = null
+        _cleanupPostProcessing = null
+        set({ isScanning: false, isStopping: false })
+        let errMsg = "An unknown scan error occurred."
+        if (res.error) {
+          const err = res.error
+          if (err.code === "UNKNOWN") {
+            errMsg = err.message
+          } else if (
+            err.code === "EXIF_FAILED" ||
+            err.code === "THUMBNAIL_FAILED"
+          ) {
+            errMsg = err.reason
+          } else if (err.code === "CORRUPT_DB") {
+            errMsg = err.detail
+          } else if ("path" in err) {
+            errMsg = `Failed for file: ${err.path} (${err.code})`
+          } else {
+            errMsg = `Error code: ${String((err as Record<string, unknown>).code)}`
+          }
+        }
+        toast.error("Folder scan failed", {
+          id: "scan-complete-toast",
+          description: errMsg,
+        })
+      }
+    }).catch(() => {
       _cleanupProgress?.()
       _cleanupComplete?.()
+      _cleanupPostProcessing?.()
       _cleanupProgress = null
       _cleanupComplete = null
+      _cleanupPostProcessing = null
       set({ isScanning: false, isStopping: false })
-      let errMsg = "An unknown scan error occurred."
-      if (res.error) {
-        const err = res.error
-        if (err.code === "UNKNOWN") {
-          errMsg = err.message
-        } else if (
-          err.code === "EXIF_FAILED" ||
-          err.code === "THUMBNAIL_FAILED"
-        ) {
-          errMsg = err.reason
-        } else if (err.code === "CORRUPT_DB") {
-          errMsg = err.detail
-        } else if ("path" in err) {
-          errMsg = `Failed for file: ${err.path} (${err.code})`
-        } else {
-          errMsg = `Error code: ${String((err as Record<string, unknown>).code)}`
+    })
+  },
+
+  checkActiveScanStatus: async () => {
+    try {
+      if (typeof window !== "undefined" && window.api?.getScanStatus) {
+        const isScanningOnBackend = await window.api.getScanStatus()
+        if (isScanningOnBackend && !get().isScanning) {
+          await get().executeScan([], false)
         }
       }
-      toast.error("Folder scan failed", {
-        id: "scan-complete-toast",
-        description: errMsg,
-      })
+    } catch {
+      // Best-effort check on mount
     }
   },
 
@@ -340,4 +418,17 @@ if (typeof window !== "undefined" && window.api?.onFolderCountsUpdated) {
     }
     useScanStore.setState({ folderCounts: map })
   })
+}
+
+// Check for crash-interrupted scans on app startup and notify the user
+if (typeof window !== "undefined" && window.api?.checkScanInterrupted) {
+  window.api.checkScanInterrupted().then((wasInterrupted) => {
+    if (wasInterrupted) {
+      toast.warning("Previous scan was interrupted", {
+        id: "scan-interrupted-toast",
+        description: "The app stopped unexpectedly during a scan. Please rescan your folders to ensure your library is up to date.",
+        duration: 10000,
+      })
+    }
+  }).catch(() => {})
 }

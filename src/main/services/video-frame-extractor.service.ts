@@ -91,11 +91,12 @@ export class VideoFrameExtractorService {
       }
 
       return ok(extractedFrames)
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const err = e as { message?: string }
       return fail({
         code: "THUMBNAIL_FAILED",
         path: videoPath,
-        reason: e.message || "Failed to extract keyframes from video",
+        reason: err.message || "Failed to extract keyframes from video",
       })
     }
   }

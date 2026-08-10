@@ -40,7 +40,7 @@ export const CullingAnimationDemo: React.FC<CullingAnimationDemoProps> = ({
   >("idle")
   const [isAutoplay, setIsAutoplay] = useState(true)
   const [cardIndex, setCardIndex] = useState(0)
-  const autoplayTimerRef = useRef<any>(null)
+  const autoplayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Diverse realistic card dataset with good vs bad quality attributes
   const cardGradients = [

@@ -1,8 +1,10 @@
-import { contextBridge, ipcRenderer } from "electron"
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron"
 import {
   IPC_CHANNELS,
   type ScanProgressPayload,
   type OrganizeProgressPayload,
+  type AIIndexingProgressPayload,
+  type FolderCountResult,
   type GalleoAPI,
 } from "../shared/types/ipc"
 
@@ -18,7 +20,7 @@ const api: GalleoAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.SCAN_COUNT_FOLDERS, rootPaths),
 
   onScanProgress: (callback) => {
-    const listener = (_event: any, payload: ScanProgressPayload) =>
+    const listener = (_event: IpcRendererEvent, payload: ScanProgressPayload) =>
       callback(payload)
     ipcRenderer.on(IPC_CHANNELS.SCAN_PROGRESS, listener)
     return () => {
@@ -34,9 +36,19 @@ const api: GalleoAPI = {
     }
   },
 
+  onScanPostProcessingComplete: (callback) => {
+    const listener = () => callback()
+    ipcRenderer.on(IPC_CHANNELS.SCAN_POST_PROCESSING_COMPLETE, listener)
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.SCAN_POST_PROCESSING_COMPLETE, listener)
+    }
+  },
+
   onFolderCountsUpdated: (callback) => {
-    const listener = (_event: any, counts: any) =>
-      callback(counts)
+    const listener = (
+      _event: IpcRendererEvent,
+      counts: FolderCountResult[]
+    ) => callback(counts)
     ipcRenderer.on(IPC_CHANNELS.SCAN_FOLDER_COUNTS_UPDATED, listener)
     return () => {
       ipcRenderer.removeListener(
@@ -78,7 +90,7 @@ const api: GalleoAPI = {
     }),
 
   onOrganizeProgress: (callback) => {
-    const listener = (_event: any, payload: OrganizeProgressPayload) =>
+    const listener = (_event: IpcRendererEvent, payload: OrganizeProgressPayload) =>
       callback(payload)
     ipcRenderer.on(IPC_CHANNELS.ORGANIZE_PROGRESS, listener)
     return () => {
@@ -95,6 +107,8 @@ const api: GalleoAPI = {
   checkForUpdates: (force?: boolean) =>
     ipcRenderer.invoke(IPC_CHANNELS.APP_CHECK_UPDATE, force),
   openExternal: (url) => ipcRenderer.invoke(IPC_CHANNELS.URL_OPEN, url),
+  checkScanInterrupted: () => ipcRenderer.invoke(IPC_CHANNELS.SCAN_INTERRUPTED_CHECK),
+  getScanStatus: () => ipcRenderer.invoke(IPC_CHANNELS.SCAN_GET_STATUS),
 
   search: {
     query: (params) => ipcRenderer.invoke(IPC_CHANNELS.SEARCH_SEMANTIC, params),
@@ -106,14 +120,17 @@ const api: GalleoAPI = {
     getStatus: () => ipcRenderer.invoke(IPC_CHANNELS.AI_MODEL_STATUS),
     downloadModel: () => ipcRenderer.invoke(IPC_CHANNELS.AI_DOWNLOAD_MODEL),
     onDownloadProgress: (callback) => {
-      const listener = (_event: any, progress: number) => callback(progress)
+      const listener = (_event: IpcRendererEvent, progress: number) => callback(progress)
       ipcRenderer.on(IPC_CHANNELS.AI_DOWNLOAD_PROGRESS, listener)
       return () => {
         ipcRenderer.removeListener(IPC_CHANNELS.AI_DOWNLOAD_PROGRESS, listener)
       }
     },
     onIndexingProgress: (callback) => {
-      const listener = (_event: any, payload: any) => callback(payload)
+      const listener = (
+        _event: IpcRendererEvent,
+        payload: AIIndexingProgressPayload
+      ) => callback(payload)
       ipcRenderer.on(IPC_CHANNELS.AI_INDEXING_PROGRESS, listener)
       return () => {
         ipcRenderer.removeListener(IPC_CHANNELS.AI_INDEXING_PROGRESS, listener)

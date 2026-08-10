@@ -31,10 +31,11 @@ export class FileOpsService {
       }
       await shell.openPath(filePath)
       return ok(undefined)
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const err = e as Error
       return fail({
         code: "UNKNOWN",
-        message: e.message || "Opening file failed",
+        message: err.message || "Opening file failed",
       })
     }
   }
@@ -50,10 +51,11 @@ export class FileOpsService {
       }
       shell.showItemInFolder(filePath)
       return ok(undefined)
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const err = e as Error
       return fail({
         code: "UNKNOWN",
-        message: e.message || "Highlighting file failed",
+        message: err.message || "Highlighting file failed",
       })
     }
   }
@@ -88,10 +90,11 @@ export class FileOpsService {
       }
 
       return ok(undefined)
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const err = e as Error
       return fail({
         code: "UNKNOWN",
-        message: e.message || "Delete operation crashed",
+        message: err.message || "Delete operation crashed",
       })
     }
   }
@@ -130,7 +133,9 @@ export class FileOpsService {
         try {
           const stat = await fs.stat(item.sourcePath)
           totalBytes += stat.size
-        } catch {}
+        } catch {
+          // ignore
+        }
       }
 
       // Check space on target drive (e.g. check parent of first item)
@@ -152,21 +157,6 @@ export class FileOpsService {
           const srcExists = await fileExists(item.sourcePath)
           if (!srcExists) {
             errorMsg = "Source file missing"
-          } else if (item.conflictReason === "duplicate_source") {
-            if (preserveOriginals) {
-              // Copy mode: skip copy, keep original in place
-              success = true
-            } else {
-              // Move mode: trash the duplicate source file
-              const res = await moveToTrash(item.sourcePath)
-              success = res.ok
-              if (res.ok === false) {
-                errorMsg =
-                  "message" in res.error ? res.error.message : res.error.code
-              } else {
-                this.mediaRepository.deleteMany([item.sourcePath])
-              }
-            }
           } else {
             // Check target folder exists or create it
             const destDir = path.dirname(item.targetPath)
@@ -222,9 +212,10 @@ export class FileOpsService {
               }
             }
           }
-        } catch (err: any) {
+        } catch (err: unknown) {
+          const e = err as Error
           success = false
-          errorMsg = err.message || "Operation failed"
+          errorMsg = e.message || "Operation failed"
         }
 
         // Stream progress event to React
@@ -239,10 +230,11 @@ export class FileOpsService {
       }
 
       return ok(undefined)
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const err = e as Error
       return fail({
         code: "UNKNOWN",
-        message: e.message || "Organization execution crashed",
+        message: err.message || "Organization execution crashed",
       })
     }
   }

@@ -164,7 +164,7 @@ app.whenReady().then(() => {
         }
         const webStream = Readable.toWeb(fileStream)
 
-        return new Response(webStream as any, {
+        return new Response(webStream as unknown as ReadableStream, {
           status: 206,
           headers: {
             "Content-Range": `bytes ${start}-${end}/${fileSize}`,
@@ -181,7 +181,7 @@ app.whenReady().then(() => {
           })
         }
         const webStream = Readable.toWeb(fileStream)
-        return new Response(webStream as any, {
+        return new Response(webStream as unknown as ReadableStream, {
           status: 200,
           headers: {
             "Content-Length": fileSize.toString(),
@@ -189,7 +189,7 @@ app.whenReady().then(() => {
           },
         })
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to resolve local media resource:", err)
       return new Response("Not Found", { status: 404 })
     }

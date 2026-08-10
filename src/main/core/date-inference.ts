@@ -21,7 +21,7 @@ export function parseExifDate(
   const match = cleaned.match(exifRegex)
 
   if (match) {
-    const [_, year, month, day, hour, minute, second] = match
+    const [, year, month, day, hour, minute, second] = match
     const y = parseInt(year, 10)
     const m = parseInt(month, 10) - 1
     const d = parseInt(day, 10)

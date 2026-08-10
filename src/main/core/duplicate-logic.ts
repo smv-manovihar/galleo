@@ -55,11 +55,12 @@ export interface DuplicateGroup {
  * Groups items by perceptual hash distance using union-find for correct
  * transitive grouping (A≈B and B≈C → all three in one group).
  * A Hamming distance <= maxDistance qualifies as a duplicate.
+ * Asynchronous with event loop yields to prevent main-thread freezing on large datasets.
  */
-export function findDuplicates(
+export async function findDuplicates(
   items: MediaItem[],
   maxDistance: number
-): DuplicateGroup[] {
+): Promise<DuplicateGroup[]> {
   // Filter only items that have hashes
   const hashItems = items.filter((item) => item.hash && item.hash.length > 0)
   if (hashItems.length === 0) return []
@@ -104,7 +105,11 @@ export function findDuplicates(
   }
 
   // Test every pair — union-find handles transitivity automatically
+  // Yield to event loop every 10 items so each CPU chunk is tiny (<3ms)
   for (let i = 0; i < n; i++) {
+    if (i % 10 === 0) {
+      await new Promise((r) => setImmediate(r))
+    }
     const n1 = parsedItems[i].nibbles
     for (let j = i + 1; j < n; j++) {
       if (find(i) === find(j)) continue

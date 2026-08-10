@@ -30,26 +30,45 @@ export const DuplicateAuditPage: React.FC = () => {
   const strategy: DuplicateStrategy =
     settings.organization.duplicateStrategy ?? "keep_most_grouped"
 
-  const handleStrategyChange = (s: DuplicateStrategy) => {
+  const preferredKeepFolderPaths = React.useMemo(() => {
+    if (settings.organization.preferredKeepFolderPaths !== undefined) {
+      return settings.organization.preferredKeepFolderPaths
+    }
+    if (settings.organization.duplicateStrategy === "keep_preferred_folder") {
+      return settings.organization.preferredFolderPaths ?? (settings.organization.preferredFolderPath ? [settings.organization.preferredFolderPath] : [])
+    }
+    return []
+  }, [settings.organization.preferredKeepFolderPaths, settings.organization.duplicateStrategy, settings.organization.preferredFolderPaths, settings.organization.preferredFolderPath])
+
+  const preferredDeleteFolderPaths = React.useMemo(() => {
+    if (settings.organization.preferredDeleteFolderPaths !== undefined) {
+      return settings.organization.preferredDeleteFolderPaths
+    }
+    if (settings.organization.duplicateStrategy === "delete_preferred_folder") {
+      return settings.organization.preferredFolderPaths ?? (settings.organization.preferredFolderPath ? [settings.organization.preferredFolderPath] : [])
+    }
+    return []
+  }, [settings.organization.preferredDeleteFolderPaths, settings.organization.duplicateStrategy, settings.organization.preferredFolderPaths, settings.organization.preferredFolderPath])
+
+  const handleStrategyChange = (
+    s: DuplicateStrategy,
+    keepPaths?: string[],
+    deletePaths?: string[]
+  ) => {
+    const updatedKeep = keepPaths !== undefined ? keepPaths : preferredKeepFolderPaths
+    const updatedDelete = deletePaths !== undefined ? deletePaths : preferredDeleteFolderPaths
     saveSettings({
       ...settings,
-      organization: { ...settings.organization, duplicateStrategy: s },
+      organization: {
+        ...settings.organization,
+        duplicateStrategy: s,
+        preferredKeepFolderPaths: updatedKeep,
+        preferredDeleteFolderPaths: updatedDelete,
+      },
     })
   }
 
-  // Group duplicate items
-  const duplicateGroups = React.useMemo(() => {
-    const groups: Record<string, MediaItem[]> = {}
-    for (const item of items) {
-      if (item.isDuplicate && item.duplicateGroupId) {
-        if (!groups[item.duplicateGroupId]) {
-          groups[item.duplicateGroupId] = []
-        }
-        groups[item.duplicateGroupId].push(item)
-      }
-    }
-    return Object.values(groups).filter((g) => g.length > 1)
-  }, [items])
+  const duplicateGroups = useMediaStore((s) => s.cachedDuplicateGroups)
 
   // Partition duplicates into exact copies vs similar files
   const {
@@ -62,6 +81,25 @@ export const DuplicateAuditPage: React.FC = () => {
     const dupsToKeep: MediaItem[] = []
     const exactGroups: MediaItem[][] = []
     const manualGroups: MediaItem[][] = []
+
+    const normKeepFolders = preferredKeepFolderPaths.map((p) =>
+      p.replace(/\\/g, "/").toLowerCase()
+    )
+    const normDeleteFolders = preferredDeleteFolderPaths.map((p) =>
+      p.replace(/\\/g, "/").toLowerCase()
+    )
+
+    const isInKeepFolder = (dirPath: string) => {
+      return normKeepFolders.some(
+        (pref) => dirPath === pref || dirPath.startsWith(pref + "/")
+      )
+    }
+
+    const isInDeleteFolder = (dirPath: string) => {
+      return normDeleteFolders.some(
+        (pref) => dirPath === pref || dirPath.startsWith(pref + "/")
+      )
+    }
 
     // Pre-compute folder sibling counts for the most_grouped strategy
     const folderSiblingCount = new Map<string, number>()
@@ -78,10 +116,6 @@ export const DuplicateAuditPage: React.FC = () => {
 
     /**
      * Elects a single canonical item from a group of exact duplicates.
-     * Tiebreaker chain:
-     *   1. Strategy metric (most siblings / oldest date / newest date)
-     *   2. Oldest dateTarget
-     *   3. Alphabetically first path
      */
     const electCanonical = (subGroup: MediaItem[]): MediaItem => {
       return subGroup.reduce((best, item) => {
@@ -90,26 +124,43 @@ export const DuplicateAuditPage: React.FC = () => {
           .split("/")
           .slice(0, -1)
           .join("/")
+          .toLowerCase()
         const bestDir = best.path
           .replace(/\\/g, "/")
           .split("/")
           .slice(0, -1)
           .join("/")
+          .toLowerCase()
         const itemDate = new Date(item.dateTarget).getTime()
         const bestDate = new Date(best.dateTarget).getTime()
+
+        const isFolderRulesStrategy =
+          strategy === "folder_rules" ||
+          strategy === "keep_preferred_folder" ||
+          strategy === "delete_preferred_folder"
+
+        if (isFolderRulesStrategy && (normKeepFolders.length > 0 || normDeleteFolders.length > 0)) {
+          const itemInKeep = normKeepFolders.length > 0 && isInKeepFolder(itemDir)
+          const bestInKeep = normKeepFolders.length > 0 && isInKeepFolder(bestDir)
+
+          if (itemInKeep !== bestInKeep) return itemInKeep ? item : best
+
+          const itemInDelete = normDeleteFolders.length > 0 && isInDeleteFolder(itemDir)
+          const bestInDelete = normDeleteFolders.length > 0 && isInDeleteFolder(bestDir)
+
+          if (itemInDelete !== bestInDelete) return itemInDelete ? best : item
+        }
 
         if (strategy === "keep_most_grouped") {
           const itemCount = folderSiblingCount.get(itemDir) ?? 0
           const bestCount = folderSiblingCount.get(bestDir) ?? 0
           if (itemCount !== bestCount)
             return itemCount > bestCount ? item : best
-          // Tiebreaker 2: oldest date
           if (itemDate !== bestDate) return itemDate < bestDate ? item : best
         } else if (strategy === "keep_oldest") {
           if (itemDate !== bestDate) return itemDate < bestDate ? item : best
         } else if (strategy === "keep_newest") {
           if (itemDate !== bestDate) return itemDate > bestDate ? item : best
-          // Tiebreaker 2: most grouped
           const itemCount = folderSiblingCount.get(itemDir) ?? 0
           const bestCount = folderSiblingCount.get(bestDir) ?? 0
           if (itemCount !== bestCount)
@@ -118,7 +169,6 @@ export const DuplicateAuditPage: React.FC = () => {
           const itemLen = item.path.length
           const bestLen = best.path.length
           if (itemLen !== bestLen) return itemLen < bestLen ? item : best
-          // Tiebreaker 2: oldest date
           if (itemDate !== bestDate) return itemDate < bestDate ? item : best
         }
 
@@ -165,7 +215,13 @@ export const DuplicateAuditPage: React.FC = () => {
       exactDupsGroups: exactGroups,
       manualReviewGroups: manualGroups,
     }
-  }, [duplicateGroups, items, strategy])
+  }, [
+    duplicateGroups,
+    items,
+    strategy,
+    preferredKeepFolderPaths,
+    preferredDeleteFolderPaths,
+  ])
 
   const manualReviewItems = React.useMemo(() => {
     return manualReviewGroups.flat()
@@ -230,6 +286,7 @@ export const DuplicateAuditPage: React.FC = () => {
           parsed >= 0 &&
           parsed < manualReviewGroups.length
         ) {
+          // eslint-disable-next-line react-hooks/set-state-in-effect
           setManualGroupIndex(parsed)
           return
         }
@@ -270,6 +327,15 @@ export const DuplicateAuditPage: React.FC = () => {
     }
   }
 
+  const isScanned = React.useMemo(() => {
+    if (!activeRootPath || activeRootPath === "all") {
+      return settings.folders.roots.some((r) => r.enabled && r.scanned)
+    }
+    return !!settings.folders.roots.find(
+      (r) => r.path.toLowerCase() === activeRootPath.toLowerCase()
+    )?.scanned
+  }, [activeRootPath, settings.folders.roots])
+
   if (!activeRootPath) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 font-sans text-xs text-muted-foreground select-none">
@@ -279,15 +345,6 @@ export const DuplicateAuditPage: React.FC = () => {
       </div>
     )
   }
-
-  const isScanned = React.useMemo(() => {
-    if (!activeRootPath || activeRootPath === "all") {
-      return settings.folders.roots.some((r) => r.enabled && r.scanned)
-    }
-    return !!settings.folders.roots.find(
-      (r) => r.path.toLowerCase() === activeRootPath.toLowerCase()
-    )?.scanned
-  }, [activeRootPath, settings.folders.roots])
 
   if (items.length === 0) {
     return (
@@ -330,7 +387,7 @@ export const DuplicateAuditPage: React.FC = () => {
         ) : (
           <Tabs
             value={activeTab}
-            onValueChange={(val) => handleTabChange(val as any)}
+            onValueChange={(val) => handleTabChange(val as "auto" | "manual")}
             className="flex min-h-0 w-full flex-1 flex-col"
           >
             <div className="flex shrink-0 items-center justify-center border-b border-border pb-3">
@@ -374,6 +431,8 @@ export const DuplicateAuditPage: React.FC = () => {
                   exactDupsToKeep={exactDupsToKeep}
                   duplicateGroups={exactDupsGroups}
                   strategy={strategy}
+                  preferredKeepFolderPaths={preferredKeepFolderPaths}
+                  preferredDeleteFolderPaths={preferredDeleteFolderPaths}
                   onStrategyChange={handleStrategyChange}
                 />
               </TabsContent>

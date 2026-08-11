@@ -8,7 +8,7 @@ import { DuplicateAuditSummary } from "../components/duplicate-audit/DuplicateAu
 import { DuplicateAuditAutoCleanup } from "../components/duplicate-audit/DuplicateAuditAutoCleanup"
 import { PageContainer } from "@/components/ui/page-layout"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { Bookmark, CopyMinus, Images, FolderSearch } from "lucide-react"
+import { CopyMinus, Images, FolderSearch } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { useUIStore } from "../stores/ui-store"
 import type { MediaItem } from "../../shared/types/media"
@@ -20,6 +20,8 @@ export const DuplicateAuditPage: React.FC = () => {
   const items = useMediaStore((s) => s.items)
   const activeRootPath = useMediaStore((s) => s.activeRootPath)
   const isScanning = useScanStore((s) => s.isScanning)
+  const isPostProcessing = useScanStore((s) => s.isPostProcessing)
+  const isBusyScanning = isScanning || isPostProcessing
   const { settings, saveSettings } = useSettingsStore()
   const { initSession } = useSessionStore()
 
@@ -227,23 +229,40 @@ export const DuplicateAuditPage: React.FC = () => {
     return manualReviewGroups.flat()
   }, [manualReviewGroups])
 
+  // Clamp manualGroupIndex when items are deleted mid-review and the groups array shrinks.
+  // Without this, the index stays at its old value while duplicateGroups is shorter,
+  // causing a stale "N of M" counter or a null currentGroup.
+  React.useEffect(() => {
+    if (manualReviewGroups.length === 0) return
+    if (manualGroupIndex >= manualReviewGroups.length) {
+      const clamped = manualReviewGroups.length - 1
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setManualGroupIndex(clamped)
+      if (activeRootPath) {
+        localStorage.setItem(
+          `duplicates_manual_group_index_${activeRootPath}`,
+          clamped.toString()
+        )
+      }
+    }
+  }, [manualReviewGroups.length, manualGroupIndex, activeRootPath])
+
   const isAllManualReviewed = React.useMemo(() => {
     if (manualReviewGroups.length === 0) return false
     return manualReviewGroups.every((group) =>
       group.every(
         (item) =>
-          decisions[item.id] !== undefined ||
-          (item.reviewState && item.reviewState !== "pending")
+          decisions[item.id] === "keep" || decisions[item.id] === "delete"
       )
     )
   }, [manualReviewGroups, decisions])
 
-  const [showSummary, setShowSummary] = useState<boolean>(() => isAllManualReviewed)
+  const [showManualSummary, setShowManualSummary] = useState<boolean>(() => isAllManualReviewed)
   const [prevRootPath, setPrevRootPath] = useState<string | null>(activeRootPath)
 
   if (activeRootPath !== prevRootPath) {
     setPrevRootPath(activeRootPath)
-    setShowSummary(isAllManualReviewed)
+    setShowManualSummary(isAllManualReviewed)
   }
 
   const lastLoadedFolderRef = React.useRef<string | null>(null)
@@ -346,6 +365,22 @@ export const DuplicateAuditPage: React.FC = () => {
     )
   }
 
+  if (isBusyScanning) {
+    return (
+      <PageContainer className="h-full p-0 select-none md:p-0" maxWidth="xl">
+        <div className="relative flex min-h-0 flex-1 flex-col gap-4 px-6 pt-4">
+          <div className="flex flex-1 flex-col items-center justify-center gap-1.5 font-sans text-xs text-muted-foreground select-none text-center">
+            <FolderSearch className="h-8 w-8 text-primary animate-pulse mb-1" />
+            <span className="text-sm font-medium text-foreground">Duplicate Calculation Paused</span>
+            <span className="max-w-md text-2xs text-muted-foreground">
+              A library scan or background analysis is currently in progress. Duplicate media calculation is paused and will run automatically once scanning completes.
+            </span>
+          </div>
+        </div>
+      </PageContainer>
+    )
+  }
+
   if (items.length === 0) {
     return (
       <PageContainer className="h-full p-0 select-none md:p-0" maxWidth="xl">
@@ -372,98 +407,85 @@ export const DuplicateAuditPage: React.FC = () => {
   return (
     <PageContainer className="h-full p-0 select-none md:p-0" maxWidth="xl">
       <div className="relative flex min-h-0 flex-1 flex-col gap-4 px-6 pt-4">
-        {showSummary ? (
-          <div className="flex min-h-0 flex-1 flex-col">
-            <DuplicateAuditSummary
-              similarMediaItems={manualReviewItems}
-              onBackToQueue={() => {
-                withViewTransition(() => {
-                  setShowSummary(false)
-                  setManualGroupIndex(Math.max(0, manualReviewGroups.length - 1))
-                })
-              }}
-            />
-          </div>
-        ) : (
-          <Tabs
-            value={activeTab}
-            onValueChange={(val) => handleTabChange(val as "auto" | "manual")}
-            className="flex min-h-0 w-full flex-1 flex-col"
-          >
-            <div className="flex shrink-0 items-center justify-center border-b border-border pb-3">
-              <TabsList className="h-9 rounded-lg border border-border bg-muted/50 p-0.5">
-                <TabsTrigger
-                  value="auto"
-                  className="flex h-8 cursor-pointer items-center gap-2 rounded-md px-4 text-xs"
-                >
-                  <CopyMinus className="h-3.5 w-3.5 text-amber-500" />
-                  <span>Exact Duplicates</span>
-                  <Badge
-                    variant="outline"
-                    className="h-4.5 rounded-full border-amber-500/20 bg-amber-500/10 px-1.5 text-3xs font-bold text-amber-600 select-none dark:text-amber-400"
-                  >
-                    {exactDupsGroups?.length || 0}
-                  </Badge>
-                </TabsTrigger>
-                <TabsTrigger
-                  value="manual"
-                  className="flex h-8 cursor-pointer items-center gap-2 rounded-md px-4 text-xs"
-                >
-                  <Images className="h-3.5 w-3.5 text-primary" />
-                  <span>Similar Media</span>
-                  <Badge
-                    variant="outline"
-                    className="h-4.5 rounded-full border-primary/20 bg-primary/10 px-1.5 text-3xs font-bold text-primary select-none"
-                  >
-                    {manualReviewGroups.length}
-                  </Badge>
-                </TabsTrigger>
-              </TabsList>
-            </div>
-
-            <div className="mt-4 min-h-0 flex-1">
-              <TabsContent
+        <Tabs
+          value={activeTab}
+          onValueChange={(val) => handleTabChange(val as "auto" | "manual")}
+          className="flex min-h-0 w-full flex-1 flex-col"
+        >
+          <div className="flex shrink-0 items-center justify-center border-b border-border pb-3">
+            <TabsList className="h-9 rounded-lg border border-border bg-muted/50 p-0.5">
+              <TabsTrigger
                 value="auto"
-                className="m-0 flex h-full min-h-0 flex-col"
+                className="flex h-8 cursor-pointer items-center gap-2 rounded-md px-4 text-xs"
               >
-                <DuplicateAuditAutoCleanup
-                  exactDupsToDelete={exactDupsToDelete}
-                  exactDupsToKeep={exactDupsToKeep}
-                  duplicateGroups={exactDupsGroups}
-                  strategy={strategy}
-                  preferredKeepFolderPaths={preferredKeepFolderPaths}
-                  preferredDeleteFolderPaths={preferredDeleteFolderPaths}
-                  onStrategyChange={handleStrategyChange}
-                />
-              </TabsContent>
-
-              <TabsContent
+                <CopyMinus className="h-3.5 w-3.5 text-amber-500" />
+                <span>Exact Duplicates</span>
+                <Badge
+                  variant="outline"
+                  className="h-4.5 rounded-full border-amber-500/20 bg-amber-500/10 px-1.5 text-3xs font-bold text-amber-600 select-none dark:text-amber-400"
+                >
+                  {exactDupsGroups?.length || 0}
+                </Badge>
+              </TabsTrigger>
+              <TabsTrigger
                 value="manual"
-                className="m-0 flex h-full min-h-0 flex-col pb-6 md:pb-8"
+                className="flex h-8 cursor-pointer items-center gap-2 rounded-md px-4 text-xs"
               >
-                {manualReviewItems.length > 0 ? (
-                  <DuplicateAuditReview
-                    items={manualReviewItems}
-                    onComplete={() => withViewTransition(() => setShowSummary(true))}
-                    activeGroupIndex={manualGroupIndex}
-                    onGroupIndexChange={handleGroupIndexChange}
-                  />
-                ) : (
-                  <div className="flex h-64 flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card/10 p-8">
-                    <Bookmark className="mb-3 h-10 w-10 text-primary" />
-                    <h3 className="text-xs font-semibold text-foreground">
-                      All Similar Photos Reviewed
-                    </h3>
-                    <p className="mt-1 max-w-sm text-center text-2xs text-muted-foreground">
-                      No groups of similar files are currently left to review.
-                      Great job!
-                    </p>
-                  </div>
-                )}
-              </TabsContent>
-            </div>
-          </Tabs>
-        )}
+                <Images className="h-3.5 w-3.5 text-primary" />
+                <span>Similar Media</span>
+                <Badge
+                  variant="outline"
+                  className="h-4.5 rounded-full border-primary/20 bg-primary/10 px-1.5 text-3xs font-bold text-primary select-none"
+                >
+                  {manualReviewGroups.length}
+                </Badge>
+              </TabsTrigger>
+            </TabsList>
+          </div>
+
+          <div className="mt-4 min-h-0 flex-1">
+            <TabsContent
+              value="auto"
+              className="m-0 flex h-full min-h-0 flex-col"
+            >
+              <DuplicateAuditAutoCleanup
+                exactDupsToDelete={exactDupsToDelete}
+                exactDupsToKeep={exactDupsToKeep}
+                duplicateGroups={exactDupsGroups}
+                strategy={strategy}
+                preferredKeepFolderPaths={preferredKeepFolderPaths}
+                preferredDeleteFolderPaths={preferredDeleteFolderPaths}
+                onStrategyChange={handleStrategyChange}
+              />
+            </TabsContent>
+
+            <TabsContent
+              value="manual"
+              className="m-0 flex h-full min-h-0 flex-col pb-6 md:pb-8"
+            >
+              {manualReviewItems.length > 0 && (showManualSummary || isAllManualReviewed) ? (
+                <DuplicateAuditSummary
+                  similarMediaItems={manualReviewItems}
+                  onBackToQueue={() => {
+                    withViewTransition(() => {
+                      setShowManualSummary(false)
+                      setManualGroupIndex(Math.max(0, manualReviewGroups.length - 1))
+                    })
+                  }}
+                />
+              ) : (
+                <DuplicateAuditReview
+                  items={manualReviewItems}
+                  onComplete={() => {
+                    withViewTransition(() => setShowManualSummary(true))
+                  }}
+                  activeGroupIndex={manualGroupIndex}
+                  onGroupIndexChange={handleGroupIndexChange}
+                />
+              )}
+            </TabsContent>
+          </div>
+        </Tabs>
       </div>
     </PageContainer>
   )

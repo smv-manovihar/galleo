@@ -119,7 +119,7 @@ export const DuplicatesHelp: React.FC = () => {
                   </span>
                 </div>
                 <span className="text-muted-foreground">
-                  <kbd className="font-mono bg-muted px-1 text-[10px] rounded">1</kbd>/<kbd className="font-mono bg-muted px-1 text-[10px] rounded">2</kbd>/<kbd className="font-mono bg-muted px-1 text-[10px] rounded">3</kbd> toggle items, <kbd className="font-mono bg-muted px-1 text-[10px] rounded">B</kbd>/<kbd className="font-mono bg-muted px-1 text-[10px] rounded">Space</kbd>/<kbd className="font-mono bg-muted px-1 text-[10px] rounded">Enter</kbd> auto-keep best, and <kbd className="font-mono bg-muted px-1 text-[10px] rounded">H</kbd>/<kbd className="font-mono bg-muted px-1 text-[10px] rounded">L</kbd> or <kbd className="font-mono bg-muted px-1 text-[10px] rounded">←</kbd>/<kbd className="font-mono bg-muted px-1 text-[10px] rounded">→</kbd> navigate.
+                  Press <kbd className="font-mono bg-muted px-1 text-[10px] rounded">F</kbd> to enter focus mode — a blue ring highlights the active card. Use <kbd className="font-mono bg-muted px-1 text-[10px] rounded">←</kbd><kbd className="font-mono bg-muted px-1 text-[10px] rounded">→</kbd><kbd className="font-mono bg-muted px-1 text-[10px] rounded">↑</kbd><kbd className="font-mono bg-muted px-1 text-[10px] rounded">↓</kbd> or <kbd className="font-mono bg-muted px-1 text-[10px] rounded">A</kbd><kbd className="font-mono bg-muted px-1 text-[10px] rounded">D</kbd><kbd className="font-mono bg-muted px-1 text-[10px] rounded">W</kbd><kbd className="font-mono bg-muted px-1 text-[10px] rounded">S</kbd> to move between cards, <kbd className="font-mono bg-muted px-1 text-[10px] rounded">Space</kbd> or <kbd className="font-mono bg-muted px-1 text-[10px] rounded">Enter</kbd> to toggle, and <kbd className="font-mono bg-muted px-1 text-[10px] rounded">Esc</kbd> or <kbd className="font-mono bg-muted px-1 text-[10px] rounded">F</kbd> to exit.
                 </span>
               </div>
             </div>
@@ -190,7 +190,7 @@ export const DuplicatesHelp: React.FC = () => {
               PRO TIP
             </span>
             <span className="mt-0.5 block text-2xs leading-relaxed text-muted-foreground">
-              Press <kbd className="font-mono bg-muted px-1 text-[10px] rounded">B</kbd> or <kbd className="font-mono bg-muted px-1 text-[10px] rounded">Space</kbd> to auto-keep the best photo, or <kbd className="font-mono bg-muted px-1 text-[10px] rounded">1</kbd>/<kbd className="font-mono bg-muted px-1 text-[10px] rounded">2</kbd>/<kbd className="font-mono bg-muted px-1 text-[10px] rounded">3</kbd> to toggle selections directly.
+              Press <kbd className="font-mono bg-muted px-1 text-[10px] rounded">Space</kbd> or <kbd className="font-mono bg-muted px-1 text-[10px] rounded">Enter</kbd> to auto-keep the best photo. To manually adjust individual cards, press <kbd className="font-mono bg-muted px-1 text-[10px] rounded">F</kbd> to enter focus mode, navigate with <kbd className="font-mono bg-muted px-1 text-[10px] rounded">WASD</kbd> or arrow keys, and toggle with <kbd className="font-mono bg-muted px-1 text-[10px] rounded">Space</kbd>.
             </span>
           </div>
         </div>

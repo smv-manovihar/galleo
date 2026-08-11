@@ -299,15 +299,31 @@ export const useScanStore = create<ScanState>((set, get) => ({
       }
 
       await get().checkAIStatus()
-
-      const folderNames = rootPaths
-        .map((p) => p.split(/[\\/]/).pop() || p)
-        .join(", ")
-      toast.success("Folder scan completed successfully", {
-        id: "scan-complete-toast",
-        description: `Successfully indexed files in ${folderNames}. Analyzing duplicates in background...`,
-      })
     })
+
+    const effectiveRoots =
+      rootPaths.length > 0
+        ? rootPaths
+        : useSettingsStore
+            .getState()
+            .settings.folders.roots.filter((r) => r.enabled)
+            .map((r) => r.path)
+
+    const folderBasenames = effectiveRoots
+      .map((p) => {
+        const cleanPath = p.replace(/[\\/]+$/, "")
+        return cleanPath.split(/[\\/]/).pop() || p
+      })
+      .filter((n) => n.length > 0)
+
+    let folderDescription = ""
+    if (folderBasenames.length === 1) {
+      folderDescription = folderBasenames[0]
+    } else if (folderBasenames.length === 2) {
+      folderDescription = `${folderBasenames[0]} and ${folderBasenames[1]}`
+    } else if (folderBasenames.length > 2) {
+      folderDescription = `${folderBasenames[0]}, ${folderBasenames[1]} (+${folderBasenames.length - 2} more)`
+    }
 
     // Listen for background post-processing completion (duplicates + similarity)
     _cleanupPostProcessing = window.api.onScanPostProcessingComplete(async () => {
@@ -318,6 +334,11 @@ export const useScanStore = create<ScanState>((set, get) => ({
       // Re-fetch media items so duplicate/similarity data is reflected in the UI
       const activeRootPath = useMediaStore.getState().activeRootPath
       await useMediaStore.getState().fetchMediaItems(activeRootPath || "all")
+
+      toast.success("Folder scan completed successfully", {
+        id: "scan-complete-toast",
+        description: folderDescription ? `In ${folderDescription}` : undefined,
+      })
     })
 
     // Fire-and-forget: don't block the store on the full scan IPC response.
@@ -328,10 +349,6 @@ export const useScanStore = create<ScanState>((set, get) => ({
           res.error?.code === "UNKNOWN" &&
           res.error?.message === "Scan already in progress"
         ) {
-          toast.info("Scan in progress", {
-            id: "scan-complete-toast",
-            description: "Re-attached to active scan...",
-          })
           return
         }
 

@@ -235,13 +235,29 @@ const MediaListRow = React.memo<MediaListRowProps>(
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6.5 w-6.5 cursor-pointer rounded text-muted-foreground hover:bg-green-500/10 hover:text-green-500"
-                    onClick={() => onReviewAction(item.id, "keep")}
+                    className={`h-6.5 w-6.5 rounded transition-colors ${
+                      item.reviewState === "keep"
+                        ? "cursor-default border border-green-500/35 bg-green-500/20 text-green-500 hover:border-green-500/55! hover:bg-green-500/35! hover:text-green-400!"
+                        : item.reviewState === "delete"
+                          ? "cursor-pointer text-muted-foreground/50 hover:bg-green-500/15! hover:text-green-500!"
+                          : "cursor-pointer text-muted-foreground hover:bg-green-500/15! hover:text-green-500!"
+                    }`}
+                    onClick={
+                      item.reviewState === "keep"
+                        ? undefined
+                        : () => onReviewAction(item.id, "keep")
+                    }
                   >
-                    <Bookmark className="h-3.5 w-3.5" />
+                    <Bookmark
+                      className={`h-3.5 w-3.5 ${
+                        item.reviewState === "keep" ? "fill-current" : ""
+                      }`}
+                    />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="top">Keep</TooltipContent>
+                <TooltipContent side="top">
+                  {item.reviewState === "keep" ? "Kept" : "Keep"}
+                </TooltipContent>
               </Tooltip>
 
               <Tooltip>
@@ -249,13 +265,25 @@ const MediaListRow = React.memo<MediaListRowProps>(
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6.5 w-6.5 cursor-pointer rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                    onClick={() => onReviewAction(item.id, "delete")}
+                    className={`h-6.5 w-6.5 rounded transition-colors ${
+                      item.reviewState === "delete"
+                        ? "cursor-default border border-destructive/35 bg-destructive/20 text-destructive hover:border-destructive/55! hover:bg-destructive/35! hover:text-destructive!"
+                        : item.reviewState === "keep"
+                          ? "cursor-pointer text-muted-foreground/50 hover:bg-destructive/15! hover:text-destructive!"
+                          : "cursor-pointer text-muted-foreground hover:bg-destructive/15! hover:text-destructive!"
+                    }`}
+                    onClick={
+                      item.reviewState === "delete"
+                        ? undefined
+                        : () => onReviewAction(item.id, "delete")
+                    }
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="top">Delete</TooltipContent>
+                <TooltipContent side="top">
+                  {item.reviewState === "delete" ? "Marked Delete" : "Delete"}
+                </TooltipContent>
               </Tooltip>
             </div>
           </div>

@@ -24,7 +24,7 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
   onlyShowFlagged,
   onOnlyShowFlaggedChange,
 }) => {
-  const { submitDecision, undo, undoStack, decisions, bulkChangeDecisions } = useSessionStore()
+  const { submitDecision, undo, undoStack, bulkChangeDecisions } = useSessionStore()
 
   const [swipeClass, setSwipeClass] = useState<
     "slide-left" | "slide-right" | ""
@@ -75,9 +75,22 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
     return sortedItems
   }, [sortedItems, onlyShowFlagged])
 
-  const unreviewedItems = useMemo(() =>
-    filteredItems.filter((item) => decisions[item.id] === undefined),
-    [filteredItems, decisions]
+  // Scope progress tracking to decisions made in this culling session only.
+  // The shared `decisions` map also contains entries from duplicate audit and browse
+  // (source !== "culling"), which would inflate the progress counter.
+  const cullingDecisionIds = useMemo(
+    () =>
+      new Set(
+        undoStack
+          .filter((a) => a.newState.source === "culling")
+          .map((a) => a.mediaId)
+      ),
+    [undoStack]
+  )
+
+  const unreviewedItems = useMemo(
+    () => filteredItems.filter((item) => !cullingDecisionIds.has(item.id)),
+    [filteredItems, cullingDecisionIds]
   )
 
   const currentItem = unreviewedItems.length > 0 ? unreviewedItems[0] : null
@@ -231,12 +244,12 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
 
   const progress = useMemo(() => {
     const total = filteredItems.length
-    const reviewed = filteredItems.filter(
-      (item) => decisions[item.id] !== undefined
+    const reviewed = filteredItems.filter((item) =>
+      cullingDecisionIds.has(item.id)
     ).length
     const percentage = total > 0 ? Math.round((reviewed / total) * 100) : 0
     return { reviewed, total, percentage }
-  }, [filteredItems, decisions])
+  }, [filteredItems, cullingDecisionIds])
 
   // Auto-complete when all items reviewed (guard against firing during animation)
   const prevUnreviewedCountRef = useRef(unreviewedItems.length)

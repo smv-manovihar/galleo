@@ -55,7 +55,7 @@ export const BrowseMediaPage: React.FC = () => {
   const {
     initSession,
     submitDecision,
-    commitDeletions,
+    startTrashingInBackground,
     decisions,
     isCommitting,
   } = useSessionStore()
@@ -613,12 +613,12 @@ export const BrowseMediaPage: React.FC = () => {
               <Button
                 variant="destructive"
                 className="h-9 flex-1 text-xs"
-                onClick={async () => {
+                onClick={() => {
                   const deleteIds = Object.entries(decisions)
                     .filter(([, state]) => state === "delete")
                     .map(([entryMediaId]) => entryMediaId)
                   if (deleteIds.length > 0) {
-                    await commitDeletions(deleteIds)
+                    void startTrashingInBackground(deleteIds, "Trashing files...")
                   }
                   setShowCommitConfirm(false)
                 }}

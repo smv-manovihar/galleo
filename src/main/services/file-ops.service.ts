@@ -14,11 +14,22 @@ import { type Result, ok, fail } from "../../shared/types/results"
 import {
   type OrganizePreviewItem,
   type OrganizeProgressPayload,
+  type TrashProgressPayload,
+  type TrashStatusPayload,
   IPC_CHANNELS,
 } from "../../shared/types/ipc"
 
 export class FileOpsService {
   private mediaRepository = new MediaRepository()
+  private isTrashing = false
+  private currentTrashProgress: TrashProgressPayload | null = null
+
+  public getTrashStatus(): TrashStatusPayload {
+    return {
+      isTrashing: this.isTrashing,
+      progress: this.currentTrashProgress,
+    }
+  }
 
   /**
    * Opens the file in the OS default application.
@@ -63,23 +74,55 @@ export class FileOpsService {
   /**
    * Trashes a list of media paths safely (moves them to the OS Recycle Bin).
    */
-  public async trashFiles(paths: string[]): Promise<Result<void>> {
+  public async trashFiles(
+    paths: string[],
+    window?: BrowserWindow
+  ): Promise<Result<void>> {
+    this.isTrashing = true
+    this.currentTrashProgress = {
+      processedCount: 0,
+      totalCount: paths.length,
+    }
+
     try {
       const failures: string[] = []
       const successfulPaths: string[] = []
+      const totalCount = paths.length
 
-      for (const p of paths) {
+      for (let i = 0; i < totalCount; i++) {
+        const p = paths[i]
         const res = await moveToTrash(p)
         if (res.ok) {
           successfulPaths.push(p)
         } else {
           failures.push(p)
         }
+
+        this.currentTrashProgress = {
+          processedCount: i + 1,
+          totalCount,
+          currentPath: p,
+        }
+
+        if (window && !window.isDestroyed()) {
+          window.webContents.send(IPC_CHANNELS.MEDIA_TRASH_PROGRESS, {
+            processedCount: i + 1,
+            totalCount,
+            currentPath: p,
+          })
+        }
       }
 
       // Sync metadata: remove successfully deleted files from local database
       if (successfulPaths.length > 0) {
         this.mediaRepository.deleteMany(successfulPaths)
+      }
+
+      if (window && !window.isDestroyed()) {
+        window.webContents.send(IPC_CHANNELS.MEDIA_TRASH_COMPLETE, {
+          successCount: successfulPaths.length,
+          failedPaths: failures.length > 0 ? failures : null,
+        })
       }
 
       if (failures.length > 0) {
@@ -96,6 +139,9 @@ export class FileOpsService {
         code: "UNKNOWN",
         message: err.message || "Delete operation crashed",
       })
+    } finally {
+      this.isTrashing = false
+      this.currentTrashProgress = null
     }
   }
 

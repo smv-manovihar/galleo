@@ -192,7 +192,9 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
                 <span>
                   ⏱{" "}
                   {`${Math.floor(matchingFrame.timestampSeconds / 60)}:${
-                    Math.floor(matchingFrame.timestampSeconds % 60) < 10 ? "0" : ""
+                    Math.floor(matchingFrame.timestampSeconds % 60) < 10
+                      ? "0"
+                      : ""
                   }${Math.floor(matchingFrame.timestampSeconds % 60)}`}
                 </span>
               </div>
@@ -241,7 +243,7 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
             <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col gap-1.5 px-2 pt-6 pb-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
               {/* Filename + meta */}
               <div
-                className="pointer-events-auto cursor-text select-text text-white"
+                className="pointer-events-auto cursor-text text-white select-text"
                 onClick={(e) => e.stopPropagation()}
                 onMouseDown={(e) => e.stopPropagation()}
               >
@@ -251,7 +253,7 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
                 >
                   {item.name}
                 </span>
-                <div className="mt-0.5 flex items-center justify-between text-2xs opacity-75 select-none pointer-events-none">
+                <div className="pointer-events-none mt-0.5 flex items-center justify-between text-2xs opacity-75 select-none">
                   <span>{dateStr}</span>
                   <span>{formatBytes(item.size)}</span>
                 </div>
@@ -268,13 +270,31 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 flex-1 cursor-pointer rounded-md border border-green-500/25 bg-green-500/20 text-green-400 transition-colors hover:border-green-500/50! hover:bg-green-500/50! hover:text-green-200!"
-                      onClick={() => onReviewAction(item.id, "keep")}
+                      className={`h-7 flex-1 rounded-md transition-colors ${
+                        item.reviewState === "keep"
+                          ? "cursor-default border border-green-500/60 bg-green-500/40 text-green-200 shadow-xs ring-1 ring-green-500/40 hover:border-green-500/75! hover:bg-green-500/55! hover:text-green-100!"
+                          : item.reviewState === "delete"
+                            ? "cursor-pointer border border-green-500/15 bg-green-500/10 text-green-400/50 hover:border-green-500/40! hover:bg-green-500/30! hover:text-green-200!"
+                            : "cursor-pointer border border-green-500/25 bg-green-500/20 text-green-400 hover:border-green-500/50! hover:bg-green-500/50! hover:text-green-200!"
+                      }`}
+                      onClick={
+                        item.reviewState === "keep"
+                          ? undefined
+                          : () => onReviewAction(item.id, "keep")
+                      }
                     >
-                      <Bookmark className="h-3.5 w-3.5 fill-current" />
+                      <Bookmark
+                        className={`h-3.5 w-3.5 ${
+                          item.reviewState === "keep"
+                            ? "fill-current"
+                            : "fill-current opacity-80"
+                        }`}
+                      />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>Keep File</TooltipContent>
+                  <TooltipContent>
+                    {item.reviewState === "keep" ? "Kept" : "Keep"}
+                  </TooltipContent>
                 </Tooltip>
 
                 {/* Delete */}
@@ -283,13 +303,25 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 flex-1 cursor-pointer rounded-md border border-red-500/25 bg-red-500/20 text-red-400 transition-colors hover:border-red-500/50! hover:bg-red-500/50! hover:text-red-200!"
-                      onClick={() => onReviewAction(item.id, "delete")}
+                      className={`h-7 flex-1 rounded-md transition-colors ${
+                        item.reviewState === "delete"
+                          ? "cursor-default border border-red-500/60 bg-red-500/40 text-red-200 shadow-xs ring-1 ring-red-500/40 hover:border-red-500/75! hover:bg-red-500/55! hover:text-red-100!"
+                          : item.reviewState === "keep"
+                            ? "cursor-pointer border border-red-500/15 bg-red-500/10 text-red-400/50 hover:border-red-500/40! hover:bg-red-500/30! hover:text-red-200!"
+                            : "cursor-pointer border border-red-500/25 bg-red-500/20 text-red-400 hover:border-red-500/50! hover:bg-red-500/50! hover:text-red-200!"
+                      }`}
+                      onClick={
+                        item.reviewState === "delete"
+                          ? undefined
+                          : () => onReviewAction(item.id, "delete")
+                      }
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>Delete File</TooltipContent>
+                  <TooltipContent>
+                    {item.reviewState === "delete" ? "Marked Delete" : "Delete"}
+                  </TooltipContent>
                 </Tooltip>
 
                 {/* More (secondary actions) */}

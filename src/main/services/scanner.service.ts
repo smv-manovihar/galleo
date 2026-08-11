@@ -655,6 +655,111 @@ export class ScannerService {
   }
 
   /**
+   * Called when files have been deleted by Galleo itself (e.g., commit deletions).
+   * Clears baseline and net change tracking for these paths so the internal watcher
+   * and folder status checks do not report a recommended rescan for expected app deletions.
+   */
+  public async notifyFilesDeleted(
+    deletedPaths: string[],
+    window?: BrowserWindow
+  ): Promise<void> {
+    if (!deletedPaths || deletedPaths.length === 0) return
+
+    const affectedNormRoots = new Set<string>()
+    const affectedRootPaths = new Map<string, string>()
+
+    const settings = this.settingsService.getSettings()
+    const allRoots = settings.folders.roots.map((r) => ({
+      path: r.path,
+      normPath: this.normalizePath(r.path),
+    }))
+
+    for (const p of deletedPaths) {
+      const normP = this.normalizePath(p)
+      for (const rootObj of allRoots) {
+        if (
+          normP === rootObj.normPath ||
+          normP.startsWith(rootObj.normPath + "/")
+        ) {
+          affectedNormRoots.add(rootObj.normPath)
+          affectedRootPaths.set(rootObj.normPath, rootObj.path)
+
+          const baselineMap = this.folderFileBaseline.get(rootObj.normPath)
+          if (baselineMap) {
+            baselineMap.delete(normP)
+          }
+
+          const netChangesMap = this.folderNetChanges.get(rootObj.normPath)
+          if (netChangesMap) {
+            netChangesMap.delete(normP)
+            if (netChangesMap.size === 0) {
+              this.changedFolders.delete(rootObj.normPath)
+              this.folderChangeLogs.delete(rootObj.normPath)
+            } else {
+              const currentLog = this.folderChangeLogs.get(rootObj.normPath)
+              if (currentLog) {
+                const updatedLog = currentLog.filter(
+                  (log) => this.normalizePath(log.path) !== normP
+                )
+                if (updatedLog.length > 0) {
+                  this.folderChangeLogs.set(rootObj.normPath, updatedLog)
+                } else {
+                  this.folderChangeLogs.delete(rootObj.normPath)
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    for (const normRoot of affectedNormRoots) {
+      const rootPath = affectedRootPaths.get(normRoot) || normRoot
+      const netMap = this.folderNetChanges.get(normRoot)
+      if (!netMap || netMap.size === 0) {
+        this.changedFolders.delete(normRoot)
+        this.folderChangeLogs.delete(normRoot)
+        this.mediaRepository.clearPendingChanges(rootPath)
+      }
+    }
+
+    if (affectedNormRoots.size > 0) {
+      const currentSettings = this.settingsService.getSettings()
+      const updatedRoots = currentSettings.folders.roots.map((r) => {
+        const normR = this.normalizePath(r.path)
+        if (affectedNormRoots.has(normR)) {
+          let mtime = Date.now()
+          try {
+            if (nodeFs.existsSync(r.path)) {
+              mtime = nodeFs.statSync(r.path).mtimeMs
+            }
+          } catch {
+            // fallback
+          }
+          return { ...r, lastScannedMtime: mtime }
+        }
+        return r
+      })
+
+      this.settingsService.saveSettings({
+        ...currentSettings,
+        folders: { ...currentSettings.folders, roots: updatedRoots },
+      })
+    }
+
+    if (affectedRootPaths.size > 0) {
+      const rootPathsList = Array.from(affectedRootPaths.values())
+      const counts = await this.countMediaFiles(rootPathsList)
+      if (window && this.isWindowAlive(window)) {
+        window.webContents.send(
+          IPC_CHANNELS.SCAN_FOLDER_COUNTS_UPDATED,
+          counts
+        )
+      }
+    }
+  }
+
+  /**
    * Fast readdir-only media file count per root folder.
    * Does NOT read metadata, generate thumbnails, or write to the DB.
    * Uses the same extension filter and exclude patterns as a full scan so the

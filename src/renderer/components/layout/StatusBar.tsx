@@ -35,7 +35,7 @@ export const StatusBar: React.FC = () => {
   const getDashboardMetrics = useMediaStore((s) => s.getDashboardMetrics)
   const checkpoint = useSessionStore((s) => s.checkpoint)
   const decisions = useSessionStore((s) => s.decisions)
-  const commitDeletions = useSessionStore((s) => s.commitDeletions)
+  const startTrashingInBackground = useSessionStore((s) => s.startTrashingInBackground)
   const isCommitting = useSessionStore((s) => s.isCommitting)
   const aiIndexingProgress = useScanStore((s) => s.aiIndexingProgress)
 
@@ -84,7 +84,7 @@ export const StatusBar: React.FC = () => {
     return { count, size, folderBreakdown }
   }, [decisions, items])
 
-  const handleCommit = async () => {
+  const handleCommit = () => {
     const deleteIds = items
       .filter((item) => (decisions[item.id] ?? item.reviewState) === "delete")
       .map((item) => item.id)
@@ -92,9 +92,10 @@ export const StatusBar: React.FC = () => {
     const size = deleteDetails.size
     const count = deleteIds.length
     if (deleteIds.length > 0) {
-      await commitDeletions(deleteIds)
-      toast.success("Files moved to trash", {
-        description: `${count} file${count !== 1 ? "s" : ""} deleted, reclaiming ${formatBytes(size)}.`,
+      void startTrashingInBackground(deleteIds, "Trashing files...")
+      toast.success("Trashing started", {
+        id: "trashing-status-toast",
+        description: `${count} file${count !== 1 ? "s" : ""} queued for trashing (${formatBytes(size)}).`,
       })
     }
     setShowConfirm(false)

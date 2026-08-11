@@ -234,6 +234,15 @@ html {
   animation: collapsible-up 0.2s ease-out;
 }
 
+@keyframes shimmer-slide {
+  0% {
+    left: -60%;
+  }
+  100% {
+    left: 110%;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-old(page-content),
   ::view-transition-new(page-content) {

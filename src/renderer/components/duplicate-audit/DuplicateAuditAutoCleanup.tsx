@@ -257,7 +257,7 @@ export const DuplicateAuditAutoCleanup: React.FC<
   preferredDeleteFolderPaths,
   onStrategyChange,
 }) => {
-  const { commitDeletions } = useSessionStore()
+  const { startTrashingInBackground } = useSessionStore()
   const [isCleaning, setIsCleaning] = useState(false)
   const [cleanSuccess, setCleanSuccess] = useState<string | null>(null)
 
@@ -352,18 +352,27 @@ export const DuplicateAuditAutoCleanup: React.FC<
   // Per-group overrides: groupIndex -> overrideKeepId chosen by the user
   const [overrides, setOverrides] = useState<Map<number, string>>(new Map())
 
+  // Optimistically tracks IDs that have been trashed so they disappear immediately
+  const [trashedIds, setTrashedIds] = useState<Set<string>>(new Set())
+
   const groups = useMemo(() => {
     return duplicateGroups
       .map((group, idx) => {
+        // Optimistically hide any group that has already been trashed
+        const visibleGroup = trashedIds.size > 0
+          ? group.filter((i) => !trashedIds.has(i.id))
+          : group
+        if (visibleGroup.length < 2) return null
+
         const overrideKeepId = overrides.get(idx)
 
         const keep = overrideKeepId
-          ? (group.find((i) => i.id === overrideKeepId) ?? group[0])
-          : exactDupsToKeep.find((k) => group.some((i) => i.id === k.id)) ||
-            group.find((i) => i.isBestInDuplicateGroup) ||
-            group[0]
+          ? (visibleGroup.find((i) => i.id === overrideKeepId) ?? visibleGroup[0])
+          : exactDupsToKeep.find((k) => visibleGroup.some((i) => i.id === k.id)) ||
+            visibleGroup.find((i) => i.isBestInDuplicateGroup) ||
+            visibleGroup[0]
 
-        const deletes = group.filter((i) => i.id !== keep.id)
+        const deletes = visibleGroup.filter((i) => i.id !== keep.id)
         if (!deletes.length) return null
 
         return { keep, deletes, groupIdx: idx }
@@ -373,7 +382,7 @@ export const DuplicateAuditAutoCleanup: React.FC<
       deletes: MediaItem[]
       groupIdx: number
     }[]
-  }, [duplicateGroups, exactDupsToDelete, exactDupsToKeep, overrides])
+  }, [duplicateGroups, exactDupsToDelete, exactDupsToKeep, overrides, trashedIds])
 
   const rowVirtualizer = useVirtualizer({
     count: groups.length,
@@ -447,11 +456,16 @@ export const DuplicateAuditAutoCleanup: React.FC<
         (acc, g) => acc + g.deletes.reduce((s, d) => s + d.size, 0),
         0
       )
-      const { successCount } = await commitDeletions(specificIds)
+
+      // Immediately hide trashed items from the list before the store re-propagates
+      setTrashedIds(resolvedDeleteIds)
+      setOverrides(new Map())
 
       setCleanSuccess(
-        `Trashed ${successCount} files and reclaimed ${formatBytes(reclaimedSize)}.`
+        `Trashing ${resolvedDeleteIds.size} files in background (${formatBytes(reclaimedSize)} reclaimed).`
       )
+
+      void startTrashingInBackground(specificIds, "Trashing duplicates...")
     } catch (e) {
       console.error("Auto cleanup failed:", e)
     } finally {
@@ -461,15 +475,31 @@ export const DuplicateAuditAutoCleanup: React.FC<
 
   if (exactDupsToDelete.length === 0) {
     return (
-      <div className="flex h-full min-h-0 items-center justify-center rounded-lg border border-dashed border-border bg-card/30 p-6 text-center select-none">
-        <div>
-          <CheckCircle2 className="mx-auto mb-2 h-8 w-8 text-green-500 opacity-80" />
-          <h3 className="text-sm font-medium text-foreground">
-            No Exact Duplicates Found
-          </h3>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Nothing to trash in this set.
-          </p>
+      <div className="flex h-full min-h-0 flex-col items-center justify-center p-6 text-center select-none font-sans animate-in fade-in duration-300">
+        <div className="w-full max-w-md space-y-4">
+          <div className="flex flex-col items-center gap-4 rounded-2xl border border-border bg-card p-6 text-center shadow-sm">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-green-500/30 bg-green-500/10">
+              <CheckCircle2 className="h-7 w-7 text-green-500" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="font-heading text-sm font-bold tracking-tight text-foreground">
+                Exact Duplicates Cleaned
+              </h3>
+              <p className="text-2xs text-muted-foreground">
+                No exact file matches remaining in this folder.
+              </p>
+            </div>
+
+            {cleanSuccess ? (
+              <div className="w-full rounded-lg border border-green-500/30 bg-green-500/10 px-3.5 py-2.5 text-2xs font-medium text-green-700 dark:text-green-400">
+                {cleanSuccess}
+              </div>
+            ) : (
+              <div className="w-full rounded-lg border border-border bg-muted/20 px-3.5 py-2.5 text-2xs text-muted-foreground">
+                All exact file copies have been processed or resolved. You can switch to the <strong className="font-semibold text-foreground">Similar Media</strong> tab to review photos with visual differences.
+              </div>
+            )}
+          </div>
         </div>
       </div>
     )

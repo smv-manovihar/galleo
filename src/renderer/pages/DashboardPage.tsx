@@ -2,6 +2,7 @@ import React from "react"
 import { useMediaStore } from "../stores/media-store"
 import { useUIStore } from "../stores/ui-store"
 import { useSettingsStore } from "../stores/settings-store"
+import { useScanStore } from "../stores/scan-store"
 import { Skeleton } from "@/components/ui/skeleton"
 
 import {
@@ -45,6 +46,9 @@ export const DashboardPage: React.FC = () => {
   const fetchMediaItems = useMediaStore((s) => s.fetchMediaItems)
   const isInitialized = useSettingsStore((s) => s.isInitialized)
   const roots = useSettingsStore((s) => s.settings.folders.roots)
+  const isScanning = useScanStore((s) => s.isScanning)
+  const isPostProcessing = useScanStore((s) => s.isPostProcessing)
+  const isBusyScanning = isScanning || isPostProcessing
 
   // Ensure media items are fetched if roots exist but store has no items
   React.useEffect(() => {
@@ -183,12 +187,16 @@ export const DashboardPage: React.FC = () => {
             <CardTitle className="mt-0.5 font-heading text-xl font-bold text-foreground">
               {showSkeleton ? (
                 <Skeleton className="h-7 w-24" />
+              ) : isBusyScanning ? (
+                <span className="text-sm font-semibold text-muted-foreground">Paused</span>
               ) : (
                 formatBytes(totalWastedBytes)
               )}
             </CardTitle>
             <p className="mt-1 text-2xs text-muted-foreground">
-              From duplicates and blurry media
+              {isBusyScanning
+                ? "Calculates after scan completes"
+                : "From duplicates and blurry media"}
             </p>
           </CardContent>
         </Card>
@@ -204,6 +212,8 @@ export const DashboardPage: React.FC = () => {
             <CardTitle className="mt-0.5 font-heading text-xl font-bold text-foreground">
               {showSkeleton ? (
                 <Skeleton className="h-7 w-16" />
+              ) : isBusyScanning ? (
+                <span className="text-sm font-semibold text-muted-foreground">Paused</span>
               ) : (
                 duplicateItems.length
               )}
@@ -211,6 +221,8 @@ export const DashboardPage: React.FC = () => {
             <p className="mt-1 text-2xs text-muted-foreground">
               {showSkeleton ? (
                 <Skeleton className="h-3.5 w-28" />
+              ) : isBusyScanning ? (
+                "Calculates after scan completes"
               ) : duplicateGroupsCount > 0 ? (
                 `${duplicateGroupsCount} duplicate stacks`
               ) : (
@@ -304,15 +316,22 @@ export const DashboardPage: React.FC = () => {
                         Duplicate Media
                       </CardTitle>
                       <CardDescription className="mt-0.5 text-2xs text-muted-foreground">
-                        {duplicateItems.length} copies ({duplicateGroupsCount}{" "}
-                        stacks)
+                        {isBusyScanning
+                          ? "Scan in progress..."
+                          : `${duplicateItems.length} copies (${duplicateGroupsCount} stacks)`}
                       </CardDescription>
                     </div>
                   </div>
-                  {duplicateSavedBytes > 0 && (
-                    <Badge variant="secondary" className="text-2xs">
-                      Save {formatBytes(duplicateSavedBytes)}
+                  {isBusyScanning ? (
+                    <Badge variant="outline" className="text-2xs text-muted-foreground">
+                      Paused
                     </Badge>
+                  ) : (
+                    duplicateSavedBytes > 0 && (
+                      <Badge variant="secondary" className="text-2xs">
+                        Save {formatBytes(duplicateSavedBytes)}
+                      </Badge>
+                    )
                   )}
                 </CardHeader>
                 <CardContent className="mt-2 flex items-center justify-between border-t border-border/50 pt-2 text-2xs text-muted-foreground">

@@ -37,20 +37,29 @@ export const MediaCullingControls: React.FC<MediaCullingControlsProps> = ({
 }) => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
 
+  // Filter to culling-source actions only — the shared undoStack also contains
+  // duplicate-audit and browse decisions which must not appear here.
+  const cullingUndoCount = useMemo(
+    () => undoStack.filter((a) => a.newState.source === "culling").length,
+    [undoStack]
+  )
+
   // Map UndoableActions to standard MediaCullingHistoryDialogItem format
   const historyItems = useMemo<MediaCullingHistoryDialogItem[]>(() => {
-    return undoStack.map((action) => {
-      const item = allItems.find((i) => i.id === action.mediaId)
-      return {
-        id: action.id,
-        mediaId: action.mediaId,
-        name: item?.name ?? action.mediaId,
-        thumbnailPath: item?.thumbnailPath,
-        path: item?.path ?? "",
-        currentDecision: (action.type === "mark-keep" ? "keep" : "delete") as
-          "keep" | "delete",
-      }
-    })
+    return undoStack
+      .filter((action) => action.newState.source === "culling")
+      .map((action) => {
+        const item = allItems.find((i) => i.id === action.mediaId)
+        return {
+          id: action.id,
+          mediaId: action.mediaId,
+          name: item?.name ?? action.mediaId,
+          thumbnailPath: item?.thumbnailPath,
+          path: item?.path ?? "",
+          currentDecision: (action.type === "mark-keep" ? "keep" : "delete") as
+            "keep" | "delete",
+        }
+      })
   }, [undoStack, allItems])
 
   const handleSingleAction = async (
@@ -73,7 +82,7 @@ export const MediaCullingControls: React.FC<MediaCullingControlsProps> = ({
                 size="icon"
                 className="h-10 w-10 cursor-pointer rounded-full border-border bg-card text-foreground shadow-sm hover:bg-accent"
                 onClick={onUndo}
-                disabled={undoStack.length === 0}
+                disabled={cullingUndoCount === 0}
               >
                 <Undo2 className="h-4 w-4" />
               </Button>
@@ -91,7 +100,7 @@ export const MediaCullingControls: React.FC<MediaCullingControlsProps> = ({
                 size="icon"
                 className="h-10 w-10 cursor-pointer rounded-full border-border bg-card text-foreground shadow-sm hover:bg-accent"
                 onClick={() => setIsHistoryOpen(true)}
-                disabled={undoStack.length === 0}
+                disabled={cullingUndoCount === 0}
               >
                 <History className="h-4 w-4" />
               </Button>

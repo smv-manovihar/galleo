@@ -39,6 +39,7 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
   onGroupIndexChange,
 }) => {
   const [slideDirection, setSlideDirection] = useState<"left" | "right">("right")
+  const [focusedCardIndex, setFocusedCardIndex] = useState<number | null>(null)
   // Extract and group duplicates
   const duplicateGroups = useMemo(() => {
     const groups: Record<string, MediaItem[]> = {}
@@ -50,7 +51,10 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
         groups[item.duplicateGroupId].push(item)
       }
     }
-    return Object.values(groups).filter((g) => g.length > 1)
+    return Object.keys(groups)
+      .sort()
+      .map((k) => groups[k])
+      .filter((g) => g.length > 1)
   }, [items])
 
   const currentGroup =
@@ -110,14 +114,25 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
   const currentGroupId = currentGroup ? currentGroup.map((i) => i.id).join(",") : null
   const [prevGroupId, setPrevGroupId] = useState<string | null>(null)
 
+  const isAllReviewed = useMemo(() => {
+    if (duplicateGroups.length === 0) return false
+    return duplicateGroups.every((group) =>
+      group.every(
+        (item) =>
+          decisions[item.id] === "keep" || decisions[item.id] === "delete"
+      )
+    )
+  }, [duplicateGroups, decisions])
+
   if (currentGroupId !== prevGroupId) {
     setPrevGroupId(currentGroupId)
     if (!currentGroup) {
       setTemporaryDecisions({})
       setIsCurrentGroupCommitted(false)
     } else {
-      const hasCommitted = currentGroup.some(
-        (item) => decisions[item.id] !== undefined
+      const hasCommitted = currentGroup.every(
+        (item) =>
+          decisions[item.id] === "keep" || decisions[item.id] === "delete"
       )
       if (hasCommitted) {
         setTemporaryDecisions({})
@@ -161,14 +176,19 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
 
   if (checkpoint && !isInitialized && items.length > 0) {
     setIsInitialized(true)
-    const decisionKeys = Object.keys(checkpoint.decisions)
-    if (decisionKeys.length > 0) {
+    // Seed from the persisted undoStack, scoped to duplicate-source actions only.
+    // Using checkpoint.decisions would include culling/browse decisions (no source tag)
+    // and cause cross-source entries to appear in the duplicate history dialog.
+    const duplicateActions = checkpoint.undoStack.filter(
+      (a) => a.newState.source === "duplicates"
+    )
+    if (duplicateActions.length > 0) {
       const initialStack: LocalUndoEntry[] = []
-      for (const mediaId of decisionKeys) {
-        const item = items.find((i) => i.id === mediaId)
+      for (const action of duplicateActions) {
+        const item = items.find((i) => i.id === action.mediaId)
         if (item) {
           initialStack.push({
-            mediaId,
+            mediaId: action.mediaId,
             name: item.name,
             previousState: "pending",
           })
@@ -580,6 +600,89 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
       }
 
       const key = e.key.toLowerCase()
+      const isFocusMode = focusedCardIndex !== null
+      const cols = 3
+
+      // ── Focus mode ─────────────────────────────────────────────────────────
+      if (isFocusMode && currentGroup) {
+        const len = currentGroup.length
+
+        // Exit focus mode: Esc or F
+        if (e.key === "Escape" || key === "f") {
+          e.preventDefault()
+          setFocusedCardIndex(null)
+          return
+        }
+
+        // Move left: ← / A — stay within the current row
+        if (e.key === "ArrowLeft" || key === "a") {
+          e.preventDefault()
+          setFocusedCardIndex((prev) => {
+            if (prev === null) return 0
+            const row = Math.floor(prev / cols)
+            return Math.max(row * cols, prev - 1)
+          })
+          return
+        }
+
+        // Move right: → / D — stay within the current row
+        if (e.key === "ArrowRight" || key === "d") {
+          e.preventDefault()
+          setFocusedCardIndex((prev) => {
+            if (prev === null) return 0
+            const row = Math.floor(prev / cols)
+            const rowEnd = Math.min(row * cols + cols - 1, len - 1)
+            return Math.min(rowEnd, prev + 1)
+          })
+          return
+        }
+
+        // Move up: ↑ / W — same column, previous row
+        if (e.key === "ArrowUp" || key === "w") {
+          e.preventDefault()
+          setFocusedCardIndex((prev) => {
+            if (prev === null) return 0
+            return Math.max(0, prev - cols)
+          })
+          return
+        }
+
+        // Move down: ↓ / S — same column, next row, clamped to last card
+        if (e.key === "ArrowDown" || key === "s") {
+          e.preventDefault()
+          setFocusedCardIndex((prev) => {
+            if (prev === null) return 0
+            return Math.min(len - 1, prev + cols)
+          })
+          return
+        }
+
+        // Toggle focused card: Space / Enter
+        if (e.key === " " || e.key === "Enter") {
+          e.preventDefault()
+          handleToggleKeep(currentGroup[focusedCardIndex].id)
+          return
+        }
+
+        // Undo: Ctrl+Z / Backspace
+        if ((e.ctrlKey && key === "z") || e.key === "Backspace") {
+          e.preventDefault()
+          handleUndo()
+          return
+        }
+
+        // Absorb other keys while in focus mode so they don't accidentally trigger global actions
+        return
+      }
+
+      // ── Normal mode ────────────────────────────────────────────────────────
+
+      // Enter focus mode: F
+      if (key === "f" && currentGroup) {
+        e.preventDefault()
+        setFocusedCardIndex(0)
+        return
+      }
 
       // Undo: ↓ / S / Ctrl+Z / Backspace
       if (
@@ -637,15 +740,6 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
         handleDeleteAll()
         return
       }
-
-      // Individual item toggle: 1, 2, 3, etc.
-      if (currentGroup && /^[1-9]$/.test(e.key)) {
-        const itemIndex = parseInt(e.key, 10) - 1
-        if (itemIndex < currentGroup.length) {
-          e.preventDefault()
-          handleToggleKeep(currentGroup[itemIndex].id)
-        }
-      }
     }
 
     window.addEventListener("keydown", handleKeyDown)
@@ -654,6 +748,7 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
     }
   }, [
     currentGroup,
+    focusedCardIndex,
     previewItem,
     isHistoryOpen,
     handleUndo,
@@ -701,7 +796,7 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
           value={((activeGroupIndex + 1) / duplicateGroups.length) * 100}
           className="h-1 flex-1 bg-muted"
         />
-        {onComplete && (
+        {onComplete && isAllReviewed && (
           <Button
             variant="outline"
             size="sm"
@@ -714,11 +809,11 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
       </div>
 
       {/* Cards Grid */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-visible">
         <div
           key={activeGroupIndex}
           className={cn(
-            "grid min-h-0 flex-1 gap-3 duration-200 ease-out animate-in fade-in-0",
+            "grid min-h-0 flex-1 gap-3 p-1.5 overflow-y-auto duration-200 ease-out animate-in fade-in-0",
             slideDirection === "right"
               ? "slide-in-from-right-6"
               : "slide-in-from-left-6"
@@ -737,7 +832,7 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
                 item={item}
                 isBest={!!isBest}
                 reviewState={reviewState}
-                hotkeyIndex={idx + 1}
+                isFocused={focusedCardIndex === idx}
                 onClick={() => handleToggleKeep(item.id)}
                 onPreview={(withAutoPlay) => openPreview(item, withAutoPlay)}
               />

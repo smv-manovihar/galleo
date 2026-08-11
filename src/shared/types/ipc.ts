@@ -27,6 +27,9 @@ export const IPC_CHANNELS = {
   FILE_OPEN: "file:open",
   FILE_SHOW: "file:show",
   MEDIA_TRASH: "media:trash",
+  MEDIA_TRASH_PROGRESS: "media:trash-progress",
+  MEDIA_TRASH_COMPLETE: "media:trash-complete",
+  MEDIA_GET_TRASH_STATUS: "media:get-trash-status",
   APP_RESET: "app:reset",
   MEDIA_CLEAR_INDEX: "media:clear-index",
   APP_CHECK_UPDATE: "app:check-update",
@@ -64,6 +67,22 @@ export interface OrganizeProgressPayload {
   currentFile: string
   success: boolean
   error?: string
+}
+
+export interface TrashProgressPayload {
+  processedCount: number
+  totalCount: number
+  currentPath?: string
+}
+
+export interface TrashStatusPayload {
+  isTrashing: boolean
+  progress: TrashProgressPayload | null
+}
+
+export interface TrashCompletePayload {
+  successCount: number
+  failedPaths: string[] | null
 }
 
 export interface OrganizePreviewItem {
@@ -151,6 +170,13 @@ export interface GalleoAPI {
   onOrganizeProgress: (
     callback: (payload: OrganizeProgressPayload) => void
   ) => () => void
+  onTrashProgress: (
+    callback: (payload: TrashProgressPayload) => void
+  ) => () => void
+  onTrashComplete: (
+    callback: (payload: TrashCompletePayload) => void
+  ) => () => void
+  getTrashStatus: () => Promise<TrashStatusPayload>
   openFile: (path: string) => Promise<Result<void>>
   showFile: (path: string) => Promise<Result<void>>
   trashFiles: (paths: string[]) => Promise<Result<void>>

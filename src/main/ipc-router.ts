@@ -193,8 +193,16 @@ export function registerIpcHandlers(window: BrowserWindow): void {
     return fileOpsService.showFile(filePath)
   })
 
-  ipcMain.handle(IPC_CHANNELS.MEDIA_TRASH, (_, paths: string[]) => {
-    return fileOpsService.trashFiles(paths)
+  ipcMain.handle(IPC_CHANNELS.MEDIA_TRASH, async (_, paths: string[]) => {
+    const result = await fileOpsService.trashFiles(paths, window)
+    if (result.ok) {
+      await scannerService.notifyFilesDeleted(paths, window)
+    }
+    return result
+  })
+
+  ipcMain.handle(IPC_CHANNELS.MEDIA_GET_TRASH_STATUS, () => {
+    return fileOpsService.getTrashStatus()
   })
 
   // Granular App Resetting Handlers

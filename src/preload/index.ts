@@ -3,6 +3,8 @@ import {
   IPC_CHANNELS,
   type ScanProgressPayload,
   type OrganizeProgressPayload,
+  type TrashProgressPayload,
+  type TrashCompletePayload,
   type AIIndexingProgressPayload,
   type FolderCountResult,
   type GalleoAPI,
@@ -97,6 +99,26 @@ const api: GalleoAPI = {
       ipcRenderer.removeListener(IPC_CHANNELS.ORGANIZE_PROGRESS, listener)
     }
   },
+
+  onTrashProgress: (callback) => {
+    const listener = (_event: IpcRendererEvent, payload: TrashProgressPayload) =>
+      callback(payload)
+    ipcRenderer.on(IPC_CHANNELS.MEDIA_TRASH_PROGRESS, listener)
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.MEDIA_TRASH_PROGRESS, listener)
+    }
+  },
+
+  onTrashComplete: (callback) => {
+    const listener = (_event: IpcRendererEvent, payload: TrashCompletePayload) =>
+      callback(payload)
+    ipcRenderer.on(IPC_CHANNELS.MEDIA_TRASH_COMPLETE, listener)
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.MEDIA_TRASH_COMPLETE, listener)
+    }
+  },
+
+  getTrashStatus: () => ipcRenderer.invoke(IPC_CHANNELS.MEDIA_GET_TRASH_STATUS),
 
   openFile: (filePath) => ipcRenderer.invoke(IPC_CHANNELS.FILE_OPEN, filePath),
   showFile: (filePath) => ipcRenderer.invoke(IPC_CHANNELS.FILE_SHOW, filePath),

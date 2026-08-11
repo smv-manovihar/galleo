@@ -2,6 +2,7 @@ import { create } from "zustand"
 import type { MediaItem } from "../../shared/types/media"
 import { useSettingsStore } from "./settings-store"
 import { useSessionStore } from "./session-store"
+import { useScanStore } from "./scan-store"
 
 export interface CachedDashboardMetrics {
   totalFiles: number
@@ -112,6 +113,9 @@ function computeMetricsForItems(items: MediaItem[]): CachedDashboardMetrics {
   const smallItems: MediaItem[] = []
   const groupsSet = new Set<string>()
 
+  const scanState = useScanStore.getState()
+  const isBusyScanning = scanState.isScanning || scanState.isPostProcessing
+
   const sessionDecisions = useSessionStore.getState().decisions
   for (const item of items) {
     if (item.mediaType === "photo") photoCount++
@@ -125,7 +129,7 @@ function computeMetricsForItems(items: MediaItem[]): CachedDashboardMetrics {
 
     if (item.quality?.isBlurry) blurryItems.push(item)
     if (item.quality?.isDark) darkItems.push(item)
-    if (item.isDuplicate) {
+    if (!isBusyScanning && item.isDuplicate) {
       if (!item.isBestInDuplicateGroup) duplicateItems.push(item)
       if (item.duplicateGroupId) {
         groupsSet.add(item.duplicateGroupId)
@@ -138,8 +142,14 @@ function computeMetricsForItems(items: MediaItem[]): CachedDashboardMetrics {
   const totalFiles = items.length
   const reviewedCount = keptCount + trashCount
   const reviewProgress = totalFiles > 0 ? Math.round((reviewedCount / totalFiles) * 100) : 0
-  const duplicateSavedBytes = duplicateItems.reduce((sum, i) => sum + (i.size || 0), 0)
-  const blurrySavedBytes = blurryItems.reduce((sum, i) => sum + (i.size || 0), 0)
+
+  // Pause duplicate and wasted space byte calculations while scanning is active
+  const duplicateSavedBytes = isBusyScanning
+    ? 0
+    : duplicateItems.reduce((sum, i) => sum + (i.size || 0), 0)
+  const blurrySavedBytes = isBusyScanning
+    ? 0
+    : blurryItems.reduce((sum, i) => sum + (i.size || 0), 0)
 
   return {
     totalFiles,
@@ -156,7 +166,7 @@ function computeMetricsForItems(items: MediaItem[]): CachedDashboardMetrics {
     duplicateItems,
     screenshotItems,
     smallItems,
-    duplicateGroupsCount: groupsSet.size,
+    duplicateGroupsCount: isBusyScanning ? 0 : groupsSet.size,
     duplicateSavedBytes,
     blurrySavedBytes,
   }
@@ -184,9 +194,12 @@ function computeCaches(
     .map((r) => ({ rawPath: r.path, norm: r.path.replace(/\\/g, "/").toLowerCase() }))
   const rootItemCounts = new Map<string, number>()
 
+  const scanState = useScanStore.getState()
+  const isBusyScanning = scanState.isScanning || scanState.isPostProcessing
+
   for (let i = 0; i < items.length; i++) {
     const item = items[i]
-    if (item.isDuplicate && item.duplicateGroupId) {
+    if (!isBusyScanning && item.isDuplicate && item.duplicateGroupId) {
       if (!dupGroupsMap[item.duplicateGroupId]) {
         dupGroupsMap[item.duplicateGroupId] = []
       }
@@ -201,7 +214,12 @@ function computeCaches(
     }
   }
 
-  const cachedDuplicateGroups = Object.values(dupGroupsMap).filter((g) => g.length > 1)
+  const cachedDuplicateGroups = isBusyScanning
+    ? []
+    : Object.keys(dupGroupsMap)
+        .sort()
+        .map((k) => dupGroupsMap[k])
+        .filter((g) => g.length > 1)
 
   return { cachedMetrics, cachedDuplicateGroups, cachedRootItemCounts: rootItemCounts }
 }

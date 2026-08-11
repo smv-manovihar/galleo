@@ -29,6 +29,7 @@ export interface MediaCullingHistoryDialogItem {
 
 const HistoryRow = React.memo(
   ({
+    index,
     item,
     isChecked,
     isKeep,
@@ -38,6 +39,7 @@ const HistoryRow = React.memo(
     translateY,
     measureRef,
   }: {
+    index: number
     item: MediaCullingHistoryDialogItem
     isChecked: boolean
     isKeep: boolean
@@ -62,6 +64,7 @@ const HistoryRow = React.memo(
     return (
       <div
         ref={measureRef}
+        data-index={index}
         className={cn(
           "absolute top-0 left-0 grid w-full items-center border-b border-border/50 text-[0.6875rem] transition-colors hover:bg-muted/20",
           isChecked ? "bg-accent/25" : ""
@@ -318,6 +321,7 @@ export const MediaCullingHistoryDialog: React.FC<
                     return (
                       <HistoryRow
                         key={item.id}
+                        index={virtualRow.index}
                         item={item}
                         isChecked={isChecked}
                         isKeep={isKeep}

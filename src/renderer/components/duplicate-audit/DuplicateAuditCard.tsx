@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Bookmark, Trash2, Maximize, Play, Sparkles } from "lucide-react"
 import { formatBytes } from "../../lib/format"
+import { cn } from "@/lib/utils"
 import {
   Tooltip,
   TooltipTrigger,
@@ -15,7 +16,7 @@ interface DuplicateAuditCardProps {
   item: MediaItem
   isBest: boolean
   reviewState: "keep" | "delete" | "pending" | "skipped"
-  hotkeyIndex?: number
+  isFocused?: boolean
   onClick: () => void
   onPreview: (withAutoPlay: boolean) => void
 }
@@ -24,7 +25,7 @@ export const DuplicateAuditCard: React.FC<DuplicateAuditCardProps> = ({
   item,
   isBest,
   reviewState,
-  hotkeyIndex,
+  isFocused = false,
   onClick,
   onPreview,
 }) => {
@@ -40,15 +41,19 @@ export const DuplicateAuditCard: React.FC<DuplicateAuditCardProps> = ({
   return (
     <Card
       onClick={onClick}
-      className={`group relative flex cursor-pointer flex-col overflow-hidden border bg-card/40 p-0 py-0 gap-0 transition-all duration-155 select-none ${
+      className={cn(
+        "group relative flex cursor-pointer flex-col overflow-hidden border bg-card/40 p-0 py-0 gap-0 transition-all duration-155 select-none",
+        // Focus ring — indigo, always on top, glow shadow wins over state shadows
+        isFocused && "relative z-10 ring-2 ring-indigo-400/60 shadow-[0_0_0_4px_rgba(99,102,241,0.12)]",
+        // State border + background (shadow only when not focused to avoid conflict)
         isMarkedKeep
-          ? "border-green-500/50 bg-green-500/5 shadow-xs shadow-green-500/10"
+          ? cn("border-green-500/50 bg-green-500/5", !isFocused && "shadow-xs shadow-green-500/10")
           : isMarkedDelete
             ? "border-destructive/50 bg-destructive/5"
             : isBest
-              ? "border-primary/50 bg-primary/5 shadow-xs shadow-primary/10"
+              ? cn("border-primary/50 bg-primary/5", !isFocused && "shadow-xs shadow-primary/10")
               : "border-border hover:border-muted-foreground/45"
-      }`}
+      )}
     >
       {/* Media Preview Container */}
       <div className="relative flex aspect-square flex-col justify-end overflow-hidden bg-neutral-950/80 p-0">
@@ -56,16 +61,10 @@ export const DuplicateAuditCard: React.FC<DuplicateAuditCardProps> = ({
           <img
             src={safeThumbnailSrc}
             alt={item.name}
-            className={`pointer-events-none absolute inset-0 h-full w-full object-contain transition-transform duration-300 select-none group-hover:scale-102 ${
-              isMarkedDelete ? "opacity-40" : ""
-            }`}
+            className="pointer-events-none absolute inset-0 h-full w-full object-contain transition-transform duration-300 select-none group-hover:scale-102"
           />
         ) : (
-          <div
-            className={`absolute inset-0 flex items-center justify-center text-lg font-bold tracking-wider text-muted-foreground uppercase ${
-              isMarkedDelete ? "opacity-40" : ""
-            }`}
-          >
+          <div className="absolute inset-0 flex items-center justify-center text-lg font-bold tracking-wider text-muted-foreground uppercase">
             {item.extension}
           </div>
         )}
@@ -176,23 +175,18 @@ export const DuplicateAuditCard: React.FC<DuplicateAuditCardProps> = ({
               : "border-border/60 bg-muted/20 text-muted-foreground/75"
         }`}
       >
-        {hotkeyIndex && (
-          <kbd className="pointer-events-none inline-flex h-4.5 select-none items-center gap-1 rounded border border-border bg-muted/30 px-1.5 font-mono text-[9px] font-medium text-muted-foreground shadow-xs">
-            {hotkeyIndex}
-          </kbd>
-        )}
         {isMarkedKeep ? (
           <>
             <Bookmark className="h-3.5 w-3.5 fill-current" />
-            <span>Keep File</span>
+            <span>Keeping</span>
           </>
         ) : isMarkedDelete ? (
           <>
             <Trash2 className="h-3.5 w-3.5" />
-            <span>Delete File</span>
+            <span>Marked for Deletion</span>
           </>
         ) : (
-          <span className="opacity-75">Pending Decision</span>
+          <span className="opacity-75">Awaiting Decision</span>
         )}
       </div>
     </Card>

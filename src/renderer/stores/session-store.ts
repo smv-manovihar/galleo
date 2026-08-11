@@ -1,4 +1,5 @@
 import { create } from "zustand"
+import { toast } from "sonner"
 import type {
   SessionCheckpoint,
   UndoableAction,
@@ -6,12 +7,21 @@ import type {
 import type { MediaItem } from "../../shared/types/media"
 import { useMediaStore } from "./media-store"
 
+export interface TrashingProgress {
+  isActive: boolean
+  totalCount: number
+  successCount: number
+  label: string
+  isDone?: boolean
+}
+
 interface SessionState {
   checkpoint: SessionCheckpoint | null
   currentIndex: number
   decisions: Record<string, "keep" | "delete" | "skipped">
   undoStack: UndoableAction[]
   isCommitting: boolean
+  trashingProgress: TrashingProgress | null
 
   initSession: (folderPath: string, totalFilesCount: number) => Promise<void>
   submitDecision: (
@@ -29,6 +39,10 @@ interface SessionState {
   commitDeletions: (
     specificMediaIds?: string[]
   ) => Promise<{ successCount: number; failedPaths: string[] | null }>
+  startTrashingInBackground: (
+    specificMediaIds?: string[],
+    label?: string
+  ) => Promise<void>
   clearSession: () => Promise<void>
   getProgress: () => { reviewed: number; total: number; percentage: number }
   saveCheckpointDebounced: (checkpoint: SessionCheckpoint) => void
@@ -113,6 +127,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   decisions: {},
   undoStack: [],
   isCommitting: false,
+  trashingProgress: null,
 
   initSession: async (folderPath: string, totalFilesCount: number) => {
     try {
@@ -517,6 +532,86 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     return { successCount, failedPaths }
   },
 
+  startTrashingInBackground: async (
+    specificMediaIds?: string[],
+    label = "Trashing files..."
+  ) => {
+    const mediaStoreItems = useMediaStore.getState().items
+    const itemMap = new Map(mediaStoreItems.map((i) => [i.id, i]))
+    const decisions = get().decisions
+    const targets = specificMediaIds || Object.keys(decisions)
+
+    let totalCount = 0
+    for (const id of targets) {
+      const state = decisions[id] ?? itemMap.get(id)?.reviewState
+      if (state === "delete" || specificMediaIds) {
+        totalCount++
+      }
+    }
+    if (totalCount === 0 && targets.length > 0) {
+      totalCount = targets.length
+    }
+
+    set({
+      trashingProgress: {
+        isActive: true,
+        totalCount,
+        successCount: 0,
+        label,
+      },
+    })
+
+    const toastId = "trashing-status-toast"
+    if (totalCount > 0) {
+      toast.success("Trashing started", {
+        id: toastId,
+        description: `Moving ${totalCount} file${totalCount !== 1 ? "s" : ""} to trash in background.`,
+      })
+    }
+
+    try {
+      const { successCount, failedPaths } = await get().commitDeletions(specificMediaIds)
+      set((state) => ({
+        trashingProgress: state.trashingProgress
+          ? {
+              ...state.trashingProgress,
+              isActive: false,
+              successCount,
+              isDone: true,
+            }
+          : null,
+      }))
+
+      if (failedPaths && failedPaths.length > 0) {
+        toast.error("Trashing complete with issues", {
+          id: toastId,
+          description: `Moved ${successCount} file${successCount !== 1 ? "s" : ""} to trash, ${failedPaths.length} failed.`,
+        })
+      } else {
+        toast.success("Trashing complete", {
+          id: toastId,
+          description: `Successfully moved ${successCount} file${successCount !== 1 ? "s" : ""} to trash.`,
+        })
+      }
+    } catch (err) {
+      console.error("Trashing background operation failed:", err)
+      toast.error("Trashing failed", {
+        id: toastId,
+        description: "An error occurred while moving files to trash.",
+      })
+      set({ trashingProgress: null })
+    } finally {
+      setTimeout(() => {
+        set((state) => {
+          if (state.trashingProgress && !state.trashingProgress.isActive) {
+            return { trashingProgress: null }
+          }
+          return {}
+        })
+      }, 3000)
+    }
+  },
+
   clearSession: async () => {
     const { checkpoint } = get()
     if (!checkpoint) return
@@ -554,3 +649,73 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   saveCheckpointDebounced: (checkpoint) => scheduleCheckpointSave(checkpoint),
 }))
+
+if (typeof window !== "undefined" && window.api?.getTrashStatus) {
+  window.api
+    .getTrashStatus()
+    .then((status) => {
+      if (status.isTrashing && status.progress) {
+        useSessionStore.setState({
+          trashingProgress: {
+            isActive: true,
+            totalCount: status.progress.totalCount,
+            successCount: status.progress.processedCount,
+            label: "Trashing files...",
+          },
+        })
+      }
+    })
+    .catch(() => {})
+}
+
+if (typeof window !== "undefined" && window.api?.onTrashProgress) {
+  window.api.onTrashProgress((payload) => {
+    useSessionStore.setState((state) => {
+      if (!state.trashingProgress) {
+        return {
+          trashingProgress: {
+            isActive: true,
+            totalCount: payload.totalCount,
+            successCount: payload.processedCount,
+            label: "Trashing files...",
+          },
+        }
+      }
+      return {
+        trashingProgress: {
+          ...state.trashingProgress,
+          successCount: payload.processedCount,
+          totalCount: Math.max(
+            state.trashingProgress.totalCount,
+            payload.totalCount
+          ),
+        },
+      }
+    })
+  })
+}
+
+if (typeof window !== "undefined" && window.api?.onTrashComplete) {
+  window.api.onTrashComplete((payload) => {
+    useSessionStore.setState((state) => {
+      if (!state.trashingProgress) return state
+      return {
+        trashingProgress: {
+          ...state.trashingProgress,
+          isActive: false,
+          successCount: payload.successCount,
+          isDone: true,
+        },
+      }
+    })
+    setTimeout(() => {
+      useSessionStore.setState((state) => {
+        if (state.trashingProgress && !state.trashingProgress.isActive) {
+          return { trashingProgress: null }
+        }
+        return state
+      })
+    }, 3000)
+  })
+}
+

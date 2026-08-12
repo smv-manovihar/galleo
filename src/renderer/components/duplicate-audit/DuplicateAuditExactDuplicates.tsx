@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from "react"
+import React, { useMemo, useState, useCallback, useEffect } from "react"
 import { useSessionStore } from "../../stores/session-store"
 import { Button } from "@/components/ui/button"
 import {
@@ -8,6 +8,7 @@ import {
   Bookmark,
   ArrowLeftRight,
   X,
+  Eye,
 } from "lucide-react"
 import { formatBytes } from "../../lib/format"
 import type { MediaItem } from "../../../shared/types/media"
@@ -18,6 +19,7 @@ import {
   TooltipContent,
 } from "@/components/ui/tooltip"
 import { useVirtualizer } from "@tanstack/react-virtual"
+import { MediaPreview } from "../media/MediaPreview"
 
 import {
   Dialog,
@@ -74,6 +76,7 @@ interface DuplicateAuditGroupCardProps {
   hasOverride: boolean
   onSwapKeep: (groupIdx: number, newKeepId: string) => void
   onResetOverride: (groupIdx: number) => void
+  onPreviewItem: (item: MediaItem, groupItems: MediaItem[]) => void
   measureRef: (el: HTMLElement | null) => void
   style: React.CSSProperties
   index: number
@@ -106,6 +109,7 @@ const DuplicateAuditGroupCard = React.memo<DuplicateAuditGroupCardProps>(
     hasOverride,
     onSwapKeep,
     onResetOverride,
+    onPreviewItem,
     measureRef,
     style,
     index,
@@ -113,6 +117,10 @@ const DuplicateAuditGroupCard = React.memo<DuplicateAuditGroupCardProps>(
     const groupReclaimSize = group.deletes.reduce(
       (acc, item) => acc + item.size,
       0
+    )
+    const allGroupItems = useMemo(
+      () => [group.keep, ...group.deletes],
+      [group.keep, group.deletes]
     )
 
     return (
@@ -170,9 +178,27 @@ const DuplicateAuditGroupCard = React.memo<DuplicateAuditGroupCardProps>(
                   {getDirPath(group.keep.path)}
                 </span>
               </div>
-              <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                {formatBytes(group.keep.size)}
-              </span>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {formatBytes(group.keep.size)}
+                </span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 cursor-pointer rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onPreviewItem(group.keep, allGroupItems)
+                      }}
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">Preview file</TooltipContent>
+                </Tooltip>
+              </div>
             </div>
 
             {/* Delete Rows */}
@@ -217,10 +243,26 @@ const DuplicateAuditGroupCard = React.memo<DuplicateAuditGroupCardProps>(
                   </span>
                 </div>
 
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="flex shrink-0 items-center gap-1.5">
                   <span className="text-xs text-muted-foreground tabular-nums">
                     {formatBytes(item.size)}
                   </span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 cursor-pointer rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onPreviewItem(item, allGroupItems)
+                        }}
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">Preview file</TooltipContent>
+                  </Tooltip>
                 </div>
               </div>
             ))}
@@ -260,6 +302,14 @@ export const DuplicateAuditExactDuplicates: React.FC<
   const { startTrashingInBackground } = useSessionStore()
   const [isCleaning, setIsCleaning] = useState(false)
   const [cleanSuccess, setCleanSuccess] = useState<string | null>(null)
+
+  const [previewItem, setPreviewItem] = useState<MediaItem | null>(null)
+  const [previewGroupItems, setPreviewGroupItems] = useState<MediaItem[] | undefined>(undefined)
+
+  const handlePreviewItem = useCallback((item: MediaItem, groupItems: MediaItem[]) => {
+    setPreviewItem(item)
+    setPreviewGroupItems(groupItems)
+  }, [])
 
   const [scrollElement, setScrollElementState] =
     useState<HTMLDivElement | null>(null)
@@ -354,6 +404,13 @@ export const DuplicateAuditExactDuplicates: React.FC<
 
   // Optimistically tracks IDs that have been trashed so they disappear immediately
   const [trashedIds, setTrashedIds] = useState<Set<string>>(new Set())
+  const trashingProgress = useSessionStore((s) => s.trashingProgress)
+
+  useEffect(() => {
+    if (!trashingProgress || !trashingProgress.isActive) {
+      setTrashedIds(new Set())
+    }
+  }, [trashingProgress])
 
   const groups = useMemo(() => {
     return duplicateGroups
@@ -893,6 +950,7 @@ export const DuplicateAuditExactDuplicates: React.FC<
                 hasOverride={hasOverride}
                 onSwapKeep={handleSwapKeep}
                 onResetOverride={handleResetOverride}
+                onPreviewItem={handlePreviewItem}
                 measureRef={rowVirtualizer.measureElement}
                 style={{
                   position: "absolute",
@@ -942,6 +1000,18 @@ export const DuplicateAuditExactDuplicates: React.FC<
           </Button>
         </div>
       </div>
+
+      <MediaPreview
+        item={previewItem}
+        onClose={() => {
+          setPreviewItem(null)
+          setPreviewGroupItems(undefined)
+        }}
+        items={previewGroupItems}
+        onItemChange={(item) => setPreviewItem(item)}
+        autoPlay={true}
+      />
     </div>
   )
 }
+

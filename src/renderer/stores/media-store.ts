@@ -208,7 +208,8 @@ function computeCaches(
 
     const normPath = item.path.replace(/\\/g, "/").toLowerCase()
     for (let rIdx = 0; rIdx < roots.length; rIdx++) {
-      if (normPath.startsWith(roots[rIdx].norm)) {
+      const rootNorm = roots[rIdx].norm.replace(/\/+$/, "")
+      if (normPath === rootNorm || normPath.startsWith(rootNorm + "/")) {
         rootItemCounts.set(roots[rIdx].rawPath, (rootItemCounts.get(roots[rIdx].rawPath) || 0) + 1)
       }
     }

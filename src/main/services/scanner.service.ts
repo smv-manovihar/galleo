@@ -375,14 +375,14 @@ export class ScannerService {
         for (const root of rootPaths) {
           const dbItems = this.mediaRepository.getByFolderPath(root)
           for (const item of dbItems) {
-            cacheMap.set(item.path.toLowerCase(), item)
+            cacheMap.set(this.normalizePath(item.path), item)
           }
         }
       }
 
       // Track discovered paths for pruning deleted files later
       const discoveredPaths = new Set<string>(
-        scanList.map((f) => f.path.toLowerCase())
+        scanList.map((f) => this.normalizePath(f.path))
       )
 
       if (!this.isCancelled) {
@@ -427,16 +427,29 @@ export class ScannerService {
               if (this.isCancelled) return
 
               try {
-                const cached = cacheMap.get(file.path.toLowerCase())
+                const cached = cacheMap.get(this.normalizePath(file.path))
                 const isOldThumb =
                   cached &&
                   cached.thumbnailPath &&
                   !cached.thumbnailPath.endsWith("_v2.webp")
+
+                const fileMtimeMs = new Date(file.mtime).getTime()
+                const cachedMtimeMs = cached?.dateModified
+                  ? typeof cached.dateModified === "number"
+                    ? cached.dateModified
+                    : new Date(cached.dateModified).getTime()
+                  : 0
+
+                const isMtimeMatch =
+                  cached &&
+                  (cached.dateModified === file.mtime ||
+                    (cachedMtimeMs > 0 && Math.abs(cachedMtimeMs - fileMtimeMs) < 2000))
+
                 // Cache hit: size AND mtime both match, and the thumbnail format is current
                 if (
                   cached &&
                   cached.size === file.size &&
-                  cached.dateModified === file.mtime &&
+                  isMtimeMatch &&
                   !isOldThumb
                 ) {
                   scannedCount++
@@ -554,24 +567,30 @@ export class ScannerService {
           // Save batch to SQLite (buffered in chunks of 250 or on last batch) and stream new items to frontend
           if (processedItems.length > 0) {
             dbBuffer.push(...processedItems)
-            const isLastBatch = i + batchSize >= totalCount || this.isCancelled
-            if (dbBuffer.length >= 250 || isLastBatch) {
-              this.mediaRepository.upsertMany(dbBuffer)
-              dbBuffer.length = 0
-            }
+          }
 
+          const isLastBatch = i + batchSize >= totalCount || this.isCancelled
+          if (dbBuffer.length >= 250 || (isLastBatch && dbBuffer.length > 0)) {
+            this.mediaRepository.upsertMany(dbBuffer)
+            dbBuffer.length = 0
             // Yield after DB write to let IPC messages drain
             await new Promise((r) => setImmediate(r))
-
-            if (this.isWindowAlive(window)) {
-              window.webContents.send(IPC_CHANNELS.SCAN_PROGRESS, {
-                scannedCount,
-                totalCount,
-                currentFile: batch[batch.length - 1]?.name,
-                items: processedItems,
-              })
-            }
           }
+
+          if (processedItems.length > 0 && this.isWindowAlive(window)) {
+            window.webContents.send(IPC_CHANNELS.SCAN_PROGRESS, {
+              scannedCount,
+              totalCount,
+              currentFile: batch[batch.length - 1]?.name,
+              items: processedItems,
+            })
+          }
+        }
+
+        // Post-loop safety flush: ensure any leftover items in dbBuffer are persisted
+        if (dbBuffer.length > 0) {
+          this.mediaRepository.upsertMany(dbBuffer)
+          dbBuffer.length = 0
         }
       }
 
@@ -592,7 +611,7 @@ export class ScannerService {
         // Record lastScannedMtime timestamp and clear changed flag for fully scanned roots
         const currentSettings = this.settingsService.getSettings()
         const updatedRoots = currentSettings.folders.roots.map((r) => {
-          if (rootPaths.some((p) => p.toLowerCase() === r.path.toLowerCase())) {
+          if (rootPaths.some((p) => this.normalizePath(p) === this.normalizePath(r.path))) {
             let mtime = Date.now()
             try {
               if (nodeFs.existsSync(r.path)) {
@@ -1034,7 +1053,8 @@ export class ScannerService {
   private generateFileId(filePath: string): string {
     return crypto
       .createHash("sha256")
-      .update(filePath.toLowerCase())
+      .update(this.normalizePath(filePath))
       .digest("hex")
   }
 }
+

@@ -36,7 +36,16 @@ export const FolderNotScanned: React.FC<FolderNotScannedProps> = ({
   const folderData = folderCounts.get(activeRootPath)
   const liveDiskCount = folderData?.count
 
-  const dbCount = items.length
+  const dbCount = React.useMemo(() => {
+    if (activeRootPath === "all" || !activeRootPath) {
+      return items.length
+    }
+    const normRoot = activeRootPath.replace(/\\/g, "/").toLowerCase().replace(/\/+$/, "")
+    return items.filter((item) => {
+      const itemNorm = item.path.replace(/\\/g, "/").toLowerCase()
+      return itemNorm === normRoot || itemNorm.startsWith(normRoot + "/")
+    }).length
+  }, [activeRootPath, items])
 
   const isPartial =
     hasScannedItems &&

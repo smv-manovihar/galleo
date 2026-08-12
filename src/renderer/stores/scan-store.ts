@@ -279,8 +279,10 @@ export const useScanStore = create<ScanState>((set, get) => ({
       // during discovery is included.
       const settingsStore = useSettingsStore.getState()
       const latestSettings = await window.api.getSettings()
+      const normRootPaths = rootPaths.map((p) => p.replace(/\\/g, "/").toLowerCase())
       const updatedRoots = latestSettings.folders.roots.map((r) => {
-        if (rootPaths.some((p) => p.toLowerCase() === r.path.toLowerCase())) {
+        const normR = r.path.replace(/\\/g, "/").toLowerCase()
+        if (normRootPaths.length === 0 || normRootPaths.some((p) => p === normR)) {
           return { ...r, scanned: true }
         }
         return r

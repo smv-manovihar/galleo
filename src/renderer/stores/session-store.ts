@@ -451,7 +451,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const item = itemMap.get(mediaId)
       if (!item) continue
       const isDeleteTarget =
-        specificMediaIds !== undefined ||
         decisions[mediaId] === "delete" ||
         item.reviewState === "delete"
       if (isDeleteTarget) {
@@ -550,7 +549,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     let totalCount = 0
     for (const id of targets) {
       const state = decisions[id] ?? itemMap.get(id)?.reviewState
-      if (state === "delete" || specificMediaIds) {
+      if (state === "delete") {
         totalCount++
       }
     }

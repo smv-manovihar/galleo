@@ -86,6 +86,7 @@ const MediaGridComponent: React.FC<MediaGridProps> = ({
     return r
   }, [items, activeColumns])
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => containerRef.current,

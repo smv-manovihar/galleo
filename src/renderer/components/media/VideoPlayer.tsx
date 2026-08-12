@@ -161,22 +161,14 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
     const containerStyle = useMemo<React.CSSProperties>(() => {
       if (isFullscreen || fillContainer)
         return { width: "100%", height: "100%" }
-      if (!effectiveAspect) return { width: "100%" }
+      if (!effectiveAspect) return { width: "100%", height: "100%" }
 
-      if (effectiveAspect < 1) {
-        return {
-          maxWidth: `calc(70vh * ${effectiveAspect})`,
-          maxHeight: "70vh",
-          width: "100%",
-          aspectRatio: `${effectiveAspect}`,
-        }
-      } else {
-        return {
-          maxWidth: "100%",
-          maxHeight: "70vh",
-          width: "100%",
-          aspectRatio: `${effectiveAspect}`,
-        }
+      return {
+        width: "auto",
+        height: "100%",
+        maxWidth: "100%",
+        maxHeight: "100%",
+        aspectRatio: `${effectiveAspect}`,
       }
     }, [effectiveAspect, isFullscreen, fillContainer])
 

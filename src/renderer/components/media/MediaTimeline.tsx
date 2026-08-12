@@ -143,6 +143,7 @@ export const MediaTimeline: React.FC<MediaTimelineProps> = ({
     return rows
   }, [grouped, collapsedGroups, activeColumns])
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const rowVirtualizer = useVirtualizer({
     count: flatRows.length,
     getScrollElement: () => containerRef.current,

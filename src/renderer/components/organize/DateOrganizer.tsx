@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { useMediaStore } from "../../stores/media-store"
 import { useSettingsStore } from "../../stores/settings-store"
+import { useOrganizeStore } from "../../stores/organize-store"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -16,7 +17,6 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { toast } from "sonner"
 import {
   Dialog,
   DialogContent,
@@ -41,10 +41,7 @@ import {
   ChevronRight,
   SlidersHorizontal,
 } from "lucide-react"
-import type {
-  OrganizePreviewItem,
-  OrganizeProgressPayload,
-} from "../../../shared/types/ipc"
+import type { OrganizePreviewItem } from "../../../shared/types/ipc"
 import { cn } from "@/lib/utils"
 import { MediaPreview } from "../media/MediaPreview"
 import type { MediaItem } from "../../../shared/types/media"
@@ -216,6 +213,7 @@ const VirtualizedFolderTree: React.FC<VirtualizedFolderTreeProps> = ({
 
   const parentRef = React.useRef<HTMLDivElement>(null)
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const rowVirtualizer = useVirtualizer({
     count: flatNodes.length,
     getScrollElement: () => parentRef.current,
@@ -336,6 +334,9 @@ export const DateOrganizer: React.FC = () => {
   const activeRootPath = useMediaStore((s) => s.activeRootPath)
   const items = useMediaStore((s) => s.items)
   const { settings, saveSettings } = useSettingsStore()
+  const isExecuting = useOrganizeStore((s) => s.isExecuting)
+  const progress = useOrganizeStore((s) => s.progress)
+  const startOrganization = useOrganizeStore((s) => s.startOrganization)
 
   const [destination, setDestination] = useState(
     settings.folders.destination || ""
@@ -349,8 +350,6 @@ export const DateOrganizer: React.FC = () => {
 
   const [previewItems, setPreviewItems] = useState<OrganizePreviewItem[]>([])
   const [isPlanning, setIsPlanning] = useState(false)
-  const [isExecuting, setIsExecuting] = useState(false)
-  const [progress, setProgress] = useState<OrganizeProgressPayload | null>(null)
   const [previewItem, setPreviewItem] = useState<MediaItem | null>(null)
   const [showHelpDialog, setShowHelpDialog] = useState(false)
 
@@ -393,42 +392,10 @@ export const DateOrganizer: React.FC = () => {
     }
   }
 
-  const handleExecute = async () => {
-    if (previewItems.length === 0) return
-    const count = previewItems.length
-    setIsExecuting(true)
-    setProgress({
-      processedCount: 0,
-      totalCount: count,
-      currentFile: "",
-      success: true,
-    })
-
-    const cleanupProgress = window.api.onOrganizeProgress((p) => {
-      setProgress(p)
-    })
-
-    try {
-      await window.api.executeOrganization(
-        activeRootPath!,
-        previewItems,
-        preserveOriginals
-      )
-      toast.success("Files organized", {
-        description: `Relocated ${count} media items to destination.`,
-      })
-    } catch (e: unknown) {
-      const err = e as Error
-      console.error("Execution failed:", err)
-      toast.error("File organization failed", {
-        description:
-          err.message || "An unexpected error occurred during execution.",
-      })
-    } finally {
-      cleanupProgress()
-      setIsExecuting(false)
-      setPreviewItems([]) // Reset preview items
-    }
+  const handleExecute = () => {
+    if (previewItems.length === 0 || !activeRootPath) return
+    startOrganization(activeRootPath, previewItems, preserveOriginals)
+    setPreviewItems([])
   }
 
   const conflictCount = React.useMemo(() => {

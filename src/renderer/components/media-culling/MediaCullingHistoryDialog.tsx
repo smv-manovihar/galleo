@@ -167,6 +167,7 @@ export const MediaCullingHistoryDialog: React.FC<
     setScrollElementState(node)
   }, [])
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const rowVirtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => scrollElement,
@@ -284,7 +285,7 @@ export const MediaCullingHistoryDialog: React.FC<
             <>
               {/* Header */}
               <div
-                className="grid shrink-0 items-center border-b border-border bg-muted pr-[8px] text-[0.6875rem] font-semibold text-muted-foreground"
+                className="grid shrink-0 items-center border-b border-border bg-muted pr-2 text-2xs font-semibold text-muted-foreground"
                 style={{ gridTemplateColumns: "40px 56px 1fr 96px 80px" }}
               >
                 <div className="flex items-center justify-start p-3">

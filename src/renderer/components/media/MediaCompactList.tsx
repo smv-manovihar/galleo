@@ -50,6 +50,7 @@ export const MediaCompactList: React.FC<MediaCompactListProps> = ({
     return r
   }, [items, columns])
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => containerRef.current,

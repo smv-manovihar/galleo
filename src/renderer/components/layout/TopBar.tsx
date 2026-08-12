@@ -20,8 +20,10 @@ import {
   Info,
   Sparkles,
   Trash2,
+  FolderOutput,
 } from "lucide-react"
 import { useSessionStore } from "../../stores/session-store"
+import { useOrganizeStore } from "../../stores/organize-store"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -228,6 +230,51 @@ const TrashingPill = React.memo(() => {
 })
 TrashingPill.displayName = "TrashingPill"
 
+const OrganizingPill = React.memo(() => {
+  const organizeProgress = useOrganizeStore((state) => state.progress)
+  const pct =
+    organizeProgress && organizeProgress.totalCount > 0
+      ? Math.round(
+          (organizeProgress.processedCount / organizeProgress.totalCount) * 100
+        )
+      : 0
+  const fileName = organizeProgress?.currentFile
+    ? organizeProgress.currentFile.split(/[/\\]/).pop()
+    : ""
+
+  return (
+    <div
+      style={{ viewTransitionName: "scan-pill-container" }}
+      className="flex h-9 shrink-0 items-center gap-2 sm:gap-2.5 rounded-lg border border-primary/20 bg-primary/5 px-2.5 sm:px-3.5 animate-in fade-in duration-200"
+    >
+      <FolderOutput className="h-3.5 w-3.5 text-primary animate-pulse shrink-0" />
+      <div className="flex flex-col min-w-0 justify-center leading-tight">
+        <span className="text-xs font-semibold text-foreground truncate">
+          Organizing
+        </span>
+        {fileName && (
+          <span
+            className="hidden xl:inline-block max-w-[120px] truncate text-2xs font-mono text-muted-foreground"
+            title={organizeProgress?.currentFile}
+          >
+            {fileName}
+          </span>
+        )}
+      </div>
+      <div className="hidden lg:block w-12 xl:w-16 shrink-0 h-1 rounded-full bg-primary/20 overflow-hidden">
+        <div
+          className="h-full rounded-full bg-primary transition-[width] duration-300"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className="font-mono text-xs font-bold text-primary tabular-nums shrink-0">
+        {pct}%
+      </span>
+    </div>
+  )
+})
+OrganizingPill.displayName = "OrganizingPill"
+
 const MultiTaskPill = React.memo<{
   isScanActive: boolean
   isStopping: boolean
@@ -235,6 +282,7 @@ const MultiTaskPill = React.memo<{
   isAIIndexingActive: boolean
   isAIDownloadingActive: boolean
   isTrashingActive: boolean
+  isOrganizingActive: boolean
   onStopScan: () => void
 }>(
   ({
@@ -244,12 +292,14 @@ const MultiTaskPill = React.memo<{
     isAIIndexingActive,
     isAIDownloadingActive,
     isTrashingActive,
+    isOrganizingActive,
     onStopScan,
   }) => {
     const scanProgress = useScanStore((state) => state.scanProgress)
     const aiDownloadProgress = useScanStore((state) => state.aiDownloadProgress)
     const aiIndexingProgress = useScanStore((state) => state.aiIndexingProgress)
     const trashingProgress = useSessionStore((state) => state.trashingProgress)
+    const organizeProgress = useOrganizeStore((state) => state.progress)
 
     const activeTasks: Array<{
       id: string
@@ -351,6 +401,26 @@ const MultiTaskPill = React.memo<{
           : `Trashing ${trashingProgress.successCount} / ${trashingProgress.totalCount}`,
         progress: trashingProgress.isDone ? 100 : pct,
         icon: <Trash2 className="h-3.5 w-3.5 text-destructive animate-pulse shrink-0" />,
+      })
+    }
+
+    if (isOrganizingActive && organizeProgress) {
+      const pct =
+        organizeProgress.totalCount > 0
+          ? Math.round(
+              (organizeProgress.processedCount / organizeProgress.totalCount) * 100
+            )
+          : 0
+      activeTasks.push({
+        id: "organizing",
+        title: "Date Organizing",
+        subtitle: organizeProgress.currentFile
+          ? organizeProgress.currentFile
+          : "Organizing files...",
+        progress: pct,
+        icon: (
+          <FolderOutput className="h-3.5 w-3.5 text-primary animate-pulse shrink-0" />
+        ),
       })
     }
 
@@ -475,6 +545,7 @@ export const TopBar: React.FC = () => {
   const isDownloadingAI = useScanStore((state) => state.isDownloadingAI)
   const isAIIndexing = useScanStore((state) => Boolean(state.aiIndexingProgress?.isIndexing))
   const isTrashing = useSessionStore((state) => Boolean(state.trashingProgress))
+  const isOrganizing = useOrganizeStore((state) => Boolean(state.isExecuting))
   const folderCounts = useScanStore((state) => state.folderCounts)
   const { settings, saveSettings } = useSettingsStore()
 
@@ -716,13 +787,15 @@ export const TopBar: React.FC = () => {
     !isPostProcessing &&
     isAIIndexing
   const isTrashingActive = isTrashing
+  const isOrganizingActive = isOrganizing
 
   const activeTaskCount =
     (isAIDownloadingActive ? 1 : 0) +
     (isScanActive ? 1 : 0) +
     (isPostProcessingActive ? 1 : 0) +
     (isAIIndexingActive ? 1 : 0) +
-    (isTrashingActive ? 1 : 0)
+    (isTrashingActive ? 1 : 0) +
+    (isOrganizingActive ? 1 : 0)
 
   return (
     <header className="flex h-16 items-center justify-between gap-2 sm:gap-3 border-b border-border bg-card/45 px-3 sm:px-6 backdrop-blur-sm select-none min-w-0">
@@ -787,7 +860,7 @@ export const TopBar: React.FC = () => {
       {/* Global Actions */}
       <div className="ml-auto flex shrink-0 items-center gap-3">
         {/* Scan Controls & Unified Progress */}
-        {settings.folders.roots.some((r) => r.enabled) && (
+        {(settings.folders.roots.some((r) => r.enabled) || activeTaskCount > 0) && (
           <div className="flex items-center gap-2">
             {activeTaskCount > 1 ? (
               <MultiTaskPill
@@ -797,6 +870,7 @@ export const TopBar: React.FC = () => {
                 isAIIndexingActive={isAIIndexingActive}
                 isAIDownloadingActive={isAIDownloadingActive}
                 isTrashingActive={isTrashing}
+                isOrganizingActive={isOrganizingActive}
                 onStopScan={handleScanClick}
               />
             ) : activeTaskCount === 1 ? (
@@ -808,6 +882,8 @@ export const TopBar: React.FC = () => {
                 <AIIndexingPill />
               ) : isTrashing ? (
                 <TrashingPill />
+              ) : isOrganizingActive ? (
+                <OrganizingPill />
               ) : (
                 <ScanningPill isStopping={isStopping} onStopScan={handleScanClick} />
               )

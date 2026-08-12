@@ -522,6 +522,7 @@ export const MediaList: React.FC<MediaListProps> = ({
     return rows
   }, [items, grouped, collapsedGroups, isGrouped])
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const rowVirtualizer = useVirtualizer({
     count: flatRows.length,
     getScrollElement: () => containerRef.current,

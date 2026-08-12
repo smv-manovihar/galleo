@@ -441,6 +441,7 @@ export const DuplicateAuditExactDuplicates: React.FC<
     }[]
   }, [duplicateGroups, exactDupsToKeep, overrides, trashedIds])
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const rowVirtualizer = useVirtualizer({
     count: groups.length,
     getScrollElement: () => scrollElement,

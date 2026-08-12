@@ -8,7 +8,6 @@ import {
   Bookmark,
   Trash2,
   Maximize,
-  Info,
 } from "lucide-react"
 import {
   Tooltip,
@@ -17,7 +16,7 @@ import {
 } from "@/components/ui/tooltip"
 import { formatBytes } from "../../lib/format"
 import { VideoPlayer } from "../media/VideoPlayer"
-import { QualityScoreHoverCard } from "../media/QualityScoreHoverCard"
+import { QualityScoreBadge } from "../media/QualityScoreBadge"
 
 interface MediaCullingCardProps {
   item: MediaItem
@@ -87,21 +86,7 @@ const MediaCullingCardInner: React.FC<MediaCullingCardInnerProps> = React.memo(
 
           {isTopCard && item.quality && (
             <div className="absolute top-3 left-3 z-30 flex gap-2">
-              <QualityScoreHoverCard item={item} side="bottom">
-                <div className="interactive-badge cursor-help">
-                  <Badge
-                    variant={
-                      item.quality.compositeScore < 50
-                        ? "destructive"
-                        : "secondary"
-                    }
-                    className="flex cursor-help items-center gap-1 border border-border bg-background/90 text-2xs font-extrabold shadow-sm backdrop-blur transition-colors hover:bg-background/95"
-                  >
-                    <Info className="h-3 w-3 text-muted-foreground" />
-                    Quality Score: {item.quality.compositeScore}
-                  </Badge>
-                </div>
-              </QualityScoreHoverCard>
+              <QualityScoreBadge item={item} side="bottom" />
 
               {item.quality.isBlurry && (
                 <Badge

@@ -6,6 +6,7 @@ export type AppError =
   | { code: "CORRUPT_DB"; detail: string }
   | { code: "EXIF_FAILED"; path: string; reason: string }
   | { code: "THUMBNAIL_FAILED"; path: string; reason: string }
+  | { code: "HASH_FAILED"; path: string; reason: string }
   | { code: "UNKNOWN"; message: string }
 
 export type Result<T, E = AppError> =

@@ -195,8 +195,11 @@ export function registerIpcHandlers(window: BrowserWindow): void {
 
   ipcMain.handle(IPC_CHANNELS.MEDIA_TRASH, async (_, paths: string[]) => {
     const result = await fileOpsService.trashFiles(paths, window)
-    if (result.ok) {
-      await scannerService.notifyFilesDeleted(paths, window)
+    const successful = result.ok
+      ? paths
+      : (result.error as unknown as { data?: { successfulPaths?: string[] } }).data?.successfulPaths ?? []
+    if (successful.length > 0) {
+      await scannerService.notifyFilesDeleted(successful, window)
     }
     return result
   })

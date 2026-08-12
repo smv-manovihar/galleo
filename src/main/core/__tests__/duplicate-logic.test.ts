@@ -97,4 +97,80 @@ describe("findDuplicates", () => {
     const best = itemsInGroup.find((i) => i.isBestInDuplicateGroup)
     expect(best).toBeUndefined() // should not set isBestInDuplicateGroup on ingestion for similar media
   })
+
+  it("groups byte-for-byte exact duplicates matching exactHash", async () => {
+    const item1 = {
+      ...createMockItem("item1", "ffff", 80, 500, "vid1"),
+      exactHash: "sha256_exact_abc",
+    }
+    const item2 = {
+      ...createMockItem("item2", "0000", 90, 500, "vid2_different_name"),
+      exactHash: "sha256_exact_abc",
+    }
+
+    const groups = await findDuplicates([item1, item2], 4)
+    expect(groups.length).toBe(1)
+    expect(groups[0].items.length).toBe(2)
+    const best = groups[0].items.find((i) => i.isBestInDuplicateGroup)
+    expect(best?.id).toBe("item2")
+  })
+
+  it("does not group videos with significant duration mismatch despite intro pHash match", async () => {
+    const video1: MediaItem = {
+      ...createMockItem("video1", "ffff", 80, 500, "short_clip"),
+      mediaType: "video",
+      duration: 15,
+    }
+    const video2: MediaItem = {
+      ...createMockItem("video2", "fffe", 90, 800, "long_episode"),
+      mediaType: "video",
+      duration: 3600,
+    }
+
+    const groups = await findDuplicates([video1, video2], 4)
+    expect(groups.length).toBe(0)
+  })
+
+  it("distinguishes videos with identical intro frame 1 but different frames 2 and 3", async () => {
+    // 192-char multi-frame pHash (3 x 64 chars)
+    // Frame 1 matches ("ffff..."), Frames 2 and 3 differ completely
+    const video1Hash = "f".repeat(64) + "a".repeat(64) + "1".repeat(64)
+    const video2Hash = "f".repeat(64) + "5".repeat(64) + "9".repeat(64)
+
+    const video1: MediaItem = {
+      ...createMockItem("v1", video1Hash, 80, 500, "video_a"),
+      mediaType: "video",
+      duration: 60,
+    }
+    const video2: MediaItem = {
+      ...createMockItem("v2", video2Hash, 80, 500, "video_b"),
+      mediaType: "video",
+      duration: 60,
+    }
+
+    // Single frame maxDistance of 4 scales to 12 bits max distance across 192 chars
+    const groups = await findDuplicates([video1, video2], 4)
+    expect(groups.length).toBe(0)
+  })
+
+  it("groups multi-frame videos when majority of keyframes (2 of 3) match within distance threshold", async () => {
+    // 192-char multi-frame pHash: Frame 1 and 2 match ("f"), Frame 3 differs slightly (2 bits diff total)
+    const video1Hash = "f".repeat(64) + "f".repeat(64) + "f".repeat(62) + "ee"
+    const video2Hash = "f".repeat(64) + "f".repeat(64) + "f".repeat(64)
+
+    const video1: MediaItem = {
+      ...createMockItem("v1", video1Hash, 80, 500, "video_a"),
+      mediaType: "video",
+      duration: 60,
+    }
+    const video2: MediaItem = {
+      ...createMockItem("v2", video2Hash, 80, 500, "video_b"),
+      mediaType: "video",
+      duration: 60,
+    }
+
+    const groups = await findDuplicates([video1, video2], 4)
+    expect(groups.length).toBe(1)
+    expect(groups[0].items.length).toBe(2)
+  })
 })

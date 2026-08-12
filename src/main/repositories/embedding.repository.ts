@@ -114,6 +114,27 @@ export class EmbeddingRepository {
   }
 
   /**
+   * Stream media embeddings row-by-row for memory-efficient vector similarity processing
+   */
+  public forEachMediaEmbedding(callback: (rec: MediaEmbeddingRecord) => void): void {
+    const db = this.getDb()
+    const stmt = db.prepare(
+      `SELECT media_id, embedding, created_at FROM media_embeddings`
+    )
+    for (const row of stmt.iterate() as Iterable<{
+      media_id: string
+      embedding: Buffer
+      created_at: string
+    }>) {
+      callback({
+        mediaId: row.media_id,
+        embedding: EmbeddingRepository.bufferToFloat32(row.embedding),
+        createdAt: row.created_at,
+      })
+    }
+  }
+
+  /**
    * Fetch media embeddings for a specific set of media IDs
    */
   public getMediaEmbeddingsForIds(mediaIds: string[]): MediaEmbeddingRecord[] {
@@ -244,6 +265,36 @@ export class EmbeddingRepository {
       embedding: EmbeddingRepository.bufferToFloat32(row.embedding),
       thumbnailPath: row.thumbnail_path ?? undefined,
     }))
+  }
+
+  /**
+   * Stream video frame embeddings row-by-row for memory-efficient vector similarity processing
+   */
+  public forEachVideoFrameEmbedding(
+    callback: (rec: VideoFrameEmbeddingRecord) => void
+  ): void {
+    const db = this.getDb()
+    const stmt = db.prepare(
+      `SELECT id, media_id, timestamp_seconds, frame_index, embedding, thumbnail_path 
+       FROM video_frame_embeddings`
+    )
+    for (const row of stmt.iterate() as Iterable<{
+      id: string
+      media_id: string
+      timestamp_seconds: number
+      frame_index: number
+      embedding: Buffer
+      thumbnail_path: string | null
+    }>) {
+      callback({
+        id: row.id,
+        mediaId: row.media_id,
+        timestampSeconds: row.timestamp_seconds,
+        frameIndex: row.frame_index,
+        embedding: EmbeddingRepository.bufferToFloat32(row.embedding),
+        thumbnailPath: row.thumbnail_path ?? undefined,
+      })
+    }
   }
 
   /**

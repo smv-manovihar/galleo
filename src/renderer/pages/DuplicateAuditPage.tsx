@@ -3,9 +3,9 @@ import { useMediaStore } from "../stores/media-store"
 import { useSessionStore } from "../stores/session-store"
 import { useScanStore } from "../stores/scan-store"
 import { useSettingsStore } from "../stores/settings-store"
-import { DuplicateAuditReview } from "../components/duplicate-audit/DuplicateAuditReview"
+import { DuplicateAuditSimilarMedia } from "../components/duplicate-audit/DuplicateAuditSimilarMedia"
 import { DuplicateAuditSummary } from "../components/duplicate-audit/DuplicateAuditSummary"
-import { DuplicateAuditAutoCleanup } from "../components/duplicate-audit/DuplicateAuditAutoCleanup"
+import { DuplicateAuditExactDuplicates } from "../components/duplicate-audit/DuplicateAuditExactDuplicates"
 import { PageContainer } from "@/components/ui/page-layout"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { CopyMinus, Images, FolderSearch } from "lucide-react"
@@ -412,30 +412,30 @@ export const DuplicateAuditPage: React.FC = () => {
           onValueChange={(val) => handleTabChange(val as "auto" | "manual")}
           className="flex min-h-0 w-full flex-1 flex-col"
         >
-          <div className="flex shrink-0 items-center justify-center border-b border-border pb-3">
-            <TabsList className="h-9 rounded-lg border border-border bg-muted/50 p-0.5">
+          <div className="flex shrink-0 items-center justify-center border-b border-border/60 pb-3">
+            <TabsList variant={"animated"}>
               <TabsTrigger
                 value="auto"
-                className="flex h-8 cursor-pointer items-center gap-2 rounded-md px-4 text-xs"
+                className="group gap-2 px-3.5 data-[state=active]:text-amber-600 dark:data-[state=active]:text-amber-400"
               >
-                <CopyMinus className="h-3.5 w-3.5 text-amber-500" />
+                <CopyMinus className="h-3.5 w-3.5 transition-colors group-data-[state=active]:text-amber-600 dark:group-data-[state=active]:text-amber-400" />
                 <span>Exact Duplicates</span>
                 <Badge
-                  variant="outline"
-                  className="h-4.5 rounded-full border-amber-500/20 bg-amber-500/10 px-1.5 text-3xs font-bold text-amber-600 select-none dark:text-amber-400"
+                  variant="secondary"
+                  className="ml-0.5 rounded-full px-1.5 py-0 text-2xs transition-colors group-data-[state=active]:bg-amber-500/15 group-data-[state=active]:text-amber-700 dark:group-data-[state=active]:text-amber-300"
                 >
                   {exactDupsGroups?.length || 0}
                 </Badge>
               </TabsTrigger>
               <TabsTrigger
                 value="manual"
-                className="flex h-8 cursor-pointer items-center gap-2 rounded-md px-4 text-xs"
+                className="group gap-2 px-3.5 data-[state=active]:text-indigo-600 dark:data-[state=active]:text-indigo-400"
               >
-                <Images className="h-3.5 w-3.5 text-primary" />
+                <Images className="h-3.5 w-3.5 transition-colors group-data-[state=active]:text-indigo-600 dark:group-data-[state=active]:text-indigo-400" />
                 <span>Similar Media</span>
                 <Badge
-                  variant="outline"
-                  className="h-4.5 rounded-full border-primary/20 bg-primary/10 px-1.5 text-3xs font-bold text-primary select-none"
+                  variant="secondary"
+                  className="ml-0.5 rounded-full px-1.5 py-0 text-2xs transition-colors group-data-[state=active]:bg-indigo-500/15 group-data-[state=active]:text-indigo-700 dark:group-data-[state=active]:text-indigo-300"
                 >
                   {manualReviewGroups.length}
                 </Badge>
@@ -448,7 +448,7 @@ export const DuplicateAuditPage: React.FC = () => {
               value="auto"
               className="m-0 flex h-full min-h-0 flex-col"
             >
-              <DuplicateAuditAutoCleanup
+              <DuplicateAuditExactDuplicates
                 exactDupsToDelete={exactDupsToDelete}
                 exactDupsToKeep={exactDupsToKeep}
                 duplicateGroups={exactDupsGroups}
@@ -474,7 +474,7 @@ export const DuplicateAuditPage: React.FC = () => {
                   }}
                 />
               ) : (
-                <DuplicateAuditReview
+                <DuplicateAuditSimilarMedia
                   items={manualReviewItems}
                   onComplete={() => {
                     withViewTransition(() => setShowManualSummary(true))

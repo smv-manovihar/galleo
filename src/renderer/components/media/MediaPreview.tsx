@@ -62,49 +62,65 @@ const ZoomControls: React.FC<ZoomControlsProps> = React.memo(
         className={`absolute top-4 right-4 z-30 flex gap-1 rounded-lg border border-white/10 bg-black/60 p-1 backdrop-blur-xs transition-opacity duration-300 ${!isFullscreen || showControls ? "opacity-100" : "pointer-events-none opacity-0"}`}
       >
         {isFullscreen && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 cursor-pointer rounded-md text-white hover:bg-white/10"
-            onClick={toggleFullscreen}
-            title="Exit Fullscreen"
-          >
-            <Minimize className="h-3.5 w-3.5" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 cursor-pointer rounded-md text-white hover:bg-white/10"
+                onClick={toggleFullscreen}
+              >
+                <Minimize className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Exit Fullscreen</TooltipContent>
+          </Tooltip>
         )}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 cursor-pointer rounded-md text-white hover:bg-white/10"
-          onClick={onZoomOut}
-          disabled={scale <= 1}
-          title="Zoom Out"
-        >
-          <ZoomOut className="h-3.5 w-3.5" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 cursor-pointer rounded-md text-white hover:bg-white/10"
+              onClick={onZoomOut}
+              disabled={scale <= 1}
+            >
+              <ZoomOut className="h-3.5 w-3.5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Zoom Out</TooltipContent>
+        </Tooltip>
         <span className="flex min-w-11 items-center justify-center px-2 font-mono text-2xs text-white">
           {Math.round(scale * 100)}%
         </span>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 cursor-pointer rounded-md text-white hover:bg-white/10"
-          onClick={onZoomIn}
-          disabled={scale >= 4}
-          title="Zoom In"
-        >
-          <ZoomIn className="h-3.5 w-3.5" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 cursor-pointer rounded-md text-2xs font-semibold text-white hover:bg-white/10"
-          onClick={onZoomReset}
-          disabled={scale === 1}
-          title="Reset Zoom"
-        >
-          1:1
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 cursor-pointer rounded-md text-white hover:bg-white/10"
+              onClick={onZoomIn}
+              disabled={scale >= 4}
+            >
+              <ZoomIn className="h-3.5 w-3.5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Zoom In</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 cursor-pointer rounded-md text-2xs font-semibold text-white hover:bg-white/10"
+              onClick={onZoomReset}
+              disabled={scale === 1}
+            >
+              1:1
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Reset Zoom</TooltipContent>
+        </Tooltip>
       </div>
     )
   }
@@ -417,10 +433,19 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
   const hasQuality = item.quality !== undefined
 
   // Format dates
+  const targetDate = formatDate(item.dateTarget)
+  const sourceLabels: Record<string, string> = {
+    exif: "EXIF",
+    filename: "Filename",
+    filesystem: "File System",
+  }
+  const resolvedSourceLabel = sourceLabels[item.dateTargetSource] || "Resolved"
   const exifDate = item.dateOriginal ? formatDate(item.dateOriginal) : "None"
   const inferredDate = item.dateInferred
     ? formatDate(item.dateInferred)
-    : "None"
+    : item.dateTargetSource === "filename"
+      ? formatDate(item.dateTarget)
+      : "None"
   const fsDate = formatDate(item.dateFileSystem)
 
   const safeSrc = `media:///${item.path.replace(/\\/g, "/")}`
@@ -435,11 +460,11 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
       onOpenChange={(open: boolean) => !open && onClose()}
     >
       <DialogContent
-        width="5xl"
-        height="2xl"
+        width="full"
+        height="full"
         showCloseButton={false}
         onOpenAutoFocus={(e) => e.preventDefault()}
-        className="flex flex-col gap-0 overflow-hidden border-border bg-card/95 p-0 font-sans text-foreground backdrop-blur-md"
+        className="flex h-[90vh] w-[94vw] max-w-7xl flex-col gap-0 overflow-hidden border-border bg-card/95 p-0 font-sans text-foreground backdrop-blur-md"
       >
         <div className="relative flex h-full w-full flex-col overflow-hidden bg-card text-foreground">
           {/* Modal Header */}
@@ -492,9 +517,9 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="icon"
-                    className="h-8 w-8 shrink-0 rounded-lg text-muted-foreground hover:bg-accent"
+                    className="h-8 w-8 shrink-0 rounded-lg border-border hover:bg-accent"
                     onClick={onClose}
                   >
                     <X className="h-4 w-4" />
@@ -510,7 +535,7 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
             {/* Main Media Preview Area */}
             <div
               ref={previewRef}
-              className="relative flex h-full flex-1 items-center justify-center overflow-hidden bg-black p-6 select-none"
+              className="relative flex h-full flex-1 items-center justify-center overflow-hidden bg-black p-4 select-none"
               onWheel={(e) => {
                 handleWheel(e)
                 resetControlsTimeout()
@@ -535,7 +560,7 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
                 ref={transformElRef}
                 className="pointer-events-none flex h-full w-full items-center justify-center transition-transform ease-out"
               >
-                <div className="pointer-events-auto max-h-full max-w-full">
+                <div className="pointer-events-auto flex h-full w-full max-h-full max-w-full items-center justify-center">
                   {isVideo ? (
                     <VideoPlayer
                       ref={videoPlayerRef}
@@ -545,7 +570,7 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
                           ? `media:///${item.thumbnailPath.replace(/\\/g, "/")}`
                           : undefined
                       }
-                      className="w-full max-w-3xl"
+                      className="max-h-full max-w-full"
                       hideFullscreen={false}
                       autoPlay={autoPlay}
                     />
@@ -553,7 +578,7 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
                     <img
                       src={safeSrc}
                       alt={item.name}
-                      className="pointer-events-none max-h-[60vh] max-w-full object-contain shadow-lg select-none"
+                      className="pointer-events-none max-h-full max-w-full object-contain shadow-lg select-none"
                     />
                   )}
                 </div>
@@ -613,6 +638,30 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
 
                 {/* Basic file attributes */}
                 <div className="space-y-2 border-b border-border pb-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-muted-foreground shrink-0">Parent Folder</span>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div
+                          className="max-w-44 cursor-pointer overflow-hidden text-right text-xs font-medium text-foreground"
+                          onClick={handleOpenFolder}
+                        >
+                          <div className="inline-block whitespace-nowrap animate-marquee-pingpong">
+                            {item.path.substring(
+                              0,
+                              Math.max(item.path.lastIndexOf("/"), item.path.lastIndexOf("\\"))
+                            )}
+                          </div>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs text-xs break-all select-text">
+                        {item.path.substring(
+                          0,
+                          Math.max(item.path.lastIndexOf("/"), item.path.lastIndexOf("\\"))
+                        )}
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">File Size</span>
                     <span className="font-medium text-foreground">
@@ -635,9 +684,61 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
                   </div>
                 </div>
 
+                {/* Dates */}
+                <div className="space-y-3 border-b border-border pb-4">
+                  <h5 className="text-[0.6875rem] font-semibold tracking-wider text-muted-foreground uppercase">
+                    Dates
+                  </h5>
+
+                  <div className="flex justify-between gap-2">
+                    <span className="flex items-center gap-1 font-semibold text-primary">
+                      <Calendar className="h-3.5 w-3.5 text-primary" /> Resolved Date ({resolvedSourceLabel})
+                    </span>
+                    <span className="max-w-44 truncate font-bold text-primary">
+                      {targetDate}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between gap-2">
+                    <span className="flex items-center gap-1 text-muted-foreground">
+                      <Calendar className="h-3.5 w-3.5" /> EXIF Date
+                    </span>
+                    <span className="max-w-44 truncate font-medium text-foreground">
+                      {exifDate}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between gap-2">
+                    <span className="flex items-center gap-1 text-muted-foreground">
+                      <Calendar className="h-3.5 w-3.5" /> Filename Inferred Date
+                    </span>
+                    <span className="max-w-44 truncate font-medium text-foreground">
+                      {inferredDate}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between gap-2">
+                    <span className="flex items-center gap-1 text-muted-foreground">
+                      <Calendar className="h-3.5 w-3.5" /> File System Created
+                    </span>
+                    <span className="max-w-44 truncate font-medium text-foreground">
+                      {fsDate}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between gap-2">
+                    <span className="flex items-center gap-1 text-muted-foreground">
+                      <Calendar className="h-3.5 w-3.5" /> File System Updated
+                    </span>
+                    <span className="max-w-44 truncate font-medium text-foreground">
+                      {item.dateModified ? formatDate(item.dateModified) : "None"}
+                    </span>
+                  </div>
+                </div>
+
                 {/* Quality details */}
                 {hasQuality && (
-                  <div className="space-y-3 border-b border-border pb-4">
+                  <div className="space-y-3">
                     <h5 className="text-[0.6875rem] font-semibold tracking-wider text-muted-foreground uppercase">
                       Quality Score Indicators
                     </h5>
@@ -692,68 +793,6 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
                     </div>
                   </div>
                 )}
-
-                {/* Resolved Target Date */}
-                <div className="space-y-3 border-b border-border pb-4">
-                  <h5 className="text-[0.6875rem] font-semibold tracking-wider text-muted-foreground uppercase">
-                    Canonical Organization Date
-                  </h5>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Resolved Date</span>
-                    <span className="font-bold text-primary">
-                      {formatDate(item.dateTarget)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">
-                      Resolved Source
-                    </span>
-                    <Badge
-                      variant="secondary"
-                      className="text-2xs font-semibold"
-                    >
-                      {item.dateTargetSource === "exif" && "EXIF Metadata"}
-                      {item.dateTargetSource === "filename" &&
-                        "Filename Inferred"}
-                      {item.dateTargetSource === "filesystem" &&
-                        "Filesystem Fallback"}
-                    </Badge>
-                  </div>
-                </div>
-
-                {/* Date resolutions info */}
-                <div className="space-y-3">
-                  <h5 className="text-[0.6875rem] font-semibold tracking-wider text-muted-foreground uppercase">
-                    Target Date Fallback Chain
-                  </h5>
-
-                  <div className="flex justify-between gap-2">
-                    <span className="flex items-center gap-1 text-muted-foreground">
-                      <Calendar className="h-3.5 w-3.5" /> EXIF Original
-                    </span>
-                    <span className="max-w-44 truncate font-medium text-foreground">
-                      {exifDate}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between gap-2">
-                    <span className="flex items-center gap-1 text-muted-foreground">
-                      <Calendar className="h-3.5 w-3.5" /> Filename Inferred
-                    </span>
-                    <span className="max-w-44 truncate font-medium text-foreground">
-                      {inferredDate}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between gap-2">
-                    <span className="flex items-center gap-1 text-muted-foreground">
-                      <Calendar className="h-3.5 w-3.5" /> Filesystem Creation
-                    </span>
-                    <span className="max-w-44 truncate font-medium text-foreground">
-                      {fsDate}
-                    </span>
-                  </div>
-                </div>
 
                 {/* Action utilities */}
                 <div className="mt-auto border-t border-border pt-4">

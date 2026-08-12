@@ -1,5 +1,6 @@
 import { MediaRepository } from "../repositories/media.repository"
 import type { MediaItem } from "../../shared/types/media"
+import { hammingDistance } from "../core/duplicate-logic"
 
 /**
  * Fast perceptual similarity sort: re-orders items so visually similar items
@@ -11,11 +12,14 @@ export async function sortBySimilarity(items: MediaItem[]): Promise<MediaItem[]>
   const unhashed = items.filter((i) => !i.hash)
   if (hashed.length === 0) return items
 
-  // Pre-parse items with valid BigInt hashes
-  const parsed: { item: MediaItem; big: bigint }[] = []
+  // Pre-parse items with valid BigInt hashes and primary hex strings
+  // For 192-char multi-frame video hashes, extract primary mid-frame (chars 64..128) for uniform BigInt sorting
+  const parsed: { item: MediaItem; big: bigint; fullHash: string; primaryHex: string }[] = []
   for (const item of hashed) {
     try {
-      parsed.push({ item, big: BigInt("0x" + item.hash!) })
+      const hex = item.hash!
+      const primaryHex = hex.length >= 128 ? hex.slice(64, 128) : hex
+      parsed.push({ item, big: BigInt("0x" + primaryHex), fullHash: hex, primaryHex })
     } catch {
       unhashed.push(item)
     }
@@ -41,7 +45,7 @@ export async function sortBySimilarity(items: MediaItem[]): Promise<MediaItem[]>
     if (step % 200 === 0) {
       await new Promise((r) => setImmediate(r))
     }
-    const currentBig = parsed[currentIdx].big
+    const currentItem = parsed[currentIdx].item
     let bestIdx = -1
     let bestDist = Infinity
 
@@ -51,12 +55,36 @@ export async function sortBySimilarity(items: MediaItem[]): Promise<MediaItem[]>
 
     for (let j = searchStart; j < searchEnd; j++) {
       if (visited[j]) continue
-      let x = currentBig ^ parsed[j].big
-      let dist = 0
-      while (x > 0n) {
-        x &= x - 1n
-        dist++
+      const targetItem = parsed[j].item
+
+      let dist: number
+      if (
+        parsed[currentIdx].fullHash.length === parsed[j].fullHash.length &&
+        parsed[currentIdx].fullHash.length > 64
+      ) {
+        dist = hammingDistance(parsed[currentIdx].fullHash, parsed[j].fullHash)
+        if (dist === -1) {
+          dist = hammingDistance(parsed[currentIdx].primaryHex, parsed[j].primaryHex)
+        }
+      } else {
+        dist = hammingDistance(parsed[currentIdx].primaryHex, parsed[j].primaryHex)
       }
+      if (dist === -1) dist = 999
+
+      // Add distance penalty if both are videos but durations differ significantly (> 10%)
+      if (
+        currentItem.mediaType === "video" &&
+        targetItem.mediaType === "video" &&
+        currentItem.duration !== undefined &&
+        targetItem.duration !== undefined
+      ) {
+        const durDelta = Math.abs(currentItem.duration - targetItem.duration)
+        const allowed = Math.max(3, Math.max(currentItem.duration, targetItem.duration) * 0.10)
+        if (durDelta > allowed) {
+          dist += 50 // Penalty for duration mismatch
+        }
+      }
+
       if (dist < bestDist) {
         bestDist = dist
         bestIdx = j

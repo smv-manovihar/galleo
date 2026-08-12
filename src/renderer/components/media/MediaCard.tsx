@@ -5,7 +5,6 @@ import {
   Play,
   Trash2,
   Bookmark,
-  AlertTriangle,
   ExternalLink,
   Eye,
   Info,
@@ -36,7 +35,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip"
-import { QualityScoreHoverCard } from "./QualityScoreHoverCard"
+import { QualityScoreBadge } from "./QualityScoreBadge"
 
 interface MediaCardProps {
   item: MediaItem
@@ -82,21 +81,6 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
     setPrevThumbUrl(thumbUrl)
     setImgError(false)
   }
-
-  const qualityFlags = useMemo(() => {
-    if (!item.quality) return []
-    const reasons: string[] = []
-    if (item.quality.isBlurry) reasons.push("Blurry")
-    if (item.quality.isDark) reasons.push("Underexposed")
-    if (item.quality.isScreenshot) reasons.push("Screenshot")
-    if (item.quality.isSmall) reasons.push("Low Resolution")
-    if (item.quality.compositeScore < 50 && reasons.length === 0)
-      reasons.push("Low Quality Score")
-    return reasons
-  }, [item.quality])
-
-  const isFlagged =
-    hasQuality && qualityFlags.length > 0 && item.reviewState === "pending"
 
   const dateStr = useMemo(() => {
     if (!item.dateTarget) return ""
@@ -165,24 +149,7 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
             {/* Quality Score & Warning Badge (Top-Left) */}
             {hasQuality && (
               <div className="absolute top-2 left-2 z-20">
-                <QualityScoreHoverCard item={item} side="top">
-                  <div
-                    className={`flex cursor-help items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-semibold shadow-xs backdrop-blur-md transition-colors ${
-                      isFlagged
-                        ? "border border-amber-500/40 bg-amber-950/85 text-amber-200"
-                        : item.quality!.compositeScore < 50
-                          ? "border border-red-500/40 bg-red-950/85 text-red-200"
-                          : "border border-white/15 bg-black/75 text-white/90"
-                    }`}
-                  >
-                    {isFlagged && (
-                      <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
-                    )}
-                    <span className="tabular-nums">
-                      {item.quality!.compositeScore}
-                    </span>
-                  </div>
-                </QualityScoreHoverCard>
+                <QualityScoreBadge item={item} side="top" />
               </div>
             )}
 

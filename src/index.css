@@ -243,6 +243,22 @@ html {
   }
 }
 
+@keyframes marquee-pingpong {
+  0%, 20% {
+    transform: translateX(0%);
+  }
+  50%, 70% {
+    transform: translateX(max(-50%, calc(-100% + 11rem)));
+  }
+  100% {
+    transform: translateX(0%);
+  }
+}
+
+.animate-marquee-pingpong {
+  animation: marquee-pingpong 10s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-old(page-content),
   ::view-transition-new(page-content) {

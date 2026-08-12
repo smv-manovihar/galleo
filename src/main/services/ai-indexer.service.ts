@@ -155,22 +155,20 @@ export class AIIndexerService {
               failedCount
             )
 
-            // Gracefully stop indexing if too many consecutive errors occur
             if (consecutiveFailures >= 5) {
-              console.error(
-                `[AIIndexer] Stopping indexing: ${consecutiveFailures} consecutive errors encountered.`
+              console.warn(
+                `[AIIndexer] ${consecutiveFailures} consecutive errors encountered; skipping failing batch items and continuing indexing.`
               )
               this.notifyProgress(
                 window,
-                false,
+                true,
                 processedCount,
                 totalCount,
                 undefined,
-                `AI Indexing stopped after ${consecutiveFailures} consecutive errors (${errMsg})`,
+                `Skipped failing files after ${consecutiveFailures} errors (${errMsg})`,
                 failedCount
               )
-              this.isCancelled = true
-              break
+              consecutiveFailures = 0
             }
           }
 

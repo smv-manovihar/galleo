@@ -10,7 +10,8 @@ import { QualityService } from "./quality.service"
 import { ThumbnailService } from "./thumbnail.service"
 import { DuplicateService } from "./duplicate.service"
 import { SimilarityService } from "./similarity.service"
-import { analyzeImage } from "../infrastructure/image-processor"
+import { extractVideoMultiHash } from "../infrastructure/video-processor"
+import { computeFastContentHash } from "../infrastructure/file-hasher"
 import { type Result, ok, fail } from "../../shared/types/results"
 import type { MediaItem } from "../../shared/types/media"
 import { IPC_CHANNELS, type FolderCountResult, type FileChangeEvent } from "../../shared/types/ipc"
@@ -43,6 +44,7 @@ export class ScannerService {
     string,
     Map<string, "added" | "deleted" | "modified">
   >()
+  private activeWindow: BrowserWindow | null = null
 
   public getIsScanning(): boolean {
     return this.isScanning
@@ -155,6 +157,7 @@ export class ScannerService {
    * changes are detected (debounced to avoid performance impact).
    */
   public watchFolders(window: BrowserWindow, rootPaths: string[]): void {
+    this.activeWindow = window
     const normRootPaths = rootPaths.map((p) => this.normalizePath(p))
 
     // Stop watchers for paths no longer in settings
@@ -271,7 +274,8 @@ export class ScannerService {
           if (existingTimer) clearTimeout(existingTimer)
 
           const newTimer = setTimeout(async () => {
-            if (!this.isWindowAlive(window)) return
+            const win = this.activeWindow
+            if (!win || !this.isWindowAlive(win)) return
             try {
               // Batched DB transaction write: sync all pending changes for this root folder at once
               const currentNetMap = this.folderNetChanges.get(normRoot)
@@ -286,8 +290,8 @@ export class ScannerService {
               }
 
               const counts = await this.countMediaFiles([rootPath])
-              if (this.isWindowAlive(window)) {
-                window.webContents.send(
+              if (this.activeWindow && this.isWindowAlive(this.activeWindow)) {
+                this.activeWindow.webContents.send(
                   IPC_CHANNELS.SCAN_FOLDER_COUNTS_UPDATED,
                   counts
                 )
@@ -309,8 +313,8 @@ export class ScannerService {
     if (rootPaths.length > 0) {
       this.countMediaFiles(rootPaths)
         .then((counts) => {
-          if (this.isWindowAlive(window)) {
-            window.webContents.send(
+          if (this.activeWindow && this.isWindowAlive(this.activeWindow)) {
+            this.activeWindow.webContents.send(
               IPC_CHANNELS.SCAN_FOLDER_COUNTS_UPDATED,
               counts
             )
@@ -406,6 +410,9 @@ export class ScannerService {
           }
         }
 
+        // Buffer items across batches to reduce SQLite WAL transaction commit frequency
+        const dbBuffer: MediaItem[] = []
+
         // 3. Process discovered files in batches, with up to `concurrency` files in-flight at once
         for (let i = 0; i < totalCount; i += batchSize) {
           if (this.isCancelled) break
@@ -447,13 +454,21 @@ export class ScannerService {
 
                 const meta = metaRes.data
 
+                // Compute fast byte-to-byte content hash (exactHash)
+                let exactHash: string | undefined = undefined
+                const exactHashRes = await computeFastContentHash(file.path, file.size)
+                if (exactHashRes.ok) {
+                  exactHash = exactHashRes.data
+                }
+
                 // Create compressed thumbnail cache file FIRST to allow video hash generation from thumbnail frame
                 let thumbnailPath = undefined
                 const thumbRes =
                   await this.thumbnailService.getOrCreateThumbnail(
                     file.path,
                     file.id,
-                    file.mediaType
+                    file.mediaType,
+                    meta.duration
                   )
                 if (thumbRes.ok) {
                   thumbnailPath = thumbRes.data
@@ -477,15 +492,19 @@ export class ScannerService {
                   hash = qualityRes.data.hash
                 }
 
-                // For videos, derive the perceptual hash from the generated thumbnail frame
-                if (file.mediaType === "video" && thumbnailPath) {
+                // For videos, derive multi-frame perceptual hash across keyframes (15%, 50%, 85%)
+                if (file.mediaType === "video") {
                   try {
-                    const analysisRes = await analyzeImage(thumbnailPath)
-                    if (analysisRes.ok) {
-                      hash = analysisRes.data.hash
+                    const multiHashRes = await extractVideoMultiHash(
+                      file.path,
+                      file.id,
+                      meta.duration
+                    )
+                    if (multiHashRes.ok) {
+                      hash = multiHashRes.data
                     }
                   } catch {
-                    // Fail silently — keep hash undefined
+                    // Fail silently — fallback to single frame hash if any
                   }
                 }
 
@@ -498,6 +517,8 @@ export class ScannerService {
                   mediaType: file.mediaType,
                   width: meta.width,
                   height: meta.height,
+                  duration: meta.duration ?? undefined,
+                  exactHash,
                   dateAdded: cached?.dateAdded ?? new Date().toISOString(),
                   dateOriginal: meta.dateOriginal ?? undefined,
                   dateInferred: meta.dateInferred ?? undefined,
@@ -528,14 +549,19 @@ export class ScannerService {
           )
 
           // Yield to event loop between batches so IPC + window stay responsive
-          await new Promise(r => setImmediate(r))
+          await new Promise((r) => setImmediate(r))
 
-          // Save batch to SQLite and stream new items to the frontend
+          // Save batch to SQLite (buffered in chunks of 250 or on last batch) and stream new items to frontend
           if (processedItems.length > 0) {
-            this.mediaRepository.upsertMany(processedItems)
+            dbBuffer.push(...processedItems)
+            const isLastBatch = i + batchSize >= totalCount || this.isCancelled
+            if (dbBuffer.length >= 250 || isLastBatch) {
+              this.mediaRepository.upsertMany(dbBuffer)
+              dbBuffer.length = 0
+            }
 
-            // Yield after synchronous DB write to let IPC messages drain
-            await new Promise(r => setImmediate(r))
+            // Yield after DB write to let IPC messages drain
+            await new Promise((r) => setImmediate(r))
 
             if (this.isWindowAlive(window)) {
               window.webContents.send(IPC_CHANNELS.SCAN_PROGRESS, {
@@ -634,7 +660,9 @@ export class ScannerService {
             window.webContents.send(IPC_CHANNELS.SCAN_POST_PROCESSING_COMPLETE)
           }
         } finally {
-          this.clearScanInProgress()
+          if (!this.isScanning) {
+            this.clearScanInProgress()
+          }
         }
       })
 
@@ -888,13 +916,16 @@ export class ScannerService {
     fn: (item: T) => Promise<void>
   ): Promise<void> {
     let idx = 0
+    let processed = 0
     const worker = async () => {
       while (idx < items.length) {
         const item = items[idx++]
         await fn(item)
-        // Yield to the event loop after each file so the main thread can
-        // process IPC messages, repaint the window, and handle user input
-        await new Promise(r => setImmediate(r))
+        processed++
+        // Yield to the event loop periodically (every 25 items) to avoid per-file timer overhead
+        if (processed % 25 === 0) {
+          await new Promise((r) => setImmediate(r))
+        }
       }
     }
     await Promise.all(
@@ -962,29 +993,33 @@ export class ScannerService {
           }
         }
 
-        // Stat all candidate files in parallel
+        // Stat candidate files in chunks of 50 to avoid libuv thread pool queueing
         if (candidateFiles.length > 0) {
-          const statResults = await Promise.all(
-            candidateFiles.map(({ fullPath }) =>
-              fs.stat(fullPath).catch(() => null)
+          const STAT_CHUNK_SIZE = 50
+          for (let c = 0; c < candidateFiles.length; c += STAT_CHUNK_SIZE) {
+            const chunk = candidateFiles.slice(c, c + STAT_CHUNK_SIZE)
+            const statResults = await Promise.all(
+              chunk.map(({ fullPath }) =>
+                fs.stat(fullPath).catch(() => null)
+              )
             )
-          )
 
-          for (let i = 0; i < candidateFiles.length; i++) {
-            const stats = statResults[i]
-            if (!stats) continue
-            const { entry, normalizedPath, ext } = candidateFiles[i]
-            const fileId = this.generateFileId(normalizedPath)
-            const isVideo = ["mp4", "mov", "avi", "mkv", "webm"].includes(ext)
-            outList.push({
-              id: fileId,
-              path: normalizedPath,
-              name: entry.name,
-              size: stats.size,
-              mtime: stats.mtime.toISOString(),
-              extension: ext,
-              mediaType: isVideo ? "video" : "photo",
-            })
+            for (let i = 0; i < chunk.length; i++) {
+              const stats = statResults[i]
+              if (!stats) continue
+              const { entry, normalizedPath, ext } = chunk[i]
+              const fileId = this.generateFileId(normalizedPath)
+              const isVideo = ["mp4", "mov", "avi", "mkv", "webm"].includes(ext)
+              outList.push({
+                id: fileId,
+                path: normalizedPath,
+                name: entry.name,
+                size: stats.size,
+                mtime: stats.mtime.toISOString(),
+                extension: ext,
+                mediaType: isVideo ? "video" : "photo",
+              })
+            }
           }
         }
       } catch {

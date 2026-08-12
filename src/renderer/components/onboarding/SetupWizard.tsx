@@ -277,6 +277,12 @@ const OrganizerPreview: React.FC = () => {
 }
 
 // ==========================================
+const SHOWCASE_TABS = [
+  { id: "cull", label: "Media culling", icon: Zap },
+  { id: "duplicates", label: "Duplicates", icon: Layers },
+  { id: "organize", label: "Organizer", icon: Folder },
+]
+
 // FEATURE SHOWCASE WIDGET (Tabs + Autoplay)
 // ==========================================
 const FeatureShowcaseVisualizer: React.FC = () => {
@@ -284,11 +290,7 @@ const FeatureShowcaseVisualizer: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState<boolean>(true)
   const autoplayTimerRef = useRef<NodeJS.Timeout | null>(null)
 
-  const tabs = [
-    { id: "cull", label: "Media culling", icon: Zap },
-    { id: "duplicates", label: "Duplicates", icon: Layers },
-    { id: "organize", label: "Organizer", icon: Folder },
-  ]
+  const tabs = SHOWCASE_TABS
 
   useEffect(() => {
     if (!isPlaying) {
@@ -298,8 +300,8 @@ const FeatureShowcaseVisualizer: React.FC = () => {
 
     autoplayTimerRef.current = setInterval(() => {
       setActiveTab((prev) => {
-        const idx = tabs.findIndex((t) => t.id === prev)
-        return tabs[(idx + 1) % tabs.length].id
+        const idx = SHOWCASE_TABS.findIndex((t) => t.id === prev)
+        return SHOWCASE_TABS[(idx + 1) % SHOWCASE_TABS.length].id
       })
     }, 6000)
 

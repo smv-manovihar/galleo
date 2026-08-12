@@ -232,7 +232,7 @@ const DuplicateAuditGroupCard = React.memo<DuplicateAuditGroupCardProps>(
   areEqual
 )
 
-interface DuplicateAuditAutoCleanupProps {
+interface DuplicateAuditExactDuplicatesProps {
   exactDupsToDelete: MediaItem[]
   exactDupsToKeep: MediaItem[]
   duplicateGroups: MediaItem[][]
@@ -246,8 +246,8 @@ interface DuplicateAuditAutoCleanupProps {
   ) => void
 }
 
-export const DuplicateAuditAutoCleanup: React.FC<
-  DuplicateAuditAutoCleanupProps
+export const DuplicateAuditExactDuplicates: React.FC<
+  DuplicateAuditExactDuplicatesProps
 > = ({
   exactDupsToDelete,
   exactDupsToKeep,
@@ -382,7 +382,7 @@ export const DuplicateAuditAutoCleanup: React.FC<
       deletes: MediaItem[]
       groupIdx: number
     }[]
-  }, [duplicateGroups, exactDupsToDelete, exactDupsToKeep, overrides, trashedIds])
+  }, [duplicateGroups, exactDupsToKeep, overrides, trashedIds])
 
   const rowVirtualizer = useVirtualizer({
     count: groups.length,
@@ -557,14 +557,14 @@ export const DuplicateAuditAutoCleanup: React.FC<
                       onClick={handleOpenDialog}
                       className={`group flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-0.5 text-2xs font-medium transition-all duration-200 select-none ${
                         hasActiveFolderRules
-                          ? "border-amber-500/40 bg-amber-500/10 text-foreground shadow-2xs hover:border-amber-500/60 hover:bg-amber-500/20 dark:border-amber-500/50 dark:bg-amber-500/15 dark:hover:bg-amber-500/25"
+                          ? "border-primary/40 bg-primary/10 text-foreground shadow-2xs hover:border-primary/50 hover:bg-primary/15"
                           : "border-border/80 bg-muted/40 text-muted-foreground hover:border-border hover:bg-muted hover:text-foreground"
                       }`}
                     >
                       <SlidersHorizontal
                         className={`h-3 w-3 transition-transform duration-200 group-hover:scale-110 ${
                           hasActiveFolderRules
-                            ? "text-amber-600 dark:text-amber-400"
+                            ? "text-primary"
                             : "text-muted-foreground"
                         }`}
                       />
@@ -573,12 +573,12 @@ export const DuplicateAuditAutoCleanup: React.FC<
                       {totalRuleCount > 0 && (
                         <div className="ml-0.5 flex items-center gap-1">
                           {keepCount > 0 && (
-                            <span className="py-0.2 inline-flex items-center rounded-full bg-green-500/20 px-1.5 text-[9px] font-bold text-green-700 dark:bg-green-500/30 dark:text-green-300">
+                            <span className="inline-flex items-center rounded-full bg-emerald-500/15 px-1.5 py-0.2 text-[9px] font-bold text-emerald-600 dark:text-emerald-400">
                               {keepCount}
                             </span>
                           )}
                           {deleteCount > 0 && (
-                            <span className="py-0.2 dark:text-destructive-foreground inline-flex items-center rounded-full bg-destructive/20 px-1.5 text-[9px] font-bold text-destructive dark:bg-destructive/30">
+                            <span className="inline-flex items-center rounded-full bg-destructive/15 px-1.5 py-0.2 text-[9px] font-bold text-destructive">
                               {deleteCount}
                             </span>
                           )}
@@ -629,7 +629,7 @@ export const DuplicateAuditAutoCleanup: React.FC<
                       <Info className="h-3.5 w-3.5 text-sky-500" />
                       <span>How Folder Rules Work</span>
                     </PopoverTitle>
-                    <PopoverDescription className="text-3xs text-muted-foreground">
+                    <PopoverDescription className="text-2xs text-muted-foreground">
                       Assign rules to folders to control automated duplicate
                       cleanup.
                     </PopoverDescription>
@@ -637,7 +637,7 @@ export const DuplicateAuditAutoCleanup: React.FC<
 
                   <div className="space-y-1.5 border-t border-border/50 pt-1.5 text-2xs">
                     <div className="flex items-start gap-1.5">
-                      <span className="mt-0.5 inline-block h-2 w-2 shrink-0 rounded-full bg-green-500" />
+                      <span className="mt-0.5 inline-block h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
                       <div>
                         <strong className="font-semibold text-foreground">
                           Keep:
@@ -666,9 +666,9 @@ export const DuplicateAuditAutoCleanup: React.FC<
                     </div>
                   </div>
 
-                  <div className="border-t border-border/40 pt-1.5 text-[10px] font-medium text-muted-foreground">
+                  <div className="border-t border-border/40 pt-1.5 text-2xs font-medium text-muted-foreground">
                     Priority:{" "}
-                    <span className="font-semibold text-green-600 dark:text-green-400">
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">
                       Keep
                     </span>{" "}
                     &gt;{" "}
@@ -693,13 +693,13 @@ export const DuplicateAuditAutoCleanup: React.FC<
 
           {/* Quick Filter Bar & Search */}
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/20 px-5 py-2.5">
-            <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/50 p-0.5">
+            <div className="flex items-center gap-1 rounded-lg border border-border/80 bg-muted/50 p-0.5">
               <button
                 type="button"
                 onClick={() => setActiveFilter("all")}
                 className={`cursor-pointer rounded-md px-2.5 py-1 text-2xs font-semibold transition-colors ${
                   activeFilter === "all"
-                    ? "border border-border bg-background text-foreground shadow-xs"
+                    ? "border border-border bg-background text-foreground shadow-2xs"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -710,11 +710,11 @@ export const DuplicateAuditAutoCleanup: React.FC<
                 onClick={() => setActiveFilter("keep")}
                 className={`flex cursor-pointer items-center gap-1 rounded-md px-2.5 py-1 text-2xs font-semibold transition-colors ${
                   activeFilter === "keep"
-                    ? "border border-green-500/30 bg-green-500/20 text-green-700 dark:text-green-400"
+                    ? "border border-emerald-500/30 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 shadow-2xs"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <Bookmark className="h-3 w-3 text-green-600 dark:text-green-400" />
+                <Bookmark className="h-3 w-3 text-emerald-500" />
                 <span>Keep ({ruleCounts.keep})</span>
               </button>
               <button
@@ -722,7 +722,7 @@ export const DuplicateAuditAutoCleanup: React.FC<
                 onClick={() => setActiveFilter("delete")}
                 className={`flex cursor-pointer items-center gap-1 rounded-md px-2.5 py-1 text-2xs font-semibold transition-colors ${
                   activeFilter === "delete"
-                    ? "border border-destructive/30 bg-destructive/20 text-destructive"
+                    ? "border border-destructive/30 bg-destructive/15 text-destructive shadow-2xs"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -758,27 +758,27 @@ export const DuplicateAuditAutoCleanup: React.FC<
                     key={folder}
                     className={`flex items-center justify-between gap-3 rounded-lg border p-2.5 text-xs transition-colors select-none ${
                       rule === "keep"
-                        ? "border-green-500/40 bg-green-500/10"
+                        ? "border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10"
                         : rule === "delete"
-                          ? "border-destructive/40 bg-destructive/10"
-                          : "border-border bg-card/50 hover:bg-muted/40"
+                          ? "border-destructive/30 bg-destructive/5 dark:bg-destructive/10"
+                          : "border-border/60 bg-card hover:bg-muted/40"
                     }`}
                   >
                     <div className="flex min-w-0 flex-1 items-center gap-2.5">
                       <Folder
                         className={`h-4 w-4 shrink-0 ${
                           rule === "keep"
-                            ? "text-green-500"
+                            ? "text-emerald-500"
                             : rule === "delete"
                               ? "text-destructive"
-                              : "text-amber-500/80"
+                              : "text-muted-foreground"
                         }`}
                       />
                       <div className="flex min-w-0 flex-col leading-tight">
                         <span className="truncate font-medium text-foreground">
                           {folder}
                         </span>
-                        <span className="text-3xs text-muted-foreground">
+                        <span className="text-2xs text-muted-foreground">
                           {count}{" "}
                           {count === 1 ? "duplicate file" : "duplicate files"}
                         </span>
@@ -786,26 +786,26 @@ export const DuplicateAuditAutoCleanup: React.FC<
                     </div>
 
                     {/* 3-way segmented action selector */}
-                    <div className="flex shrink-0 items-center rounded-lg border border-border bg-muted/40 p-0.5">
+                    <div className="flex shrink-0 items-center rounded-lg border border-border/80 bg-muted/40 p-0.5">
                       <button
                         type="button"
                         onClick={() => setSingleFolderRule(folder, "keep")}
-                        className={`flex cursor-pointer items-center gap-1 rounded-md px-2.5 py-1 text-3xs font-semibold transition-all ${
+                        className={`flex cursor-pointer items-center gap-1 rounded-md px-2.5 py-1 text-2xs font-semibold transition-all ${
                           rule === "keep"
-                            ? "border border-green-500/40 bg-green-500/20 text-green-700 shadow-xs dark:text-green-400"
+                            ? "border border-emerald-500/40 bg-emerald-500/15 text-emerald-700 shadow-2xs dark:text-emerald-300"
                             : "text-muted-foreground hover:text-foreground"
                         }`}
                       >
-                        <Bookmark className="h-2.5 w-2.5 text-green-600 dark:text-green-400" />
+                        <Bookmark className="h-2.5 w-2.5 text-emerald-600 dark:text-emerald-400" />
                         <span>Keep</span>
                       </button>
 
                       <button
                         type="button"
                         onClick={() => setSingleFolderRule(folder, "delete")}
-                        className={`flex cursor-pointer items-center gap-1 rounded-md px-2.5 py-1 text-3xs font-semibold transition-all ${
+                        className={`flex cursor-pointer items-center gap-1 rounded-md px-2.5 py-1 text-2xs font-semibold transition-all ${
                           rule === "delete"
-                            ? "border border-destructive/40 bg-destructive/20 text-destructive shadow-xs"
+                            ? "border border-destructive/40 bg-destructive/15 text-destructive shadow-2xs"
                             : "text-muted-foreground hover:text-foreground"
                         }`}
                       >
@@ -816,10 +816,10 @@ export const DuplicateAuditAutoCleanup: React.FC<
                       <button
                         type="button"
                         onClick={() => setSingleFolderRule(folder, "off")}
-                        className={`cursor-pointer rounded-md px-2 py-1 text-3xs font-medium transition-all ${
+                        className={`cursor-pointer rounded-md px-2 py-1 text-2xs font-medium transition-all ${
                           rule === "off"
-                            ? "border border-border bg-background text-foreground shadow-xs"
-                            : "text-muted-foreground/60 hover:text-muted-foreground"
+                            ? "border border-border bg-background text-foreground shadow-2xs"
+                            : "text-muted-foreground/70 hover:text-foreground"
                         }`}
                       >
                         Default

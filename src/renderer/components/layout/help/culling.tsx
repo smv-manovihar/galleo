@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useRef, useCallback } from "react"
 import {
   DialogHeader,
   DialogTitle,
@@ -102,7 +102,7 @@ export const CullingAnimationDemo: React.FC<CullingAnimationDemoProps> = ({
 
   const currentCard = cardGradients[cardIndex % cardGradients.length]
 
-  const triggerSwipe = (direction: "left" | "right", isManual = false) => {
+  const triggerSwipe = useCallback((direction: "left" | "right", isManual = false) => {
     if (animationState !== "idle") return
     if (isManual) {
       setIsAutoplay(false)
@@ -114,7 +114,7 @@ export const CullingAnimationDemo: React.FC<CullingAnimationDemoProps> = ({
       setCardIndex((prev) => (prev + 1) % cardGradients.length)
       setAnimationState("idle")
     }, 420)
-  }
+  }, [animationState, cardGradients.length])
 
   useEffect(() => {
     if (!isAutoplay) return
@@ -134,7 +134,7 @@ export const CullingAnimationDemo: React.FC<CullingAnimationDemoProps> = ({
         clearTimeout(autoplayTimerRef.current)
       }
     }
-  }, [isAutoplay, cardIndex, animationState, currentCard.swipeDirection])
+  }, [isAutoplay, cardIndex, animationState, currentCard.swipeDirection, triggerSwipe])
 
   // Get 4 visible deck items starting from cardIndex to smoothly animate full stack movement (3 -> 2 -> 1 -> 0)
   const visibleCards = [3, 2, 1, 0].map((offset) => {

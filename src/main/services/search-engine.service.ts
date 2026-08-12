@@ -1,4 +1,4 @@
-import { AIService, cosineSimilarity } from "./ai.service"
+import { aiService, cosineSimilarity } from "./ai.service"
 import { EmbeddingRepository } from "../repositories/embedding.repository"
 import { MediaRepository } from "../repositories/media.repository"
 import type { MediaItem } from "../../shared/types/media"
@@ -26,7 +26,7 @@ export interface SearchResultItem {
 }
 
 export class SearchEngineService {
-  private aiService = new AIService()
+  private aiService = aiService
   private embeddingRepository = new EmbeddingRepository()
   private mediaRepository = new MediaRepository()
 
@@ -213,31 +213,24 @@ export class SearchEngineService {
 
     if (!targetVector) return []
 
-    const allMediaEmbeddings = this.embeddingRepository.getAllMediaEmbeddings()
-    const allFrameEmbeddings = this.embeddingRepository.getAllVideoFrameEmbeddings()
-
     const itemSimMap = new Map<
       string,
       { score: number; frame?: { timestampSeconds: number; thumbnailPath?: string } }
     >()
 
-    let compareCount = 0
-    // Compare with image embeddings
-    for (const rec of allMediaEmbeddings) {
-      if (rec.mediaId === mediaId) continue
-      const sim = Math.max(0, cosineSimilarity(targetVector, rec.embedding, true))
+    // Compare with image embeddings using memory-efficient streaming iteration
+    this.embeddingRepository.forEachMediaEmbedding((rec) => {
+      if (rec.mediaId === mediaId) return
+      const sim = Math.max(0, cosineSimilarity(targetVector!, rec.embedding, true))
       if (sim > 0.3) {
         itemSimMap.set(rec.mediaId, { score: sim })
       }
-      if (++compareCount % 500 === 0) {
-        await new Promise((r) => setImmediate(r))
-      }
-    }
+    })
 
-    // Compare with video frame embeddings
-    for (const frame of allFrameEmbeddings) {
-      if (frame.mediaId === mediaId) continue
-      const sim = Math.max(0, cosineSimilarity(targetVector, frame.embedding, true))
+    // Compare with video frame embeddings using memory-efficient streaming iteration
+    this.embeddingRepository.forEachVideoFrameEmbedding((frame) => {
+      if (frame.mediaId === mediaId) return
+      const sim = Math.max(0, cosineSimilarity(targetVector!, frame.embedding, true))
       const existing = itemSimMap.get(frame.mediaId)
       if (!existing || sim > existing.score) {
         itemSimMap.set(frame.mediaId, {
@@ -248,10 +241,7 @@ export class SearchEngineService {
           },
         })
       }
-      if (++compareCount % 500 === 0) {
-        await new Promise((r) => setImmediate(r))
-      }
-    }
+    })
 
     const matchedMediaIds = Array.from(itemSimMap.keys())
     const results: SearchResultItem[] = []

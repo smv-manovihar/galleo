@@ -35,8 +35,26 @@ export class DuplicateService {
         }
       }
       const items = Array.from(itemMap.values())
+      return await this.resolveDuplicatesForItems(items, maxDistance)
+    } catch (e: unknown) {
+      const err = e as { message?: string }
+      return fail({
+        code: "UNKNOWN",
+        message: err.message || "Duplicate resolution failed",
+      })
+    }
+  }
 
-      // Find and group duplicate photos using blockhash logic asynchronously
+  /**
+   * Resolves duplicates for an explicit array of MediaItems using multi-tier
+   * exact content hashing + multi-frame perceptual hashing + duration guarding.
+   */
+  public async resolveDuplicatesForItems(
+    items: MediaItem[],
+    maxDistance: number
+  ): Promise<Result<MediaItem[]>> {
+    try {
+      // Find and group duplicate media (exact byte matches + multi-frame pHash)
       const groups = await findDuplicates(items, maxDistance)
 
       // Map groups by item ID

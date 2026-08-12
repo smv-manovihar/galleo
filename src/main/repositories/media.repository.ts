@@ -47,6 +47,8 @@ export class MediaRepository {
       dateTargetSource: row.date_target_source as
         "exif" | "filename" | "filesystem",
       hash: row.hash ?? undefined,
+      exactHash: row.exact_hash ?? undefined,
+      duration: row.duration ?? undefined,
       thumbnailPath: row.thumbnail_path ?? undefined,
       dateModified: row.date_modified ?? undefined,
       quality,
@@ -96,13 +98,13 @@ export class MediaRepository {
       INSERT INTO media_items (
         id, path, name, size, extension, media_type, width, height,
         date_added, date_original, date_inferred, date_filesystem,
-        date_target, date_target_source, hash, thumbnail_path, date_modified,
+        date_target, date_target_source, hash, exact_hash, duration, thumbnail_path, date_modified,
         blur_score, brightness, is_dark, is_blurry, is_screenshot, is_small, composite_score,
         duplicate_group_id, is_duplicate, is_best_in_duplicate_group, similarity_index, review_state, reviewed_at
       ) VALUES (
         $id, $path, $name, $size, $extension, $mediaType, $width, $height,
         $dateAdded, $dateOriginal, $dateInferred, $dateFileSystem,
-        $dateTarget, $dateTargetSource, $hash, $thumbnailPath, $dateModified,
+        $dateTarget, $dateTargetSource, $hash, $exactHash, $duration, $thumbnailPath, $dateModified,
         $blurScore, $brightness, $isDark, $isBlurry, $isScreenshot, $isSmall, $compositeScore,
         $duplicateGroupId, $isDuplicate, $isBestInDuplicateGroup, $similarityIndex, $reviewState, $reviewedAt
       )
@@ -120,6 +122,8 @@ export class MediaRepository {
         date_target = excluded.date_target,
         date_target_source = excluded.date_target_source,
         hash = excluded.hash,
+        exact_hash = excluded.exact_hash,
+        duration = excluded.duration,
         thumbnail_path = COALESCE(excluded.thumbnail_path, media_items.thumbnail_path),
         date_modified = excluded.date_modified,
         blur_score = excluded.blur_score,
@@ -153,6 +157,8 @@ export class MediaRepository {
           dateTarget: item.dateTarget,
           dateTargetSource: item.dateTargetSource,
           hash: item.hash ?? null,
+          exactHash: item.exactHash ?? null,
+          duration: item.duration ?? null,
           thumbnailPath: item.thumbnailPath ?? null,
           dateModified: item.dateModified ?? null,
           blurScore: item.quality?.blurScore ?? null,

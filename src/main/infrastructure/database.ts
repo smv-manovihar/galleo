@@ -65,6 +65,8 @@ export function initDatabase(): Database.Database {
       date_target TEXT NOT NULL,
       date_target_source TEXT NOT NULL,
       hash TEXT,
+      exact_hash TEXT,
+      duration REAL,
       thumbnail_path TEXT,
       date_modified TEXT,
       
@@ -176,6 +178,25 @@ export function initDatabase(): Database.Database {
       // Index may already exist
     }
     db.pragma("user_version = 2")
+  }
+
+  if (currentVersion < 3) {
+    try {
+      db.exec(`ALTER TABLE media_items ADD COLUMN exact_hash TEXT;`)
+    } catch {
+      // Column may already exist
+    }
+    try {
+      db.exec(`ALTER TABLE media_items ADD COLUMN duration REAL;`)
+    } catch {
+      // Column may already exist
+    }
+    try {
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_media_exact_hash ON media_items(exact_hash) WHERE exact_hash IS NOT NULL;`)
+    } catch {
+      // Index may already exist
+    }
+    db.pragma("user_version = 3")
   }
 
   dbInstance = db

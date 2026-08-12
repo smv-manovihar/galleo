@@ -1,4 +1,5 @@
 import ffmpegPath from "ffmpeg-static"
+import ffprobeStatic from "ffprobe-static"
 import ffmpeg from "fluent-ffmpeg"
 import path from "path"
 import fs from "fs"
@@ -16,6 +17,21 @@ if (resolvedFfmpegPath && resolvedFfmpegPath.includes("app.asar")) {
 }
 if (resolvedFfmpegPath) {
   ffmpeg.setFfmpegPath(resolvedFfmpegPath)
+}
+
+const rawFfprobePath =
+  typeof ffprobeStatic === "string"
+    ? ffprobeStatic
+    : (ffprobeStatic as { path?: string })?.path
+let resolvedFfprobePath = rawFfprobePath
+if (resolvedFfprobePath && resolvedFfprobePath.includes("app.asar")) {
+  resolvedFfprobePath = resolvedFfprobePath.replace(
+    "app.asar",
+    "app.asar.unpacked"
+  )
+}
+if (resolvedFfprobePath) {
+  ffmpeg.setFfprobePath(resolvedFfprobePath)
 }
 
 export interface ExtractedFrame {
@@ -68,16 +84,14 @@ export class VideoFrameExtractorService {
 
         if (!fs.existsSync(framePath)) {
           await new Promise<void>((resolve, reject) => {
-            ffmpeg(videoPath)
+            ffmpeg()
+              .inputOption(`-ss ${ts}`)
+              .input(videoPath)
+              .outputOptions(["-vframes 1", "-vf scale=448:-2"])
+              .output(framePath)
               .on("end", () => resolve())
               .on("error", (err) => reject(err))
-              .screenshots({
-                count: 1,
-                timestamps: [ts],
-                filename: frameFilename,
-                folder: frameDir,
-                size: "448x?", // 224x224 input size for SigLIP, 448 high clarity
-              })
+              .run()
           })
         }
 

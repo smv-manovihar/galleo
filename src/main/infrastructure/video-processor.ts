@@ -1,4 +1,5 @@
 import ffmpegPath from "ffmpeg-static"
+import ffprobeStatic from "ffprobe-static"
 import ffmpeg from "fluent-ffmpeg"
 import path from "path"
 import { existsSync } from "fs"
@@ -18,12 +19,32 @@ if (resolvedFfmpegPath) {
   ffmpeg.setFfmpegPath(resolvedFfmpegPath)
 }
 
+const rawFfprobePath =
+  typeof ffprobeStatic === "string"
+    ? ffprobeStatic
+    : (ffprobeStatic as { path?: string })?.path
+let resolvedFfprobePath = rawFfprobePath
+if (resolvedFfprobePath && resolvedFfprobePath.includes("app.asar")) {
+  resolvedFfprobePath = resolvedFfprobePath.replace(
+    "app.asar",
+    "app.asar.unpacked"
+  )
+}
+
+if (resolvedFfprobePath) {
+  ffmpeg.setFfprobePath(resolvedFfprobePath)
+}
+
+import { unlink } from "fs/promises"
+import { analyzeImage } from "./image-processor"
+
 /**
- * Extracts a thumbnail frame from a video file at the 1-second mark and saves it to cache.
+ * Extracts a representative thumbnail frame from a video file past typical intro cards.
  */
 export function generateVideoThumbnail(
   videoPath: string,
-  mediaId: string
+  mediaId: string,
+  duration?: number
 ): Promise<Result<string>> {
   return new Promise((resolve) => {
     try {
@@ -36,8 +57,21 @@ export function generateVideoThumbnail(
         return resolve(ok(outputPath))
       }
 
+      // Calculate timestamp past intros (e.g. 20% mark for videos > 5s, capped 3s-30s)
+      let sampleTimestamp = 1
+      if (duration && duration > 5) {
+        sampleTimestamp = Math.min(30, Math.max(3, duration * 0.2))
+      } else if (duration && duration > 0) {
+        sampleTimestamp = Math.max(0.5, duration * 0.5)
+      }
+
       let killed = false
-      const command = ffmpeg(videoPath)
+      const command = ffmpeg()
+        .inputOption(`-ss ${sampleTimestamp}`)
+        .input(videoPath)
+        .outputOptions(["-vframes 1", "-vf scale=1080:-2"])
+        .output(outputPath)
+
       const timeout = setTimeout(() => {
         killed = true
         try {
@@ -67,13 +101,7 @@ export function generateVideoThumbnail(
             })
           )
         })
-        .screenshots({
-          count: 1,
-          timestamps: [1], // extract frame at 1s
-          filename: outputFilename,
-          folder: cacheDir,
-          size: "1080x?", // resize keeping aspect ratio (high quality)
-        })
+        .run()
     } catch (e: unknown) {
       const err = e as { message?: string }
       resolve(
@@ -85,6 +113,110 @@ export function generateVideoThumbnail(
       )
     }
   })
+}
+
+/**
+ * Extracts multiple keyframe hashes across a video (25%, 55%, 85% of duration)
+ * and concatenates them into a robust multi-frame perceptual hash.
+ */
+export async function extractVideoMultiHash(
+  videoPath: string,
+  mediaId: string,
+  duration?: number
+): Promise<Result<string>> {
+  try {
+    const cacheDir = getThumbnailCacheDir()
+    const timestamps: number[] = []
+
+    if (duration && duration > 5) {
+      timestamps.push(
+        Math.max(1, Math.round(duration * 0.25 * 10) / 10),
+        Math.round(duration * 0.55 * 10) / 10,
+        Math.min(Math.max(1, duration - 1), Math.round(duration * 0.85 * 10) / 10)
+      )
+    } else if (duration && duration > 0) {
+      timestamps.push(Math.max(0.5, Math.round(duration * 0.5 * 10) / 10))
+    } else {
+      timestamps.push(1)
+    }
+
+    const hashes: string[] = []
+
+    for (let i = 0; i < timestamps.length; i++) {
+      const ts = timestamps[i]
+      const tempFilename = `temp_${mediaId}_hashframe_${i}.webp`
+      const tempPath = path.join(cacheDir, tempFilename)
+
+      const extractSuccess = await new Promise<boolean>((resolve) => {
+        let killed = false
+        const command = ffmpeg()
+          .inputOption(`-ss ${ts}`)
+          .input(videoPath)
+          .outputOptions(["-vframes 1", "-vf scale=448:-2"])
+          .output(tempPath)
+
+        const timeout = setTimeout(() => {
+          killed = true
+          try {
+            command.kill("SIGKILL")
+          } catch {
+            // ignore
+          }
+          resolve(false)
+        }, 10000)
+
+        command
+          .on("end", () => {
+            clearTimeout(timeout)
+            resolve(true)
+          })
+          .on("error", () => {
+            clearTimeout(timeout)
+            if (!killed) {
+              try {
+                command.kill("SIGKILL")
+              } catch {
+                // ignore
+              }
+            }
+            resolve(false)
+          })
+          .run()
+      })
+
+      if (extractSuccess && existsSync(tempPath)) {
+        try {
+          const analysisRes = await analyzeImage(tempPath)
+          if (analysisRes.ok) {
+            hashes.push(analysisRes.data.hash)
+          }
+        } catch {
+          // ignore
+        } finally {
+          unlink(tempPath).catch(() => {})
+        }
+      }
+    }
+
+    const expectedCount = timestamps.length
+    if (hashes.length < expectedCount) {
+      return fail({
+        code: "THUMBNAIL_FAILED",
+        path: videoPath,
+        reason: `Incomplete keyframe extractions for video (${hashes.length}/${expectedCount} succeeded)`,
+      })
+    }
+
+    // Concatenate frame pHashes into composite hash
+    return ok(hashes.join(""))
+  } catch (e: unknown) {
+    const err = e as { message?: string }
+    return fail({
+      code: "THUMBNAIL_FAILED",
+      path: videoPath,
+      reason: err.message || "Video multi-hash extraction failed",
+    })
+  }
 }
 
 /**
@@ -108,9 +240,10 @@ export function readVideoMetadata(
           )
         }
 
-        const videoStream = metadata.streams.find(
-          (s) => s.codec_type === "video"
-        )
+        const videoStream =
+          metadata.streams.find(
+            (s) => s.codec_type === "video" && !s.disposition?.attached_pic
+          ) || metadata.streams.find((s) => s.codec_type === "video")
         const duration = metadata.format?.duration || 0
 
         // Tier 1: primary display dimensions
@@ -149,6 +282,18 @@ export function readVideoMetadata(
             if (height && !width)
               width = Math.round((height * parts[0]) / parts[1])
           }
+        }
+
+        // Tier 4: Account for video rotation tags (e.g. mobile portrait videos rotated 90 or 270 degrees)
+        const rotationTag =
+          videoStream?.tags?.rotate ||
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          videoStream?.side_data_list?.find((sd: any) => sd.rotation !== undefined)?.rotation
+        const rotation = Math.abs(Number(rotationTag) || 0)
+        if ((rotation === 90 || rotation === 270) && width && height) {
+          const temp = width
+          width = height
+          height = temp
         }
 
         resolve(

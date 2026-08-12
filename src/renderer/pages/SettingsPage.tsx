@@ -131,7 +131,7 @@ export const SettingsPage: React.FC = () => {
         className="flex min-h-0 min-w-0 flex-1 flex-col items-stretch gap-4 lg:flex-row lg:gap-8"
       >
         {/* Settings Navigation Tabs Sidebar */}
-        <TabsList className="z-10 hidden h-fit w-56 shrink-0 gap-1.5 rounded-xl border border-border bg-card/60 p-1.5 backdrop-blur-md select-none lg:sticky lg:top-6 lg:flex lg:flex-col">
+        <TabsList variant="animated" className="z-10 hidden h-fit w-56 shrink-0 gap-1.5 rounded-xl border border-border bg-card/60 p-1.5 backdrop-blur-md select-none lg:sticky lg:top-6 lg:flex lg:flex-col">
           {tabsData.map((tab) => {
             const Icon = tab.icon
             return (

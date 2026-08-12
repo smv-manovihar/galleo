@@ -64,7 +64,6 @@ export class SessionService {
   public clearSession(folderPath: string): Result<void> {
     try {
       this.sessionRepo.clearCheckpoint(folderPath)
-      this.mediaRepo.resetReviewStatesByFolder(folderPath)
       return ok(undefined)
     } catch (e: unknown) {
       const err = e as Error

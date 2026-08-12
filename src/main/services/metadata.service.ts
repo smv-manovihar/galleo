@@ -2,6 +2,7 @@ import { readExifMetadata } from "../infrastructure/exif-reader"
 import { readVideoMetadata } from "../infrastructure/video-processor"
 import { getFileSyncStats } from "../infrastructure/file-system"
 import { resolveTargetDate } from "../core/date-inference"
+import { extractDateFromFilename } from "../core/filename-parser"
 import { type Result, fail, ok } from "../../shared/types/results"
 import type { MediaItem, MediaType } from "../../shared/types/media"
 
@@ -32,6 +33,7 @@ export class MetadataService {
       let dateOriginal: string | null = null
       let width: number | null = null
       let height: number | null = null
+      let duration: number | null = null
 
       if (fileData.mediaType === "photo") {
         const exifRes = await readExifMetadata(fileData.path)
@@ -45,10 +47,12 @@ export class MetadataService {
         if (videoRes.ok) {
           width = videoRes.data.width
           height = videoRes.data.height
+          duration = videoRes.data.duration
         }
       }
 
       // Resolve Target Date using fallback chain
+      const inferredDateObj = extractDateFromFilename(fileData.name)
       const dateRes = resolveTargetDate({
         exifDateOriginal: dateOriginal,
         filename: fileData.name,
@@ -59,7 +63,9 @@ export class MetadataService {
       return ok({
         width: width ?? undefined,
         height: height ?? undefined,
+        duration: duration ?? undefined,
         dateOriginal: dateOriginal ?? undefined,
+        dateInferred: inferredDateObj ? inferredDateObj.toISOString() : undefined,
         dateFileSystem: stats.birthtime, // birthtime represents creation
         dateTarget: dateRes.targetDate,
         dateTargetSource: dateRes.source,

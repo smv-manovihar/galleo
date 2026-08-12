@@ -129,6 +129,7 @@ export class FileOpsService {
         return fail({
           code: "UNKNOWN",
           message: `Failed to move ${failures.length} of ${paths.length} files to trash: ${failures.slice(0, 3).join(", ")}${failures.length > 3 ? "..." : ""}`,
+          data: { successfulPaths },
         })
       }
 
@@ -228,9 +229,13 @@ export class FileOpsService {
                   )
                   const mediaItem = dbItems.find((i) => i.id === item.mediaId)
                   if (mediaItem) {
+                    const targetHashId = crypto
+                      .createHash("sha256")
+                      .update(item.targetPath.toLowerCase())
+                      .digest("hex")
                     const copiedItem = {
                       ...mediaItem,
-                      id: crypto.randomUUID(),
+                      id: targetHashId,
                       path: item.targetPath,
                     }
                     this.mediaRepository.upsertMany([copiedItem])

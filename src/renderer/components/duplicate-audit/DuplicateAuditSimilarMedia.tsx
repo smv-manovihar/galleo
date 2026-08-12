@@ -16,6 +16,7 @@ import {
   TooltipContent,
 } from "@/components/ui/tooltip"
 import { MediaPreview } from "../media/MediaPreview"
+import { MediaInfoDialog } from "../media/MediaInfoDialog"
 import { Progress } from "@/components/ui/progress"
 import { useSessionStore } from "../../stores/session-store"
 import { useMediaStore } from "../../stores/media-store"
@@ -25,14 +26,16 @@ import {
 } from "./DuplicateAuditHistoryDialog"
 import { DuplicateAuditCard } from "./DuplicateAuditCard"
 
-interface DuplicateAuditReviewProps {
+interface DuplicateAuditSimilarMediaProps {
   items: MediaItem[]
   onComplete?: () => void
   activeGroupIndex: number
   onGroupIndexChange: (index: number) => void
 }
 
-export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
+export const DuplicateAuditSimilarMedia: React.FC<
+  DuplicateAuditSimilarMediaProps
+> = ({
   items,
   onComplete,
   activeGroupIndex,
@@ -63,6 +66,7 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
       : null
 
   const [previewItem, setPreviewItem] = useState<MediaItem | null>(null)
+  const [infoItem, setInfoItem] = useState<MediaItem | null>(null)
   const [autoPlay, setAutoPlay] = useState(false)
 
   // Local undo stack — isolated from the swipe-review session store stack
@@ -835,6 +839,13 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
                 isFocused={focusedCardIndex === idx}
                 onClick={() => handleToggleKeep(item.id)}
                 onPreview={(withAutoPlay) => openPreview(item, withAutoPlay)}
+                onInfoOpen={(item) => setInfoItem(item)}
+                onReviewAction={(id, state) => {
+                  const currentState = getItemReviewState(item)
+                  if (currentState !== state) {
+                    handleToggleKeep(id)
+                  }
+                }}
               />
             )
           })}
@@ -970,6 +981,11 @@ export const DuplicateAuditReview: React.FC<DuplicateAuditReviewProps> = ({
         items={currentGroup}
         onItemChange={(item) => setPreviewItem(item)}
         autoPlay={autoPlay}
+      />
+
+      <MediaInfoDialog
+        item={infoItem}
+        onClose={() => setInfoItem(null)}
       />
     </div>
   )

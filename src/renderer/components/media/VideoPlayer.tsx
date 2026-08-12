@@ -178,7 +178,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
           aspectRatio: `${effectiveAspect}`,
         }
       }
-    }, [effectiveAspect, isFullscreen])
+    }, [effectiveAspect, isFullscreen, fillContainer])
 
     const calculateScale = useCallback(() => {
       if (!videoRef.current || !containerRef.current || !isRotated90) {
@@ -211,6 +211,8 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
     }, [calculateScale])
 
     const hideTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const clickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const lastClickTimeRef = useRef<number>(0)
 
     // Accept pre-formatted media:/// URLs or raw OS paths
     const safeSrc = src.startsWith("media:///")
@@ -230,6 +232,11 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       }, 2500)
     }, [])
 
+    const onPlayStateChangeRef = useRef(onPlayStateChange)
+    useEffect(() => {
+      onPlayStateChangeRef.current = onPlayStateChange
+    })
+
     // Reset player state when source changes to prevent state desync across files
     useEffect(() => {
       setIsPlaying(false)
@@ -238,11 +245,16 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       setRotation(0)
       setScale(1)
       setAspectRatio(null)
+      if (clickTimeoutRef.current) {
+        clearTimeout(clickTimeoutRef.current)
+        clickTimeoutRef.current = null
+      }
+      lastClickTimeRef.current = 0
       if (videoRef.current) {
         videoRef.current.currentTime = 0
         videoRef.current.pause()
       }
-      onPlayStateChange?.(false)
+      onPlayStateChangeRef.current?.(false)
     }, [src])
 
     // Auto-play when requested
@@ -408,26 +420,54 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
     useEffect(() => {
       return () => {
         if (hideTimeout.current) clearTimeout(hideTimeout.current)
+        if (clickTimeoutRef.current) clearTimeout(clickTimeoutRef.current)
       }
     }, [])
 
-    const togglePlay = (e: React.MouseEvent) => {
-      e.stopPropagation()
-      if (!videoRef.current) return
-      if (isPlaying) {
-        videoRef.current.pause()
-      } else {
-        videoRef.current.play().catch((err) => {
-          console.error("Playback failed:", err)
-        })
-      }
-      resetHideTimer()
-    }
+    const togglePlay = useCallback(
+      (e?: React.MouseEvent) => {
+        e?.stopPropagation()
+        if (!videoRef.current) return
+        if (videoRef.current.paused) {
+          videoRef.current.play().catch((err) => {
+            console.error("Playback failed:", err)
+          })
+        } else {
+          videoRef.current.pause()
+        }
+        resetHideTimer()
+      },
+      [resetHideTimer]
+    )
 
-    const handleDoubleClick = (e: React.MouseEvent) => {
-      e.stopPropagation()
-      toggleFullscreen()
-    }
+    const handleVideoClick = useCallback(
+      (e: React.MouseEvent) => {
+        e.stopPropagation()
+        containerRef.current?.focus()
+
+        const now = Date.now()
+        const DOUBLE_CLICK_THRESHOLD = 300
+
+        if (now - lastClickTimeRef.current < DOUBLE_CLICK_THRESHOLD) {
+          if (clickTimeoutRef.current) {
+            clearTimeout(clickTimeoutRef.current)
+            clickTimeoutRef.current = null
+          }
+          lastClickTimeRef.current = 0
+          toggleFullscreen()
+        } else {
+          lastClickTimeRef.current = now
+          if (clickTimeoutRef.current) {
+            clearTimeout(clickTimeoutRef.current)
+          }
+          clickTimeoutRef.current = setTimeout(() => {
+            clickTimeoutRef.current = null
+            togglePlay()
+          }, DOUBLE_CLICK_THRESHOLD)
+        }
+      },
+      [toggleFullscreen, togglePlay]
+    )
 
     const toggleMute = (e: React.MouseEvent) => {
       e.stopPropagation()
@@ -505,13 +545,14 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
     const videoStyle: React.CSSProperties = {
       transform: `rotate(${rotation}deg) scale(${scale})`,
       transition: "transform 300ms cubic-bezier(0.4, 0, 0.2, 1)",
+      touchAction: "manipulation",
     }
 
     return (
       <div
         ref={containerRef}
         style={containerStyle}
-        className={`group/video relative flex items-center justify-center overflow-hidden bg-black outline-hidden ${
+        className={`group/video relative flex items-center justify-center overflow-hidden bg-black outline-hidden touch-manipulation ${
           showControls ? "" : "cursor-none"
         } ${className}`}
         onMouseMove={resetHideTimer}
@@ -524,11 +565,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
           poster={safePoster}
           style={videoStyle}
           className="h-full w-full cursor-pointer object-contain"
-          onClick={(e) => {
-            containerRef.current?.focus()
-            togglePlay(e)
-          }}
-          onDoubleClick={handleDoubleClick}
+          onClick={handleVideoClick}
           playsInline
           onTimeUpdate={() =>
             setCurrentTime(videoRef.current?.currentTime ?? 0)
@@ -566,10 +603,8 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
             className={`absolute inset-0 z-10 flex cursor-pointer items-center justify-center transition-opacity duration-300 ${
               showControls ? "opacity-100" : "pointer-events-none opacity-0"
             }`}
-            onClick={(e) => {
-              containerRef.current?.focus()
-              togglePlay(e)
-            }}
+            style={{ touchAction: "manipulation" }}
+            onClick={handleVideoClick}
           >
             <div className="flex h-16 w-16 items-center justify-center rounded-full border border-white/20 bg-black/50 backdrop-blur-sm transition-transform hover:scale-110">
               <Play className="ml-1 h-7 w-7 fill-white text-white" />

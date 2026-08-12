@@ -238,6 +238,8 @@ export const useScanStore = create<ScanState>((set, get) => ({
       }
     })
 
+    let wasStoppedScan = false
+
     _cleanupComplete = window.api.onScanComplete(async () => {
       if (rafProgressId) {
         cancelAnimationFrame(rafProgressId)
@@ -250,6 +252,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
       flushBuffer()
 
       const wasPartialScan = get().isStopping
+      wasStoppedScan = wasPartialScan
       const currentTotal = get().scanProgress.totalCount
 
       _cleanupProgress?.()
@@ -260,7 +263,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
       set({
         isScanning: false,
         isStopping: false,
-        isPostProcessing: !wasPartialScan,
+        isPostProcessing: true,
         scanProgress: {
           scannedCount: currentTotal,
           totalCount: currentTotal,
@@ -291,11 +294,10 @@ export const useScanStore = create<ScanState>((set, get) => ({
       })
 
       if (wasPartialScan) {
-        toast.info("Scan stopped: showing indexed results", {
+        toast.info("Scan stopped: running post-processing on indexed results", {
           id: "scan-complete-toast",
-          description: "Items scanned before stopping are visible. Resume scan to index remaining files.",
+          description: "Analyzing duplicates & similarity for scanned files. Resume scan to index remaining files.",
         })
-        return
       }
 
       await get().checkAIStatus()
@@ -335,10 +337,15 @@ export const useScanStore = create<ScanState>((set, get) => ({
       const activeRootPath = useMediaStore.getState().activeRootPath
       await useMediaStore.getState().fetchMediaItems(activeRootPath || "all")
 
-      toast.success("Folder scan completed successfully", {
-        id: "scan-complete-toast",
-        description: folderDescription ? `In ${folderDescription}` : undefined,
-      })
+      toast.success(
+        wasStoppedScan
+          ? "Post-processing completed for stopped scan"
+          : "Folder scan completed successfully",
+        {
+          id: "scan-complete-toast",
+          description: folderDescription ? `In ${folderDescription}` : undefined,
+        }
+      )
     })
 
     // Fire-and-forget: don't block the store on the full scan IPC response.

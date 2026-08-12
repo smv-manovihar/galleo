@@ -89,17 +89,20 @@ export function flushPendingCheckpointSave(): void {
 
 // --- Review write queue (Map: last-write-wins per mediaId) ---
 const pendingReviews = new Map<string, "keep" | "delete" | "skipped" | "pending">()
+let activeFlushSessionId: string | null = null
 let reviewFlushTimer: ReturnType<typeof setTimeout> | null = null
 
 function scheduleReviewFlush(sessionId: string): void {
-  if (reviewFlushTimer !== null) return // timer already running — map will accumulate
+  activeFlushSessionId = sessionId
+  if (reviewFlushTimer !== null) return // timer already running — map will accumulate with latest sessionId
   reviewFlushTimer = setTimeout(() => {
     reviewFlushTimer = null
+    const targetSessionId = activeFlushSessionId || sessionId
     const batch = [...pendingReviews.entries()]
     pendingReviews.clear()
-    if (batch.length > 0) {
+    if (batch.length > 0 && targetSessionId) {
       void window.api.updateReviews(
-        sessionId,
+        targetSessionId,
         batch.map(([mediaId, state]) => ({ mediaId, state }))
       )
     }
@@ -445,12 +448,15 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const targets = specificMediaIds || Object.keys(decisions)
 
     for (const mediaId of targets) {
-      if (decisions[mediaId] === "delete") {
-        const item = itemMap.get(mediaId)
-        if (item) {
-          pathsToDelete.push(item.path)
-          idsToTrash.push(mediaId)
-        }
+      const item = itemMap.get(mediaId)
+      if (!item) continue
+      const isDeleteTarget =
+        specificMediaIds !== undefined ||
+        decisions[mediaId] === "delete" ||
+        item.reviewState === "delete"
+      if (isDeleteTarget) {
+        pathsToDelete.push(item.path)
+        idsToTrash.push(mediaId)
       }
     }
 

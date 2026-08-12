@@ -340,60 +340,55 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       filterQuality,
       sortBy,
     } = get()
-    let result = [...items]
-
-    // 0. Active Root Path Filter
-    if (activeRootPath && activeRootPath !== "all") {
-      const normRoot = activeRootPath.replace(/\\/g, "/").toLowerCase().replace(/\/+$/, "")
-      result = result.filter((item) => {
-        const itemNorm = item.path.replace(/\\/g, "/").toLowerCase()
-        return itemNorm === normRoot || itemNorm.startsWith(normRoot + "/")
-      })
-    }
-
-    // 1. Text Search Filter
-    if (searchQuery.trim().length > 0) {
-      const q = searchQuery.toLowerCase()
-      result = result.filter(
-        (item) =>
-          item.name.toLowerCase().includes(q) ||
-          item.path.toLowerCase().includes(q)
-      )
-    }
-
-    // 2. Type Filter (photo / video)
-    if (filterType !== "all") {
-      result = result.filter((item) => item.mediaType === filterType)
-    }
-
-    // 3. Review State Filter
+    const normRoot =
+      activeRootPath && activeRootPath !== "all"
+        ? activeRootPath.replace(/\\/g, "/").toLowerCase().replace(/\/+$/, "")
+        : null
+    const q = searchQuery.trim().length > 0 ? searchQuery.toLowerCase() : null
     const sessionDecisions = useSessionStore.getState().decisions
-    if (filterReviewState !== "all") {
-      result = result.filter((item) => {
-        const state: string =
-          sessionDecisions[item.id] || item.reviewState || "pending"
-        if (filterReviewState === "pending")
-          return state === "pending" || state === "skipped"
-        if (filterReviewState === "kept") return state === "keep"
-        if (filterReviewState === "trash") return state === "delete"
-        return true
-      })
-    }
 
-    // 4. Quality Metrics Filter
-    if (filterQuality !== "all") {
-      if (filterQuality === "blurry") {
-        result = result.filter((item) => item.quality?.isBlurry === true)
-      } else if (filterQuality === "dark") {
-        result = result.filter((item) => item.quality?.isDark === true)
-      } else if (filterQuality === "screenshots") {
-        result = result.filter((item) => item.quality?.isScreenshot === true)
-      } else if (filterQuality === "small") {
-        result = result.filter((item) => item.quality?.isSmall === true)
-      } else if (filterQuality === "duplicates") {
-        result = result.filter((item) => item.isDuplicate === true)
+    const result = items.filter((item) => {
+      // 0. Active Root Path Filter
+      if (normRoot) {
+        const itemNorm = item.path.replace(/\\/g, "/").toLowerCase()
+        if (itemNorm !== normRoot && !itemNorm.startsWith(normRoot + "/")) {
+          return false
+        }
       }
-    }
+
+      // 1. Text Search Filter
+      if (q) {
+        if (!item.name.toLowerCase().includes(q) && !item.path.toLowerCase().includes(q)) {
+          return false
+        }
+      }
+
+      // 2. Type Filter (photo / video)
+      if (filterType !== "all" && item.mediaType !== filterType) {
+        return false
+      }
+
+      // 3. Review State Filter
+      if (filterReviewState !== "all") {
+        const state: string = sessionDecisions[item.id] || item.reviewState || "pending"
+        if (filterReviewState === "pending" && state !== "pending" && state !== "skipped") {
+          return false
+        }
+        if (filterReviewState === "kept" && state !== "keep") return false
+        if (filterReviewState === "trash" && state !== "delete") return false
+      }
+
+      // 4. Quality Metrics Filter
+      if (filterQuality !== "all") {
+        if (filterQuality === "blurry" && item.quality?.isBlurry !== true) return false
+        if (filterQuality === "dark" && item.quality?.isDark !== true) return false
+        if (filterQuality === "screenshots" && item.quality?.isScreenshot !== true) return false
+        if (filterQuality === "small" && item.quality?.isSmall !== true) return false
+        if (filterQuality === "duplicates" && item.isDuplicate !== true) return false
+      }
+
+      return true
+    })
 
     // 5. Fast Sorting logic (avoid expensive Intl.Collator / localeCompare)
     result.sort((a, b) => {

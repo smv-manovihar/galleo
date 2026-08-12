@@ -10,13 +10,14 @@ export class ThumbnailService {
   public async getOrCreateThumbnail(
     filePath: string,
     mediaId: string,
-    mediaType: MediaType
+    mediaType: MediaType,
+    duration?: number
   ): Promise<Result<string>> {
     try {
       if (mediaType === "photo") {
         return await generateImageThumbnail(filePath, mediaId)
       } else {
-        return await generateVideoThumbnail(filePath, mediaId)
+        return await generateVideoThumbnail(filePath, mediaId, duration)
       }
     } catch (e: unknown) {
       const err = e as { message?: string }

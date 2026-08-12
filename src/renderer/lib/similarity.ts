@@ -40,10 +40,13 @@ export function sortBySimilarity(items: MediaItem[]): MediaItem[] {
   if (hashed.length === 0) return items
 
   // Step 1: Pre-parse hex pHash strings to BigInts
-  const parsed: { item: MediaItem; big: bigint }[] = []
+  // For 192-char multi-frame video hashes, extract primary mid-frame (chars 64..128) for uniform BigInt sorting
+  const parsed: { item: MediaItem; big: bigint; fullHash: string }[] = []
   for (const item of hashed) {
     try {
-      parsed.push({ item, big: BigInt("0x" + item.hash!) })
+      const hex = item.hash!
+      const primaryHex = hex.length >= 128 ? hex.slice(64, 128) : hex
+      parsed.push({ item, big: BigInt("0x" + primaryHex), fullHash: hex })
     } catch {
       unhashed.push(item)
     }
@@ -67,6 +70,7 @@ export function sortBySimilarity(items: MediaItem[]): MediaItem[] {
   let firstUnvisited = 1
 
   for (let step = 1; step < n; step++) {
+    const currentItem = parsed[currentIdx].item
     const currentBig = parsed[currentIdx].big
     let bestIdx = -1
     let bestDist = Infinity
@@ -77,12 +81,47 @@ export function sortBySimilarity(items: MediaItem[]): MediaItem[] {
 
     for (let j = searchStart; j < searchEnd; j++) {
       if (visited[j]) continue
-      let x = currentBig ^ parsed[j].big
+      const targetItem = parsed[j].item
+
       let dist = 0
-      while (x > 0n) {
-        x &= x - 1n
-        dist++
+      if (
+        parsed[currentIdx].fullHash.length === parsed[j].fullHash.length &&
+        parsed[currentIdx].fullHash.length > 64
+      ) {
+        try {
+          let x = BigInt("0x" + parsed[currentIdx].fullHash) ^ BigInt("0x" + parsed[j].fullHash)
+          while (x > 0n) {
+            x &= x - 1n
+            dist++
+          }
+        } catch {
+          let x = currentBig ^ parsed[j].big
+          while (x > 0n) {
+            x &= x - 1n
+            dist++
+          }
+        }
+      } else {
+        let x = currentBig ^ parsed[j].big
+        while (x > 0n) {
+          x &= x - 1n
+          dist++
+        }
       }
+
+      if (
+        currentItem.mediaType === "video" &&
+        targetItem.mediaType === "video" &&
+        currentItem.duration !== undefined &&
+        targetItem.duration !== undefined
+      ) {
+        const durDelta = Math.abs(currentItem.duration - targetItem.duration)
+        const allowed = Math.max(3, Math.max(currentItem.duration, targetItem.duration) * 0.10)
+        if (durDelta > allowed) {
+          dist += 50
+        }
+      }
+
       if (dist < bestDist) {
         bestDist = dist
         bestIdx = j

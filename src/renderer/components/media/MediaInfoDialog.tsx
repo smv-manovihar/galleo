@@ -12,6 +12,11 @@ import { Badge } from "@/components/ui/badge"
 import { Calendar, FileImage, FolderOpen } from "lucide-react"
 import { formatBytes, formatDate } from "../../lib/format"
 import { getFileManagerName } from "../../lib/os"
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip"
 
 interface MediaInfoDialogProps {
   item: MediaItem | null
@@ -25,11 +30,25 @@ export const MediaInfoDialog: React.FC<MediaInfoDialogProps> = ({
   if (!item) return null
 
   const hasQuality = item.quality !== undefined
+  const targetDate = formatDate(item.dateTarget)
+  const sourceLabels: Record<string, string> = {
+    exif: "EXIF",
+    filename: "Filename",
+    filesystem: "File System",
+  }
+  const resolvedSourceLabel = sourceLabels[item.dateTargetSource] || "Resolved"
   const exifDate = item.dateOriginal ? formatDate(item.dateOriginal) : "None"
   const inferredDate = item.dateInferred
     ? formatDate(item.dateInferred)
-    : "None"
+    : item.dateTargetSource === "filename"
+      ? formatDate(item.dateTarget)
+      : "None"
   const fsDate = formatDate(item.dateFileSystem)
+
+  const parentFolderPath = item.path.substring(
+    0,
+    Math.max(item.path.lastIndexOf("/"), item.path.lastIndexOf("\\"))
+  )
 
   const handleOpenFolder = async () => {
     await window.api.showFile(item.path)
@@ -55,6 +74,24 @@ export const MediaInfoDialog: React.FC<MediaInfoDialogProps> = ({
         <div className="space-y-4 py-1">
           {/* Basic file attributes */}
           <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-muted-foreground shrink-0">Parent Folder</span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div
+                    className="max-w-44 cursor-pointer overflow-hidden text-right text-xs font-medium text-foreground"
+                    onClick={handleOpenFolder}
+                  >
+                    <div className="inline-block whitespace-nowrap animate-marquee-pingpong">
+                      {parentFolderPath}
+                    </div>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs text-xs break-all select-text">
+                  {parentFolderPath}
+                </TooltipContent>
+              </Tooltip>
+            </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">File Size</span>
               <span className="font-medium text-foreground">
@@ -73,6 +110,53 @@ export const MediaInfoDialog: React.FC<MediaInfoDialogProps> = ({
               <span className="text-muted-foreground">Extension</span>
               <span className="font-medium text-foreground uppercase">
                 {item.extension}
+              </span>
+            </div>
+          </div>
+
+          {/* Dates */}
+          <div className="space-y-2 border-t border-border pt-3">
+            <h5 className="text-[0.6875rem] font-semibold tracking-wider text-muted-foreground uppercase">
+              Dates
+            </h5>
+            <div className="flex justify-between gap-2">
+              <span className="flex items-center gap-1 font-semibold text-primary">
+                <Calendar className="h-3.5 w-3.5 text-primary" /> Resolved Date ({resolvedSourceLabel})
+              </span>
+              <span className="max-w-36 truncate font-bold text-primary">
+                {targetDate}
+              </span>
+            </div>
+            <div className="flex justify-between gap-2">
+              <span className="flex items-center gap-1 text-muted-foreground">
+                <Calendar className="h-3.5 w-3.5" /> EXIF Date
+              </span>
+              <span className="max-w-36 truncate font-medium text-foreground">
+                {exifDate}
+              </span>
+            </div>
+            <div className="flex justify-between gap-2">
+              <span className="flex items-center gap-1 text-muted-foreground">
+                <Calendar className="h-3.5 w-3.5" /> Filename Inferred Date
+              </span>
+              <span className="max-w-36 truncate font-medium text-foreground">
+                {inferredDate}
+              </span>
+            </div>
+            <div className="flex justify-between gap-2">
+              <span className="flex items-center gap-1 text-muted-foreground">
+                <Calendar className="h-3.5 w-3.5" /> File System Created
+              </span>
+              <span className="max-w-36 truncate font-medium text-foreground">
+                {fsDate}
+              </span>
+            </div>
+            <div className="flex justify-between gap-2">
+              <span className="flex items-center gap-1 text-muted-foreground">
+                <Calendar className="h-3.5 w-3.5" /> File System Updated
+              </span>
+              <span className="max-w-36 truncate font-medium text-foreground">
+                {item.dateModified ? formatDate(item.dateModified) : "None"}
               </span>
             </div>
           </div>
@@ -122,59 +206,6 @@ export const MediaInfoDialog: React.FC<MediaInfoDialogProps> = ({
               </div>
             </div>
           )}
-
-          {/* Resolved Target Date */}
-          <div className="space-y-2 border-t border-border pt-3">
-            <h5 className="text-[0.6875rem] font-semibold tracking-wider text-muted-foreground uppercase">
-              Canonical Organization Date
-            </h5>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Resolved Date</span>
-              <span className="font-bold text-primary">
-                {formatDate(item.dateTarget)}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Resolved Source</span>
-              <Badge variant="secondary" className="text-2xs font-semibold">
-                {item.dateTargetSource === "exif" && "EXIF Metadata"}
-                {item.dateTargetSource === "filename" && "Filename Inferred"}
-                {item.dateTargetSource === "filesystem" &&
-                  "Filesystem Fallback"}
-              </Badge>
-            </div>
-          </div>
-
-          {/* Date chain */}
-          <div className="space-y-2 border-t border-border pt-3">
-            <h5 className="text-[0.6875rem] font-semibold tracking-wider text-muted-foreground uppercase">
-              Date Fallback Chain
-            </h5>
-            <div className="flex justify-between gap-2">
-              <span className="flex items-center gap-1 text-muted-foreground">
-                <Calendar className="h-3.5 w-3.5" /> EXIF Original
-              </span>
-              <span className="max-w-36 truncate font-medium text-foreground">
-                {exifDate}
-              </span>
-            </div>
-            <div className="flex justify-between gap-2">
-              <span className="flex items-center gap-1 text-muted-foreground">
-                <Calendar className="h-3.5 w-3.5" /> Filename Inferred
-              </span>
-              <span className="max-w-36 truncate font-medium text-foreground">
-                {inferredDate}
-              </span>
-            </div>
-            <div className="flex justify-between gap-2">
-              <span className="flex items-center gap-1 text-muted-foreground">
-                <Calendar className="h-3.5 w-3.5" /> Filesystem
-              </span>
-              <span className="max-w-36 truncate font-medium text-foreground">
-                {fsDate}
-              </span>
-            </div>
-          </div>
         </div>
 
         <div className="border-t border-border pt-3">

@@ -39,6 +39,7 @@ export default defineConfig({
                 "sharp",
                 "fluent-ffmpeg",
                 "ffmpeg-static",
+                "ffprobe-static",
                 "trash",
                 "onnxruntime-node",
                 "@huggingface/transformers",

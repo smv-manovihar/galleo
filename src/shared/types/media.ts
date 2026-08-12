@@ -30,6 +30,8 @@ export interface MediaItem {
 
   // Hash & Thumbnail
   hash?: string // perceptual hash for duplicate detection
+  exactHash?: string // byte-to-byte content hash for exact duplicate detection
+  duration?: number // duration in seconds (for videos)
   thumbnailPath?: string // path to local thumbnail file
   dateModified?: string // ISO date string from file mtime (used for incremental scan skipping)
 

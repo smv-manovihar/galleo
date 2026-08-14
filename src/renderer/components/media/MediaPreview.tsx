@@ -3,131 +3,22 @@ import type { MediaItem } from "../../../shared/types/media"
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
 } from "@/components/ui/dialog"
-import { VideoPlayer, type VideoPlayerRef } from "./VideoPlayer"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import {
-  Info,
-  Calendar,
-  FileImage,
-  FolderOpen,
-  X,
-  ZoomIn,
-  ZoomOut,
-  Maximize,
-  Minimize,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react"
-import { formatBytes, formatDate } from "../../lib/format"
-import { getFileManagerName } from "../../lib/os"
 import {
   Tooltip,
-  TooltipContent,
   TooltipTrigger,
+  TooltipContent,
 } from "@/components/ui/tooltip"
+import { VideoPlayer, type VideoPlayerRef } from "./VideoPlayer"
+import { Button } from "@/components/ui/button"
+import { ChevronLeft, ChevronRight } from "lucide-react"
+import { useMediaStore } from "../../stores/media-store"
+import { MediaPreviewHeader } from "./preview/MediaPreviewHeader"
+import { MediaPropertiesPanel } from "./preview/MediaPropertiesPanel"
+import { ZoomControls } from "./preview/ZoomControls"
+import { ImagePreviewViewport } from "./preview/ImagePreviewViewport"
 
-interface ZoomControlsProps {
-  isFullscreen: boolean
-  showControls: boolean
-  toggleFullscreen: () => void
-  onZoomIn: () => void
-  onZoomOut: () => void
-  onZoomReset: () => void
-  registerScaleListener: (listener: (scale: number) => void) => () => void
-}
-
-const ZoomControls: React.FC<ZoomControlsProps> = React.memo(
-  ({
-    isFullscreen,
-    showControls,
-    toggleFullscreen,
-    onZoomIn,
-    onZoomOut,
-    onZoomReset,
-    registerScaleListener,
-  }) => {
-    const [scale, setScale] = useState(1)
-
-    useEffect(() => {
-      return registerScaleListener(setScale)
-    }, [registerScaleListener])
-
-    return (
-      <div
-        className={`absolute top-4 right-4 z-30 flex gap-1 rounded-lg border border-white/10 bg-black/60 p-1 backdrop-blur-xs transition-opacity duration-300 ${!isFullscreen || showControls ? "opacity-100" : "pointer-events-none opacity-0"}`}
-      >
-        {isFullscreen && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 cursor-pointer rounded-md text-white hover:bg-white/10"
-                onClick={toggleFullscreen}
-              >
-                <Minimize className="h-3.5 w-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">Exit Fullscreen</TooltipContent>
-          </Tooltip>
-        )}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 cursor-pointer rounded-md text-white hover:bg-white/10"
-              onClick={onZoomOut}
-              disabled={scale <= 1}
-            >
-              <ZoomOut className="h-3.5 w-3.5" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">Zoom Out</TooltipContent>
-        </Tooltip>
-        <span className="flex min-w-11 items-center justify-center px-2 font-mono text-2xs text-white">
-          {Math.round(scale * 100)}%
-        </span>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 cursor-pointer rounded-md text-white hover:bg-white/10"
-              onClick={onZoomIn}
-              disabled={scale >= 4}
-            >
-              <ZoomIn className="h-3.5 w-3.5" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">Zoom In</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 cursor-pointer rounded-md text-2xs font-semibold text-white hover:bg-white/10"
-              onClick={onZoomReset}
-              disabled={scale === 1}
-            >
-              1:1
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">Reset Zoom</TooltipContent>
-        </Tooltip>
-      </div>
-    )
-  }
-)
-ZoomControls.displayName = "ZoomControls"
-
-interface MediaPreviewProps {
+export interface MediaPreviewProps {
   item: MediaItem | null
   onClose: () => void
   items?: MediaItem[]
@@ -135,34 +26,49 @@ interface MediaPreviewProps {
   autoPlay?: boolean
 }
 
-export const MediaPreview: React.FC<MediaPreviewProps> = ({
+const MediaPreviewInner: React.FC<MediaPreviewProps> = ({
   item: propItem,
   onClose,
   items,
   onItemChange,
   autoPlay = false,
 }) => {
+  // 1. State
   const [showMetaPanel, setShowMetaPanel] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [showControls, setShowControls] = useState(true)
+  const [navigatedItem, setNavigatedItem] = useState<MediaItem | null>(null)
+  const [overrideRotation, setOverrideRotation] = useState<{
+    id: string
+    rotation: number
+  } | null>(null)
+
+  const item = navigatedItem ?? propItem
+  const isVideo = item?.mediaType === "video"
+  const rotation =
+    overrideRotation && item && overrideRotation.id === item.id
+      ? overrideRotation.rotation
+      : (item?.orientation ?? 0)
+
+  // 2. Refs
   const previewRef = useRef<HTMLDivElement>(null)
   const videoPlayerRef = useRef<VideoPlayerRef | null>(null)
-  const [isFullscreen, setIsFullscreen] = useState(false)
+  const transformElRef = useRef<HTMLDivElement>(null)
   const scaleRef = useRef(1)
   const positionRef = useRef({ x: 0, y: 0 })
   const isPanningRef = useRef(false)
   const panStartRef = useRef({ x: 0, y: 0 })
-  const transformElRef = useRef<HTMLDivElement>(null)
   const scaleListenersRef = useRef<Set<(scale: number) => void>>(new Set())
+  const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const registerScaleListener = useCallback(
-    (listener: (scale: number) => void) => {
-      scaleListenersRef.current.add(listener)
-      listener(scaleRef.current)
-      return () => {
-        scaleListenersRef.current.delete(listener)
-      }
-    },
-    []
-  )
+  // 3. Zoom & Pan Transform Logic (Direct DOM updates)
+  const registerScaleListener = useCallback((listener: (scale: number) => void) => {
+    scaleListenersRef.current.add(listener)
+    listener(scaleRef.current)
+    return () => {
+      scaleListenersRef.current.delete(listener)
+    }
+  }, [])
 
   const updateTransform = useCallback((animated = false) => {
     const el = transformElRef.current
@@ -194,99 +100,31 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
     [updateTransform]
   )
 
-  const [showControls, setShowControls] = useState(true)
-  const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const handleZoomIn = useCallback(() => {
+    setScaleValue(Math.min(scaleRef.current + 0.5, 4), true)
+  }, [setScaleValue])
 
-  const [activeItem, setActiveItem] = useState<MediaItem | null>(propItem)
-  const [prevPropItem, setPrevPropItem] = useState<MediaItem | null>(propItem)
+  const handleZoomOut = useCallback(() => {
+    setScaleValue(Math.max(scaleRef.current - 0.5, 1), true)
+  }, [setScaleValue])
 
-  if (propItem !== prevPropItem) {
-    setPrevPropItem(propItem)
-    setActiveItem(propItem)
-  }
+  const handleZoomReset = useCallback(() => {
+    setScaleValue(1, true)
+  }, [setScaleValue])
 
+  // Reset zoom on item change
   useEffect(() => {
-    const player = videoPlayerRef.current
-    return () => {
-      if (player?.pause) {
-        try {
-          player.pause()
-        } catch {
-          // Ignore pause error during unmount
-        }
-      }
+    scaleRef.current = 1
+    positionRef.current = { x: 0, y: 0 }
+    isPanningRef.current = false
+    if (transformElRef.current) {
+      transformElRef.current.style.transform = ""
+      transformElRef.current.style.cursor = "default"
     }
-  }, [])
+    scaleListenersRef.current.forEach((fn) => fn(1))
+  }, [item?.id])
 
-  const item = activeItem || propItem
-
-  const currentIndex =
-    items && item ? items.findIndex((i) => i.id === item.id) : -1
-  const hasPrevious = currentIndex > 0
-  const hasNext = items ? currentIndex < items.length - 1 : false
-
-  const handlePrevious = useCallback(() => {
-    if (items && hasPrevious) {
-      const prevItem = items[currentIndex - 1]
-      setActiveItem(prevItem)
-      onItemChange?.(prevItem)
-    }
-  }, [items, hasPrevious, currentIndex, onItemChange])
-
-  const handleNext = useCallback(() => {
-    if (items && hasNext) {
-      const nextItem = items[currentIndex + 1]
-      setActiveItem(nextItem)
-      onItemChange?.(nextItem)
-    }
-  }, [items, hasNext, currentIndex, onItemChange])
-
-  useEffect(() => {
-    if (!item || !items || !onItemChange) return
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const activeEl = document.activeElement as HTMLElement | null
-      if (
-        activeEl &&
-        (activeEl.tagName === "INPUT" ||
-          activeEl.tagName === "TEXTAREA" ||
-          activeEl.isContentEditable)
-      ) {
-        return
-      }
-
-      // If the active element is inside the video player, let the VideoPlayer handle keys for seeking/volume controls
-      if (document.activeElement?.closest(".group\\/video")) {
-        return
-      }
-
-      if (e.key === "ArrowLeft") {
-        if (hasPrevious) {
-          e.preventDefault()
-          handlePrevious()
-        }
-      } else if (e.key === "ArrowRight") {
-        if (hasNext) {
-          e.preventDefault()
-          handleNext()
-        }
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown)
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown)
-    }
-  }, [
-    item,
-    items,
-    onItemChange,
-    hasPrevious,
-    hasNext,
-    handlePrevious,
-    handleNext,
-  ])
-
+  // 4. Auto-hide controls in fullscreen
   const resetControlsTimeout = useCallback(() => {
     setShowControls(true)
     if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current)
@@ -310,7 +148,7 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
     }
   }, [isFullscreen])
 
-  // Sync native fullscreen state changes
+  // Sync fullscreenchange
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(document.fullscreenElement !== null)
@@ -321,20 +159,52 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
     }
   }, [])
 
-  // Reset zoom whenever item changes
-  useEffect(() => {
-    scaleRef.current = 1
-    positionRef.current = { x: 0, y: 0 }
-    isPanningRef.current = false
-    if (transformElRef.current) {
-      transformElRef.current.style.transform = ""
-      transformElRef.current.style.cursor = "default"
+  // 5. Rotation Logic
+  const handleRotate = useCallback(
+    (newRot: number) => {
+      if (!item) return
+      const norm = ((newRot % 360) + 360) % 360
+      setOverrideRotation({ id: item.id, rotation: newRot })
+      useMediaStore.getState().updateItemOrientation(item.id, norm)
+    },
+    [item]
+  )
+
+  const handleRotateLeft = useCallback(() => {
+    handleRotate(rotation - 90)
+  }, [rotation, handleRotate])
+
+  const handleRotateRight = useCallback(() => {
+    handleRotate(rotation + 90)
+  }, [rotation, handleRotate])
+
+  const handleRotateReset = useCallback(() => {
+    handleRotate(0)
+  }, [handleRotate])
+
+  // 6. Navigation
+  const currentIndex = items && item ? items.findIndex((i) => i.id === item.id) : -1
+  const hasPrevious = currentIndex > 0
+  const hasNext = items ? currentIndex < items.length - 1 : false
+
+  const handlePrevious = useCallback(() => {
+    if (items && hasPrevious) {
+      const prevItem = items[currentIndex - 1]
+      setNavigatedItem(prevItem)
+      onItemChange?.(prevItem)
     }
-    scaleListenersRef.current.forEach((fn) => fn(1))
-  }, [item?.id])
+  }, [items, hasPrevious, currentIndex, onItemChange])
+
+  const handleNext = useCallback(() => {
+    if (items && hasNext) {
+      const nextItem = items[currentIndex + 1]
+      setNavigatedItem(nextItem)
+      onItemChange?.(nextItem)
+    }
+  }, [items, hasNext, currentIndex, onItemChange])
 
   const toggleFullscreen = useCallback(async () => {
-    if (item?.mediaType === "video" && videoPlayerRef.current) {
+    if (isVideo && videoPlayerRef.current) {
       await videoPlayerRef.current.requestFullscreen()
       return
     }
@@ -349,20 +219,125 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
     } catch (err) {
       console.error("Error toggling fullscreen:", err)
     }
-  }, [item?.mediaType])
+  }, [isVideo])
 
-  const handleZoomIn = useCallback(() => {
-    setScaleValue(Math.min(scaleRef.current + 0.5, 4), true)
-  }, [setScaleValue])
+  // 7. Stable Keyboard Shortcut Listener via Ref
+  const navActionsRef = useRef({
+    item,
+    items,
+    onClose,
+    hasPrevious,
+    hasNext,
+    handlePrevious,
+    handleNext,
+    toggleFullscreen,
+    handleRotateLeft,
+    handleRotateRight,
+    setShowMetaPanel,
+  })
 
-  const handleZoomOut = useCallback(() => {
-    setScaleValue(Math.max(scaleRef.current - 0.5, 1), true)
-  }, [setScaleValue])
+  useEffect(() => {
+    navActionsRef.current = {
+      item,
+      items,
+      onClose,
+      hasPrevious,
+      hasNext,
+      handlePrevious,
+      handleNext,
+      toggleFullscreen,
+      handleRotateLeft,
+      handleRotateRight,
+      setShowMetaPanel,
+    }
+  }, [
+    item,
+    items,
+    onClose,
+    hasPrevious,
+    hasNext,
+    handlePrevious,
+    handleNext,
+    toggleFullscreen,
+    handleRotateLeft,
+    handleRotateRight,
+  ])
 
-  const handleZoomReset = useCallback(() => {
-    setScaleValue(1, true)
-  }, [setScaleValue])
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement as HTMLElement | null
+      if (
+        activeEl &&
+        (activeEl.tagName === "INPUT" ||
+          activeEl.tagName === "TEXTAREA" ||
+          activeEl.isContentEditable)
+      ) {
+        return
+      }
 
+      if (document.activeElement?.closest(".group\\/video")) {
+        return
+      }
+
+      const key = e.key.toLowerCase()
+      const actions = navActionsRef.current
+
+      // Close preview: Q, Z, or Escape
+      if (e.key === "Escape" || key === "q" || key === "z") {
+        e.preventDefault()
+        actions.onClose()
+        return
+      }
+
+      // Toggle properties info: I
+      if (key === "i") {
+        e.preventDefault()
+        actions.setShowMetaPanel((prev) => !prev)
+        return
+      }
+
+      // Toggle fullscreen: F
+      if (key === "f") {
+        e.preventDefault()
+        void actions.toggleFullscreen()
+        return
+      }
+
+      // Rotation shortcuts: Ctrl/Cmd + Left/Right
+      if ((e.ctrlKey || e.metaKey) && e.key === "ArrowLeft") {
+        e.preventDefault()
+        actions.handleRotateLeft()
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === "ArrowRight") {
+        e.preventDefault()
+        actions.handleRotateRight()
+        return
+      }
+
+      // Navigation: Left / Right arrows or A / D
+      if (actions.items) {
+        if (e.key === "ArrowLeft" || key === "a") {
+          if (actions.hasPrevious) {
+            e.preventDefault()
+            actions.handlePrevious()
+          }
+        } else if (e.key === "ArrowRight" || key === "d") {
+          if (actions.hasNext) {
+            e.preventDefault()
+            actions.handleNext()
+          }
+        }
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown)
+    }
+  }, [])
+
+  // 8. Pointer & Wheel Handlers for Zoom / Pan
   const handleWheel = useCallback(
     (e: React.WheelEvent) => {
       const target = e.target as HTMLElement
@@ -370,14 +345,15 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
         target.closest("button") ||
         target.closest(".slider") ||
         target.closest('[role="slider"]') ||
-        target.closest('[data-slot="slider"]')
+        target.closest('[data-slot="slider"]') ||
+        target.closest('[data-slot="popover"]') ||
+        target.closest('[data-slot="dialog"]')
       ) {
         return
       }
 
       const zoomFactor = 0.1
-      let newScale =
-        scaleRef.current + (e.deltaY < 0 ? zoomFactor : -zoomFactor)
+      let newScale = scaleRef.current + (e.deltaY < 0 ? zoomFactor : -zoomFactor)
       newScale = Math.max(1, Math.min(newScale, 4))
       setScaleValue(newScale, true)
     },
@@ -389,10 +365,11 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
       const target = e.target as HTMLElement
       if (
         target.closest("button") ||
-        target.closest("video") ||
         target.closest(".slider") ||
         target.closest('[role="slider"]') ||
-        target.closest('[data-slot="slider"]')
+        target.closest('[data-slot="slider"]') ||
+        target.closest('[data-slot="popover"]') ||
+        target.closest('[data-slot="dialog"]')
       ) {
         return
       }
@@ -427,32 +404,23 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
     updateTransform(false)
   }, [updateTransform])
 
+  // Pause video on unmount
+  useEffect(() => {
+    const player = videoPlayerRef.current
+    return () => {
+      if (player?.pause) {
+        try {
+          player.pause()
+        } catch {
+          // Ignore pause error during unmount
+        }
+      }
+    }
+  }, [])
+
   if (!item) return null
 
-  const isVideo = item.mediaType === "video"
-  const hasQuality = item.quality !== undefined
-
-  // Format dates
-  const targetDate = formatDate(item.dateTarget)
-  const sourceLabels: Record<string, string> = {
-    exif: "EXIF",
-    filename: "Filename",
-    filesystem: "File System",
-  }
-  const resolvedSourceLabel = sourceLabels[item.dateTargetSource] || "Resolved"
-  const exifDate = item.dateOriginal ? formatDate(item.dateOriginal) : "None"
-  const inferredDate = item.dateInferred
-    ? formatDate(item.dateInferred)
-    : item.dateTargetSource === "filename"
-      ? formatDate(item.dateTarget)
-      : "None"
-  const fsDate = formatDate(item.dateFileSystem)
-
   const safeSrc = `media:///${item.path.replace(/\\/g, "/")}`
-
-  const handleOpenFolder = async () => {
-    await window.api.showFile(item.path)
-  }
 
   return (
     <Dialog
@@ -468,67 +436,17 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
       >
         <div className="relative flex h-full w-full flex-col overflow-hidden bg-card text-foreground">
           {/* Modal Header */}
-          <DialogHeader className="flex shrink-0 flex-row items-center justify-between border-b border-border p-4">
-            <div className="min-w-0 pr-4">
-              <DialogTitle className="truncate text-sm leading-none font-semibold">
-                {item.name}
-              </DialogTitle>
-              <DialogDescription className="mt-1 truncate text-2xs text-muted-foreground">
-                {item.path}
-              </DialogDescription>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className={`h-8 w-8 shrink-0 rounded-lg border-border hover:bg-accent ${isFullscreen ? "border-primary/45 bg-accent text-primary" : ""}`}
-                    onClick={toggleFullscreen}
-                  >
-                    {isFullscreen ? (
-                      <Minimize className="h-4 w-4" />
-                    ) : (
-                      <Maximize className="h-4 w-4" />
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  {isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
-                </TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className={`h-8 w-8 shrink-0 rounded-lg border-border hover:bg-accent ${showMetaPanel ? "border-primary/45 bg-accent text-primary" : ""}`}
-                    onClick={() => setShowMetaPanel(!showMetaPanel)}
-                  >
-                    <Info className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  Toggle Properties Info
-                </TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8 shrink-0 rounded-lg border-border hover:bg-accent"
-                    onClick={onClose}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">Close Preview</TooltipContent>
-              </Tooltip>
-            </div>
-          </DialogHeader>
+          <MediaPreviewHeader
+            name={item.name}
+            path={item.path}
+            isFullscreen={isFullscreen}
+            showMetaPanel={showMetaPanel}
+            isVideo={isVideo}
+            hasMultipleItems={Boolean(items && items.length > 1)}
+            toggleFullscreen={toggleFullscreen}
+            toggleMetaPanel={() => setShowMetaPanel((prev) => !prev)}
+            onClose={onClose}
+          />
 
           {/* Modal Main Content Workspace */}
           <div className="relative flex min-h-0 flex-1">
@@ -556,35 +474,36 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
               onPointerLeave={handlePointerUp}
               onMouseMove={resetControlsTimeout}
             >
-              <div
-                ref={transformElRef}
-                className="pointer-events-none flex h-full w-full items-center justify-center transition-transform ease-out"
-              >
-                <div className="pointer-events-auto flex h-full w-full max-h-full max-w-full items-center justify-center">
-                  {isVideo ? (
-                    <VideoPlayer
-                      ref={videoPlayerRef}
-                      src={safeSrc}
-                      poster={
-                        item.thumbnailPath
-                          ? `media:///${item.thumbnailPath.replace(/\\/g, "/")}`
-                          : undefined
-                      }
-                      className="max-h-full max-w-full"
-                      hideFullscreen={false}
-                      autoPlay={autoPlay}
-                    />
-                  ) : (
-                    <img
-                      src={safeSrc}
-                      alt={item.name}
-                      className="pointer-events-none max-h-full max-w-full object-contain shadow-lg select-none"
-                    />
-                  )}
+              {isVideo ? (
+                <div className="flex h-full w-full max-h-full max-w-full items-center justify-center overflow-hidden">
+                  <VideoPlayer
+                    ref={videoPlayerRef}
+                    transformRef={transformElRef}
+                    src={safeSrc}
+                    mediaId={item.id}
+                    rotation={rotation}
+                    poster={
+                      item.thumbnailPath
+                        ? `media:///${item.thumbnailPath.replace(/\\/g, "/")}`
+                        : undefined
+                    }
+                    className="h-full w-full"
+                    hideFullscreen={false}
+                    autoPlay={autoPlay}
+                  />
                 </div>
-              </div>
+              ) : (
+                <ImagePreviewViewport
+                  src={safeSrc}
+                  alt={item.name}
+                  rotation={rotation}
+                  itemWidth={item.width}
+                  itemHeight={item.height}
+                  transformRef={transformElRef}
+                />
+              )}
 
-              {/* Zoom Controls */}
+              {/* Controls Toolbar (Zoom + Rotation) */}
               <ZoomControls
                 isFullscreen={isFullscreen}
                 showControls={showControls}
@@ -592,224 +511,65 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
                 onZoomIn={handleZoomIn}
                 onZoomOut={handleZoomOut}
                 onZoomReset={handleZoomReset}
+                onRotateLeft={handleRotateLeft}
+                onRotateRight={handleRotateRight}
+                rotation={rotation}
+                onRotateReset={handleRotateReset}
                 registerScaleListener={registerScaleListener}
               />
 
               {/* Previous Button */}
               {items && hasPrevious && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={`absolute top-1/2 left-4 z-30 h-10 w-10 rounded-full border border-white/10 bg-black/40 text-white hover:bg-black/60 ${!isFullscreen || showControls ? "opacity-100" : "pointer-events-none opacity-0"}`}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handlePrevious()
-                  }}
-                  title="Previous File (Left Arrow)"
-                >
-                  <ChevronLeft className="h-6 w-6" />
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={`absolute top-1/2 left-4 z-30 h-10 w-10 rounded-full border border-white/10 bg-black/40 text-white hover:bg-black/60 cursor-pointer ${!isFullscreen || showControls ? "opacity-100" : "pointer-events-none opacity-0"}`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handlePrevious()
+                      }}
+                    >
+                      <ChevronLeft className="h-6 w-6" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">Previous File (Left Arrow / A)</TooltipContent>
+                </Tooltip>
               )}
 
               {/* Next Button */}
               {items && hasNext && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={`absolute top-1/2 right-4 z-30 h-10 w-10 rounded-full border border-white/10 bg-black/40 text-white hover:bg-black/60 ${!isFullscreen || showControls ? "opacity-100" : "pointer-events-none opacity-0"}`}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleNext()
-                  }}
-                  title="Next File (Right Arrow)"
-                >
-                  <ChevronRight className="h-6 w-6" />
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={`absolute top-1/2 right-4 z-30 h-10 w-10 rounded-full border border-white/10 bg-black/40 text-white hover:bg-black/60 cursor-pointer ${!isFullscreen || showControls ? "opacity-100" : "pointer-events-none opacity-0"}`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleNext()
+                      }}
+                    >
+                      <ChevronRight className="h-6 w-6" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="left">Next File (Right Arrow / D)</TooltipContent>
+                </Tooltip>
               )}
             </div>
 
             {/* Properties Details Side Panel */}
-            {showMetaPanel && (
-              <div className="flex w-80 shrink-0 scrollbar-thin flex-col gap-4 overflow-y-auto border-r-0 border-l border-border bg-muted/10 p-5 font-sans text-xs select-none">
-                <h4 className="flex items-center gap-2 font-heading text-sm font-bold text-foreground">
-                  <FileImage className="h-4 w-4 text-primary" />
-                  Properties Info
-                </h4>
-
-                {/* Basic file attributes */}
-                <div className="space-y-2 border-b border-border pb-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-muted-foreground shrink-0">Parent Folder</span>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div
-                          className="max-w-44 cursor-pointer overflow-hidden text-right text-xs font-medium text-foreground"
-                          onClick={handleOpenFolder}
-                        >
-                          <div className="inline-block whitespace-nowrap animate-marquee-pingpong">
-                            {item.path.substring(
-                              0,
-                              Math.max(item.path.lastIndexOf("/"), item.path.lastIndexOf("\\"))
-                            )}
-                          </div>
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="max-w-xs text-xs break-all select-text">
-                        {item.path.substring(
-                          0,
-                          Math.max(item.path.lastIndexOf("/"), item.path.lastIndexOf("\\"))
-                        )}
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">File Size</span>
-                    <span className="font-medium text-foreground">
-                      {formatBytes(item.size)}
-                    </span>
-                  </div>
-                  {item.width && item.height && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Dimensions</span>
-                      <span className="font-medium text-foreground">
-                        {item.width} x {item.height}
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Extension</span>
-                    <span className="font-medium text-foreground uppercase">
-                      {item.extension}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Dates */}
-                <div className="space-y-3 border-b border-border pb-4">
-                  <h5 className="text-[0.6875rem] font-semibold tracking-wider text-muted-foreground uppercase">
-                    Dates
-                  </h5>
-
-                  <div className="flex justify-between gap-2">
-                    <span className="flex items-center gap-1 font-semibold text-primary">
-                      <Calendar className="h-3.5 w-3.5 text-primary" /> Resolved Date ({resolvedSourceLabel})
-                    </span>
-                    <span className="max-w-44 truncate font-bold text-primary">
-                      {targetDate}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between gap-2">
-                    <span className="flex items-center gap-1 text-muted-foreground">
-                      <Calendar className="h-3.5 w-3.5" /> EXIF Date
-                    </span>
-                    <span className="max-w-44 truncate font-medium text-foreground">
-                      {exifDate}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between gap-2">
-                    <span className="flex items-center gap-1 text-muted-foreground">
-                      <Calendar className="h-3.5 w-3.5" /> Filename Inferred Date
-                    </span>
-                    <span className="max-w-44 truncate font-medium text-foreground">
-                      {inferredDate}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between gap-2">
-                    <span className="flex items-center gap-1 text-muted-foreground">
-                      <Calendar className="h-3.5 w-3.5" /> File System Created
-                    </span>
-                    <span className="max-w-44 truncate font-medium text-foreground">
-                      {fsDate}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between gap-2">
-                    <span className="flex items-center gap-1 text-muted-foreground">
-                      <Calendar className="h-3.5 w-3.5" /> File System Updated
-                    </span>
-                    <span className="max-w-44 truncate font-medium text-foreground">
-                      {item.dateModified ? formatDate(item.dateModified) : "None"}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Quality details */}
-                {hasQuality && (
-                  <div className="space-y-3">
-                    <h5 className="text-[0.6875rem] font-semibold tracking-wider text-muted-foreground uppercase">
-                      Quality Score Indicators
-                    </h5>
-
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">
-                        Composite Score
-                      </span>
-                      <Badge
-                        variant={
-                          item.quality!.compositeScore < 50
-                            ? "destructive"
-                            : "secondary"
-                        }
-                        className="text-2xs font-bold"
-                      >
-                        {item.quality!.compositeScore} / 100
-                      </Badge>
-                    </div>
-
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Blur Check</span>
-                      <span
-                        className={`font-semibold ${item.quality!.isBlurry ? "text-destructive" : "text-green-500"}`}
-                      >
-                        {item.quality!.isBlurry ? "Blurry" : "Sharp"} (
-                        {item.quality!.blurScore})
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">
-                        Exposure Check
-                      </span>
-                      <span
-                        className={`font-semibold ${item.quality!.isDark ? "text-destructive" : "text-green-500"}`}
-                      >
-                        {item.quality!.isDark
-                          ? "Dark / Underexposed"
-                          : "Normal Exposure"}{" "}
-                        ({item.quality!.brightness})
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">
-                        Screenshot Flag
-                      </span>
-                      <span className="font-semibold text-foreground">
-                        {item.quality!.isScreenshot ? "Yes" : "No"}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Action utilities */}
-                <div className="mt-auto border-t border-border pt-4">
-                  <Button
-                    variant="outline"
-                    className="w-full gap-2 rounded-xl border-border text-xs"
-                    onClick={handleOpenFolder}
-                  >
-                    <FolderOpen className="h-4 w-4" />
-                    Show in {getFileManagerName()}
-                  </Button>
-                </div>
-              </div>
-            )}
+            {showMetaPanel && <MediaPropertiesPanel item={item} />}
           </div>
         </div>
       </DialogContent>
     </Dialog>
   )
 }
+
+// Keyed wrapper: remounts the preview when the target item changes, so the
+// internal navigation state resets without render-phase setState.
+export const MediaPreview: React.FC<MediaPreviewProps> = (props) => (
+  <MediaPreviewInner key={props.item?.id ?? "none"} {...props} />
+)

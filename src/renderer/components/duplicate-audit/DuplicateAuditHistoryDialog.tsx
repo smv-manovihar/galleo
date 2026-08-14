@@ -66,7 +66,7 @@ const HistoryRow = React.memo(
         ref={measureRef}
         data-index={index}
         className={cn(
-          "absolute top-0 left-0 grid w-full items-center border-b border-border/50 text-[0.6875rem] transition-colors hover:bg-muted/20",
+          "absolute top-0 left-0 grid w-full items-center border-b border-border/50 text-xs transition-colors hover:bg-muted/20",
           isChecked ? "bg-accent/25" : ""
         )}
         style={rowStyle}
@@ -98,7 +98,7 @@ const HistoryRow = React.memo(
           <Badge
             variant="outline"
             className={cn(
-              "px-2 py-0.5 text-[0.5625rem] tracking-wider uppercase",
+              "px-2 py-0.5 text-xs tracking-wider uppercase",
               isKeep
                 ? "border-green-500/20 bg-green-500/10 text-green-600 dark:text-green-400"
                 : isDelete
@@ -110,7 +110,7 @@ const HistoryRow = React.memo(
           </Badge>
         </div>
         <div className="p-3 text-right">
-          <div className="flex items-center justify-end gap-1.5">
+          <div className="flex items-center justify-end gap-2">
             {!isKeep && (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -120,7 +120,7 @@ const HistoryRow = React.memo(
                     className="h-7 w-7 rounded-full text-green-600 hover:bg-green-500/10 dark:text-green-400"
                     onClick={() => onSingleAction(item.mediaId, "keep")}
                   >
-                    <Bookmark className="h-3.5 w-3.5 fill-current" />
+                    <Bookmark className="size-4 fill-current" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="top">Change to Keep</TooltipContent>
@@ -135,7 +135,7 @@ const HistoryRow = React.memo(
                     className="h-7 w-7 rounded-full text-red-600 hover:bg-red-500/10 dark:text-red-400"
                     onClick={() => onSingleAction(item.mediaId, "delete")}
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 className="size-4" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="top">Change to Delete</TooltipContent>
@@ -225,10 +225,10 @@ export const DuplicateAuditHistoryDialog: React.FC<
         <DialogHeader className="flex shrink-0 flex-row items-center justify-between border-b border-border pb-4">
           <div className="space-y-1">
             <DialogTitle className="flex items-center gap-2 text-sm font-bold text-foreground">
-              <History className="h-4.5 w-4.5 text-primary" />
+              <History className="size-5 text-primary" />
               Decision History
             </DialogTitle>
-            <DialogDescription className="text-[0.6875rem] text-muted-foreground">
+            <DialogDescription className="text-xs text-muted-foreground">
               Review your decisions in this session. Select multiple items to
               apply bulk actions.
             </DialogDescription>
@@ -238,7 +238,7 @@ export const DuplicateAuditHistoryDialog: React.FC<
         {/* Bulk operations bar */}
         {selectedIds.size > 0 && (
           <div className="flex shrink-0 items-center justify-between gap-3 rounded-lg border border-border bg-accent/40 p-3 transition-all duration-200">
-            <span className="px-1 text-[0.6875rem] font-medium text-foreground">
+            <span className="px-1 text-xs font-medium text-foreground">
               {selectedIds.size} {selectedIds.size === 1 ? "item" : "items"}{" "}
               selected
             </span>
@@ -246,28 +246,28 @@ export const DuplicateAuditHistoryDialog: React.FC<
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 gap-1.5 border-green-500/20 bg-green-500/5 text-2xs font-medium text-green-600 hover:bg-green-500/10 dark:text-green-400"
+                className="h-8 gap-2 border-green-500/20 bg-green-500/5 text-xs font-medium text-green-600 hover:bg-green-500/10 dark:text-green-400"
                 onClick={() => handleBulkApply("keep")}
               >
-                <Bookmark className="h-3.5 w-3.5" />
+                <Bookmark className="size-4" />
                 Keep Selected
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 gap-1.5 border-red-500/20 bg-red-500/5 text-2xs font-medium text-red-600 hover:bg-red-500/10 dark:text-red-400"
+                className="h-8 gap-2 border-red-500/20 bg-red-500/5 text-xs font-medium text-red-600 hover:bg-red-500/10 dark:text-red-400"
                 onClick={() => handleBulkApply("delete")}
               >
-                <Trash2 className="h-3.5 w-3.5" />
+                <Trash2 className="size-4" />
                 Delete Selected
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 px-2 text-2xs text-muted-foreground hover:text-foreground"
+                className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
                 onClick={() => setSelectedIds(new Set())}
               >
-                <X className="mr-1 h-3.5 w-3.5" />
+                <X className="mr-1 size-4" />
                 Clear Selection
               </Button>
             </div>
@@ -285,7 +285,7 @@ export const DuplicateAuditHistoryDialog: React.FC<
             <>
               {/* Header */}
               <div
-                className="grid shrink-0 items-center border-b border-border bg-muted pr-[8px] text-[0.6875rem] font-semibold text-muted-foreground"
+                className="grid shrink-0 items-center border-b border-border bg-muted pr-2 text-xs font-semibold text-muted-foreground"
                 style={{ gridTemplateColumns: "40px 56px 1fr 96px 80px" }}
               >
                 <div className="flex items-center justify-start p-3">

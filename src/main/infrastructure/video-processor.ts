@@ -4,7 +4,8 @@ import ffmpeg from "fluent-ffmpeg"
 import path from "path"
 import { existsSync } from "fs"
 import { type Result, fail, ok } from "../../shared/types/results"
-import { getThumbnailCacheDir } from "./image-processor"
+import { getThumbnailCacheDir, purgeOldThumbnailVersions } from "./image-processor"
+import { VIDEO_THUMB_SUFFIX } from "../../shared/constants"
 
 // Set static path for ffmpeg, adjusting for Electron ASAR unpacking in production
 let resolvedFfmpegPath = ffmpegPath
@@ -49,13 +50,16 @@ export function generateVideoThumbnail(
   return new Promise((resolve) => {
     try {
       const cacheDir = getThumbnailCacheDir()
-      const outputFilename = `${mediaId}_v2.webp`
+      const outputFilename = `${mediaId}${VIDEO_THUMB_SUFFIX}`
       const outputPath = path.join(cacheDir, outputFilename)
 
       // Check if thumbnail is already cached
       if (existsSync(outputPath)) {
         return resolve(ok(outputPath))
       }
+
+      // Invalidate/purge any previous thumbnail versions for this mediaId
+      purgeOldThumbnailVersions(cacheDir, mediaId, outputFilename).catch(() => {})
 
       // Calculate timestamp past intros (e.g. 20% mark for videos > 5s, capped 3s-30s)
       let sampleTimestamp = 1

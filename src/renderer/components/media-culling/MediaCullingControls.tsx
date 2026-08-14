@@ -150,7 +150,7 @@ export const MediaCullingControls: React.FC<MediaCullingControlsProps> = ({
       </div>
 
       {/* Keyboard shortcuts & interaction hint */}
-      <p className="shrink-0 text-center text-2xs text-muted-foreground">
+      <p className="shrink-0 text-center text-xs text-muted-foreground">
         Swipe or use{" "}
         <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono font-bold">←</kbd>{" "}
         Delete —{" "}

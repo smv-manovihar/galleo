@@ -95,7 +95,7 @@ export const DuplicateAuditSummary: React.FC<DuplicateAuditSummaryProps> = ({
           <div className="grid w-full grid-cols-3 gap-2 text-xs">
             <div className="rounded-xl border border-green-500/15 bg-green-500/5 p-3">
               <div className="mb-1 flex items-center justify-center gap-1 text-xs font-semibold tracking-wider text-green-600/70 uppercase dark:text-green-400/70">
-                <Bookmark className="h-2.5 w-2.5" /> Kept
+                <Bookmark className="size-3" /> Kept
               </div>
               <div className="font-heading text-xl font-bold text-green-600 tabular-nums dark:text-green-400">
                 {details.keepCount}
@@ -103,7 +103,7 @@ export const DuplicateAuditSummary: React.FC<DuplicateAuditSummaryProps> = ({
             </div>
             <div className="rounded-xl border border-destructive/15 bg-destructive/5 p-3">
               <div className="mb-1 flex items-center justify-center gap-1 text-xs font-semibold tracking-wider text-destructive/70 uppercase">
-                <Trash2 className="h-2.5 w-2.5" /> Delete
+                <Trash2 className="size-3" /> Delete
               </div>
               <div className="font-heading text-xl font-bold text-destructive tabular-nums">
                 {details.deleteCount}
@@ -111,7 +111,7 @@ export const DuplicateAuditSummary: React.FC<DuplicateAuditSummaryProps> = ({
             </div>
             <div className="rounded-xl border border-border bg-muted/20 p-3">
               <div className="mb-1 flex items-center justify-center gap-1 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-                <HardDriveDownload className="h-2.5 w-2.5" /> To be freed
+                <HardDriveDownload className="size-3" /> To be freed
               </div>
               <div className="font-heading text-xl font-bold text-foreground">
                 {formatBytes(details.reclaimableSize)}
@@ -119,8 +119,8 @@ export const DuplicateAuditSummary: React.FC<DuplicateAuditSummaryProps> = ({
             </div>
           </div>
           {details.deleteCount > 0 && (
-            <div className="flex items-center gap-1.5 pt-1 text-xs text-muted-foreground">
-              <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+            <div className="flex items-center gap-2 pt-1 text-xs text-muted-foreground">
+              <ShieldCheck className="size-4 shrink-0 text-emerald-500" />
               <span>Files move to system trash (recoverable).</span>
             </div>
           )}
@@ -130,7 +130,7 @@ export const DuplicateAuditSummary: React.FC<DuplicateAuditSummaryProps> = ({
         <div className="flex gap-2">
           <Button
             variant="ghost"
-            className="h-9 flex-1 cursor-pointer gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+            className="h-9 flex-1 cursor-pointer gap-2 text-xs text-muted-foreground hover:text-foreground"
             onClick={() => withViewTransition(onBackToQueue)}
           >
             <ChevronLeft className="h-4 w-4" />
@@ -139,10 +139,10 @@ export const DuplicateAuditSummary: React.FC<DuplicateAuditSummaryProps> = ({
           {details.deleteCount > 0 && (
             <Button
               variant="destructive"
-              className="h-9 flex-1 cursor-pointer gap-1.5 text-xs"
+              className="h-9 flex-1 cursor-pointer gap-2 text-xs"
               onClick={handleCommit}
             >
-              <ListX className="h-3.5 w-3.5" />
+              <ListX className="size-4" />
               Commit {details.deleteCount} deletion{details.deleteCount !== 1 ? "s" : ""}
             </Button>
           )}

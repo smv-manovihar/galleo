@@ -70,6 +70,12 @@ const api: GalleoAPI = {
       undoAction,
     }),
 
+  updateMediaOrientation: (idOrPath, orientation) =>
+    ipcRenderer.invoke(IPC_CHANNELS.MEDIA_UPDATE_ORIENTATION, {
+      idOrPath,
+      orientation,
+    }),
+
   getSessionCheckpoint: (folderPath) =>
     ipcRenderer.invoke(IPC_CHANNELS.SESSION_GET_CHECKPOINT, folderPath),
   saveSessionCheckpoint: (checkpoint) =>
@@ -124,6 +130,8 @@ const api: GalleoAPI = {
   showFile: (filePath) => ipcRenderer.invoke(IPC_CHANNELS.FILE_SHOW, filePath),
   trashFiles: (paths) => ipcRenderer.invoke(IPC_CHANNELS.MEDIA_TRASH, paths),
   resetApp: (options) => ipcRenderer.invoke(IPC_CHANNELS.APP_RESET, options),
+  getStorageUsage: (force?: boolean) =>
+    ipcRenderer.invoke(IPC_CHANNELS.APP_STORAGE_USAGE, force),
   clearFolderIndex: (folderPath) =>
     ipcRenderer.invoke(IPC_CHANNELS.MEDIA_CLEAR_INDEX, folderPath),
   checkForUpdates: (force?: boolean) =>

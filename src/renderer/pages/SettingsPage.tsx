@@ -77,7 +77,7 @@ export const SettingsPage: React.FC = () => {
   const ActiveIcon = activeTabItem.icon
 
   return (
-    <PageContainer maxWidth="xl" className="px-3.5 py-4 sm:px-6 sm:py-6">
+    <PageContainer maxWidth="xl" className="px-4 py-4 sm:px-6 sm:py-6">
       {/* Mobile/Tablet Full-Width Select Dropdown on Low Widths (< 1024px) */}
       <div className="sticky top-0 z-20 mb-3 w-full lg:hidden">
         <Select
@@ -86,9 +86,9 @@ export const SettingsPage: React.FC = () => {
             setActiveSettingsTab(val as TabItem["value"])
           }
         >
-          <SelectTrigger className="h-12! w-full cursor-pointer justify-between rounded-xl border-border bg-card/90 px-4 text-xs font-semibold shadow-xs backdrop-blur-md sm:text-sm">
+          <SelectTrigger className="h-10 w-full cursor-pointer justify-between rounded-xl border-border bg-card/90 px-4 text-xs font-semibold shadow-xs backdrop-blur-md sm:text-sm">
             <div className="flex min-w-0 items-center gap-3 truncate">
-              <ActiveIcon className="h-4.5 w-4.5 shrink-0 text-primary" />
+              <ActiveIcon className="h-4 w-4 shrink-0 text-primary" />
               <span className="truncate">{activeTabItem.label}</span>
               {activeTabItem.hasUpdate && (
                 <span className="flex h-2 w-2 shrink-0 animate-pulse rounded-full bg-emerald-500" />
@@ -107,7 +107,7 @@ export const SettingsPage: React.FC = () => {
                   <SelectItem
                     key={t.value}
                     value={t.value}
-                    className="cursor-pointer gap-2.5 rounded-md px-3 py-2.5 text-xs font-medium"
+                    className="cursor-pointer gap-3 rounded-md px-3 py-2 text-xs font-medium"
                   >
                     <TIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
                     <span>{t.label}</span>
@@ -131,14 +131,14 @@ export const SettingsPage: React.FC = () => {
         className="flex min-h-0 min-w-0 flex-1 flex-col items-stretch gap-4 lg:flex-row lg:gap-8"
       >
         {/* Settings Navigation Tabs Sidebar */}
-        <TabsList variant="animated" className="z-10 hidden h-fit w-56 shrink-0 gap-1.5 rounded-xl border border-border bg-card/60 p-1.5 backdrop-blur-md select-none lg:sticky lg:top-6 lg:flex lg:flex-col">
+        <TabsList variant="animated" className="z-10 hidden h-fit w-56 shrink-0 gap-2 rounded-xl border border-border bg-card/60 p-2 backdrop-blur-md select-none lg:sticky lg:top-6 lg:flex lg:flex-col">
           {tabsData.map((tab) => {
             const Icon = tab.icon
             return (
               <TabsTrigger
                 key={tab.value}
                 value={tab.value}
-                className="h-10 w-full cursor-pointer justify-start gap-2.5 rounded-lg px-3.5 text-xs font-medium whitespace-nowrap transition-all group-data-vertical/tabs:py-2 data-active:bg-background data-active:shadow-xs"
+                className="h-10 w-full cursor-pointer justify-start gap-3 rounded-lg px-4 text-xs font-medium whitespace-nowrap transition-all group-data-vertical/tabs:py-2 data-active:bg-background data-active:shadow-xs"
               >
                 <Icon className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-data-active:text-primary" />
                 <span className="truncate">{tab.label}</span>

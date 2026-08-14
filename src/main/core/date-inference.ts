@@ -16,12 +16,13 @@ export function parseExifDate(
 
   const cleaned = exifDateStr.trim()
 
-  // 1. Check EXIF colon format: YYYY:MM:DD HH:MM:SS
-  const exifRegex = /^(\d{4}):(\d{2}):(\d{2})\s+(\d{2}):(\d{2}):(\d{2})$/
+  // 1. Check EXIF colon format: YYYY:MM:DD (with optional time / subseconds / timezone)
+  const exifRegex =
+    /^(\d{4}):(\d{2}):(\d{2})(?:[\sT](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(?:Z|([+-]\d{2}:?\d{2}))?)?$/
   const match = cleaned.match(exifRegex)
 
   if (match) {
-    const [, year, month, day, hour, minute, second] = match
+    const [, year, month, day, hour = "0", minute = "0", second = "0"] = match
     const y = parseInt(year, 10)
     const m = parseInt(month, 10) - 1
     const d = parseInt(day, 10)

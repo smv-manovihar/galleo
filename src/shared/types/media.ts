@@ -45,4 +45,5 @@ export interface MediaItem {
   // User review state
   reviewState: "pending" | "keep" | "delete" | "skipped"
   reviewedAt?: string // ISO string
+  orientation?: number // rotation in degrees (0, 90, 180, 270)
 }

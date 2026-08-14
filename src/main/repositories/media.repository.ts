@@ -59,6 +59,7 @@ export class MediaRepository {
       reviewState: row.review_state as
         "pending" | "keep" | "delete" | "skipped",
       reviewedAt: row.reviewed_at ?? undefined,
+      orientation: row.orientation ?? 0,
     }
   }
 
@@ -100,13 +101,13 @@ export class MediaRepository {
         date_added, date_original, date_inferred, date_filesystem,
         date_target, date_target_source, hash, exact_hash, duration, thumbnail_path, date_modified,
         blur_score, brightness, is_dark, is_blurry, is_screenshot, is_small, composite_score,
-        duplicate_group_id, is_duplicate, is_best_in_duplicate_group, similarity_index, review_state, reviewed_at
+        duplicate_group_id, is_duplicate, is_best_in_duplicate_group, similarity_index, review_state, reviewed_at, orientation
       ) VALUES (
         $id, $path, $name, $size, $extension, $mediaType, $width, $height,
         $dateAdded, $dateOriginal, $dateInferred, $dateFileSystem,
         $dateTarget, $dateTargetSource, $hash, $exactHash, $duration, $thumbnailPath, $dateModified,
         $blurScore, $brightness, $isDark, $isBlurry, $isScreenshot, $isSmall, $compositeScore,
-        $duplicateGroupId, $isDuplicate, $isBestInDuplicateGroup, $similarityIndex, $reviewState, $reviewedAt
+        $duplicateGroupId, $isDuplicate, $isBestInDuplicateGroup, $similarityIndex, $reviewState, $reviewedAt, $orientation
       )
       ON CONFLICT(id) DO UPDATE SET
         path = excluded.path,
@@ -136,7 +137,8 @@ export class MediaRepository {
         duplicate_group_id = excluded.duplicate_group_id,
         is_duplicate = excluded.is_duplicate,
         is_best_in_duplicate_group = excluded.is_best_in_duplicate_group,
-        similarity_index = COALESCE(excluded.similarity_index, media_items.similarity_index)
+        similarity_index = COALESCE(excluded.similarity_index, media_items.similarity_index),
+        orientation = COALESCE(excluded.orientation, media_items.orientation)
     `)
 
     const transaction = db.transaction((batchItems: MediaItem[]) => {
@@ -174,6 +176,7 @@ export class MediaRepository {
           similarityIndex: item.similarityIndex ?? null,
           reviewState: item.reviewState,
           reviewedAt: item.reviewedAt ?? null,
+          orientation: item.orientation ?? 0,
         })
       }
     })
@@ -243,12 +246,12 @@ export class MediaRepository {
     const searchPath = folderPath
       .replace(/\\/g, "/")
       .toLowerCase()
-      .replace(/[%_]/g, "\\$&")
+      .replace(/[!%_]/g, "!$&")
 
-    // We match any item whose path starts with the folderPath
+    // We match any item whose path starts with the folderPath (normalized to forward slashes for cross-platform matching)
     const stmt = db.prepare(`
        SELECT * FROM media_items 
-       WHERE path COLLATE NOCASE LIKE ? ESCAPE '\\'
+       WHERE REPLACE(path, '\\', '/') COLLATE NOCASE LIKE ? ESCAPE '!'
        ORDER BY date_target DESC
      `)
 
@@ -302,6 +305,19 @@ export class MediaRepository {
   }
 
   /**
+   * Updates an item's orientation in degrees (0, 90, 180, 270)
+   */
+  public updateOrientation(idOrPath: string, orientation: number): void {
+    const db = this.getDb()
+    const stmt = db.prepare(`
+      UPDATE media_items 
+      SET orientation = ? 
+      WHERE id = ? OR path = ?
+    `)
+    stmt.run(orientation, idOrPath, idOrPath)
+  }
+
+  /**
    * Deletes scanned metadata for files that were physically removed/moved.
    */
   public deleteMany(paths: string[]): void {
@@ -330,8 +346,10 @@ export class MediaRepository {
     const searchPath = folderPath
       .replace(/\\/g, "/")
       .toLowerCase()
-      .replace(/[%_]/g, "\\$&")
-    const stmt = db.prepare("DELETE FROM media_items WHERE LOWER(path) LIKE ? ESCAPE '\\'")
+      .replace(/[!%_]/g, "!$&")
+    const stmt = db.prepare(
+      "DELETE FROM media_items WHERE REPLACE(path, '\\', '/') COLLATE NOCASE LIKE ? ESCAPE '!'"
+    )
     stmt.run(`${searchPath}%`)
   }
 
@@ -351,11 +369,11 @@ export class MediaRepository {
     const searchPath = folderPath
       .replace(/\\/g, "/")
       .toLowerCase()
-      .replace(/[%_]/g, "\\$&")
+      .replace(/[!%_]/g, "!$&")
     const stmt = db.prepare(`
       UPDATE media_items 
       SET review_state = 'pending', reviewed_at = NULL 
-      WHERE LOWER(path) LIKE ? ESCAPE '\\'
+      WHERE REPLACE(path, '\\', '/') COLLATE NOCASE LIKE ? ESCAPE '!'
     `)
     stmt.run(`${searchPath}%`)
   }

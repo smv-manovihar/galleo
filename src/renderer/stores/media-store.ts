@@ -24,6 +24,125 @@ export interface CachedDashboardMetrics {
   blurrySavedBytes: number
 }
 
+export interface FilterAndSortOptions {
+  activeRootPath: string | null
+  searchQuery: string
+  filterType: "all" | "photo" | "video"
+  filterReviewState: "all" | "pending" | "kept" | "trash"
+  filterQuality:
+    | "all"
+    | "blurry"
+    | "dark"
+    | "duplicates"
+    | "screenshots"
+    | "small"
+  sortBy:
+    | "date-desc"
+    | "date-asc"
+    | "score-desc"
+    | "score-asc"
+    | "size-desc"
+    | "size-asc"
+  decisions: Record<string, "keep" | "delete" | "skipped">
+}
+
+/** Pure single-pass filter + sort pipeline shared by the store and UI. */
+export function filterAndSortItems(
+  items: MediaItem[],
+  opts: FilterAndSortOptions
+): MediaItem[] {
+  const {
+    activeRootPath,
+    searchQuery,
+    filterType,
+    filterReviewState,
+    filterQuality,
+    sortBy,
+    decisions,
+  } = opts
+  const normRoot =
+    activeRootPath && activeRootPath !== "all"
+      ? activeRootPath.replace(/\\/g, "/").toLowerCase().replace(/\/+$/, "")
+      : null
+  const q = searchQuery.trim().length > 0 ? searchQuery.toLowerCase() : null
+
+  const result = items.filter((item) => {
+    // 0. Active Root Path Filter
+    if (normRoot) {
+      const itemNorm = item.path.replace(/\\/g, "/").toLowerCase()
+      if (itemNorm !== normRoot && !itemNorm.startsWith(normRoot + "/")) {
+        return false
+      }
+    }
+
+    // 1. Text Search Filter
+    if (q) {
+      if (!item.name.toLowerCase().includes(q) && !item.path.toLowerCase().includes(q)) {
+        return false
+      }
+    }
+
+    // 2. Type Filter (photo / video)
+    if (filterType !== "all" && item.mediaType !== filterType) {
+      return false
+    }
+
+    // 3. Review State Filter
+    if (filterReviewState !== "all") {
+      const state: string = decisions[item.id] || item.reviewState || "pending"
+      if (filterReviewState === "pending" && state !== "pending" && state !== "skipped") {
+        return false
+      }
+      if (filterReviewState === "kept" && state !== "keep") return false
+      if (filterReviewState === "trash" && state !== "delete") return false
+    }
+
+    // 4. Quality Metrics Filter
+    if (filterQuality !== "all") {
+      if (filterQuality === "blurry" && item.quality?.isBlurry !== true) return false
+      if (filterQuality === "dark" && item.quality?.isDark !== true) return false
+      if (filterQuality === "screenshots" && item.quality?.isScreenshot !== true) return false
+      if (filterQuality === "small" && item.quality?.isSmall !== true) return false
+      if (filterQuality === "duplicates" && item.isDuplicate !== true) return false
+    }
+
+    return true
+  })
+
+  // 5. Fast Sorting logic (avoid expensive Intl.Collator / localeCompare)
+  result.sort((a, b) => {
+    if (sortBy === "date-desc") {
+      const dA = a.dateTarget || ""
+      const dB = b.dateTarget || ""
+      return dB < dA ? -1 : dB > dA ? 1 : 0
+    }
+    if (sortBy === "date-asc") {
+      const dA = a.dateTarget || ""
+      const dB = b.dateTarget || ""
+      return dA < dB ? -1 : dA > dB ? 1 : 0
+    }
+    if (sortBy === "score-desc") {
+      const scoreA = a.quality?.compositeScore ?? 0
+      const scoreB = b.quality?.compositeScore ?? 0
+      return scoreB - scoreA
+    }
+    if (sortBy === "score-asc") {
+      const scoreA = a.quality?.compositeScore ?? 0
+      const scoreB = b.quality?.compositeScore ?? 0
+      return scoreA - scoreB
+    }
+    if (sortBy === "size-desc") {
+      return b.size - a.size
+    }
+    if (sortBy === "size-asc") {
+      return a.size - b.size
+    }
+    return 0
+  })
+
+  return result
+}
+
 interface MediaState {
   items: MediaItem[]
   cachedMetrics: CachedDashboardMetrics
@@ -75,6 +194,7 @@ interface MediaState {
   ) => void
   setSelectedItemId: (id: string | null) => void
   setActiveRootPath: (path: string | null) => void
+  updateItemOrientation: (idOrPath: string, orientation: number) => void
   getFilteredItems: () => MediaItem[]
   getDashboardMetrics: () => CachedDashboardMetrics
 }
@@ -246,6 +366,19 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     set({ items, cachedMetrics, cachedDuplicateGroups, cachedRootItemCounts })
   },
 
+  updateItemOrientation: (idOrPath: string, orientation: number) => {
+    const { items, activeRootPath } = get()
+    const updatedItems = items.map((item) =>
+      item.id === idOrPath || item.path === idOrPath
+        ? { ...item, orientation }
+        : item
+    )
+    const { cachedMetrics, cachedDuplicateGroups, cachedRootItemCounts } =
+      computeCaches(updatedItems, activeRootPath)
+    set({ items: updatedItems, cachedMetrics, cachedDuplicateGroups, cachedRootItemCounts })
+    void window.api.updateMediaOrientation(idOrPath, orientation)
+  },
+
   fetchMediaItems: async (folderPath: string) => {
     set({ isLoading: true, activeRootPath: folderPath })
     try {
@@ -341,87 +474,14 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       filterQuality,
       sortBy,
     } = get()
-    const normRoot =
-      activeRootPath && activeRootPath !== "all"
-        ? activeRootPath.replace(/\\/g, "/").toLowerCase().replace(/\/+$/, "")
-        : null
-    const q = searchQuery.trim().length > 0 ? searchQuery.toLowerCase() : null
-    const sessionDecisions = useSessionStore.getState().decisions
-
-    const result = items.filter((item) => {
-      // 0. Active Root Path Filter
-      if (normRoot) {
-        const itemNorm = item.path.replace(/\\/g, "/").toLowerCase()
-        if (itemNorm !== normRoot && !itemNorm.startsWith(normRoot + "/")) {
-          return false
-        }
-      }
-
-      // 1. Text Search Filter
-      if (q) {
-        if (!item.name.toLowerCase().includes(q) && !item.path.toLowerCase().includes(q)) {
-          return false
-        }
-      }
-
-      // 2. Type Filter (photo / video)
-      if (filterType !== "all" && item.mediaType !== filterType) {
-        return false
-      }
-
-      // 3. Review State Filter
-      if (filterReviewState !== "all") {
-        const state: string = sessionDecisions[item.id] || item.reviewState || "pending"
-        if (filterReviewState === "pending" && state !== "pending" && state !== "skipped") {
-          return false
-        }
-        if (filterReviewState === "kept" && state !== "keep") return false
-        if (filterReviewState === "trash" && state !== "delete") return false
-      }
-
-      // 4. Quality Metrics Filter
-      if (filterQuality !== "all") {
-        if (filterQuality === "blurry" && item.quality?.isBlurry !== true) return false
-        if (filterQuality === "dark" && item.quality?.isDark !== true) return false
-        if (filterQuality === "screenshots" && item.quality?.isScreenshot !== true) return false
-        if (filterQuality === "small" && item.quality?.isSmall !== true) return false
-        if (filterQuality === "duplicates" && item.isDuplicate !== true) return false
-      }
-
-      return true
+    return filterAndSortItems(items, {
+      activeRootPath,
+      searchQuery,
+      filterType,
+      filterReviewState,
+      filterQuality,
+      sortBy,
+      decisions: useSessionStore.getState().decisions,
     })
-
-    // 5. Fast Sorting logic (avoid expensive Intl.Collator / localeCompare)
-    result.sort((a, b) => {
-      if (sortBy === "date-desc") {
-        const dA = a.dateTarget || ""
-        const dB = b.dateTarget || ""
-        return dB < dA ? -1 : dB > dA ? 1 : 0
-      }
-      if (sortBy === "date-asc") {
-        const dA = a.dateTarget || ""
-        const dB = b.dateTarget || ""
-        return dA < dB ? -1 : dA > dB ? 1 : 0
-      }
-      if (sortBy === "score-desc") {
-        const scoreA = a.quality?.compositeScore ?? 0
-        const scoreB = b.quality?.compositeScore ?? 0
-        return scoreB - scoreA
-      }
-      if (sortBy === "score-asc") {
-        const scoreA = a.quality?.compositeScore ?? 0
-        const scoreB = b.quality?.compositeScore ?? 0
-        return scoreA - scoreB
-      }
-      if (sortBy === "size-desc") {
-        return b.size - a.size
-      }
-      if (sortBy === "size-asc") {
-        return a.size - b.size
-      }
-      return 0
-    })
-
-    return result
   },
 }))

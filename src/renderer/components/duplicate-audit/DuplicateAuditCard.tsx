@@ -59,9 +59,10 @@ export const DuplicateAuditCard: React.FC<DuplicateAuditCardProps> = ({
   const isMarkedDelete = reviewState === "delete"
 
   const safeThumbnailSrc = useMemo(() => {
-    if (!item.thumbnailPath) return null
-    return `media:///${item.thumbnailPath.replace(/\\/g, "/")}`
-  }, [item.thumbnailPath])
+    const rawPath = item.thumbnailPath || item.path
+    if (!rawPath) return null
+    return `media:///${rawPath.replace(/\\/g, "/")}`
+  }, [item.thumbnailPath, item.path])
 
   const handleOpenFolder = async () => {
     await window.api.showFile(item.path)
@@ -96,6 +97,11 @@ export const DuplicateAuditCard: React.FC<DuplicateAuditCardProps> = ({
               <img
                 src={safeThumbnailSrc}
                 alt={item.name}
+                style={
+                  item.orientation
+                    ? { transform: `rotate(${item.orientation}deg)` }
+                    : undefined
+                }
                 className="pointer-events-none absolute inset-0 h-full w-full object-contain transition-transform duration-300 select-none group-hover:scale-102"
               />
             ) : (
@@ -105,12 +111,12 @@ export const DuplicateAuditCard: React.FC<DuplicateAuditCardProps> = ({
             )}
 
             {/* Badges Container (Top-Left) */}
-            <div className="absolute top-2.5 left-2.5 z-20 flex items-center gap-1.5">
+            <div className="absolute top-3 left-3 z-20 flex items-center gap-2">
               {isBest && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div className="flex h-5 w-5 items-center justify-center rounded-md border border-primary/20 bg-primary text-primary-foreground shadow-xs select-none">
-                      <Sparkles className="h-3.5 w-3.5" />
+                      <Sparkles className="size-4" />
                     </div>
                   </TooltipTrigger>
                   <TooltipContent side="top">Best Choice</TooltipContent>
@@ -148,7 +154,7 @@ export const DuplicateAuditCard: React.FC<DuplicateAuditCardProps> = ({
                       onPreview(false)
                     }}
                   >
-                    <Maximize className="h-3.5 w-3.5" />
+                    <Maximize className="size-4" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom">Preview Details</TooltipContent>
@@ -165,12 +171,12 @@ export const DuplicateAuditCard: React.FC<DuplicateAuditCardProps> = ({
                 </TooltipTrigger>
                 <TooltipContent
                   side="top"
-                  className="max-w-xs font-sans text-2xs break-all"
+                  className="max-w-xs font-sans text-xs break-all"
                 >
                   {item.name}
                 </TooltipContent>
               </Tooltip>
-              <div className="mt-1 flex items-center justify-between font-sans text-2xs leading-none opacity-75">
+              <div className="mt-1 flex items-center justify-between font-sans text-xs leading-none opacity-75">
                 <span>{formatBytes(item.size)}</span>
                 {item.width && item.height && (
                   <span>
@@ -185,7 +191,7 @@ export const DuplicateAuditCard: React.FC<DuplicateAuditCardProps> = ({
           {/* Bottom Status Bar */}
           <div
             className={cn(
-              "mt-auto flex h-8.5 w-full shrink-0 items-center justify-center gap-1.5 border-t border-border/40 text-xs font-semibold transition-colors",
+              "mt-auto flex h-8 w-full shrink-0 items-center justify-center gap-2 border-t border-border/40 text-xs font-semibold transition-colors",
               isMarkedKeep
                 ? "bg-green-500/10 text-green-600 dark:text-green-400"
                 : isMarkedDelete
@@ -195,12 +201,12 @@ export const DuplicateAuditCard: React.FC<DuplicateAuditCardProps> = ({
           >
             {isMarkedKeep ? (
               <>
-                <Bookmark className="h-3.5 w-3.5 fill-current" />
+                <Bookmark className="size-4 fill-current" />
                 <span>Keeping</span>
               </>
             ) : isMarkedDelete ? (
               <>
-                <Trash2 className="h-3.5 w-3.5" />
+                <Trash2 className="size-4" />
                 <span>Marked for Deletion</span>
               </>
             ) : (
@@ -211,47 +217,47 @@ export const DuplicateAuditCard: React.FC<DuplicateAuditCardProps> = ({
       </ContextMenuTrigger>
 
       <ContextMenuContent className="w-44 border-border bg-card font-sans text-sm text-foreground">
-        <ContextMenuItem onClick={() => onPreview(false)} className="gap-2.5">
-          <Eye className="h-3.5 w-3.5" />
+        <ContextMenuItem onClick={() => onPreview(false)} className="gap-3">
+          <Eye className="size-4" />
           Preview File
         </ContextMenuItem>
         {onInfoOpen && (
-          <ContextMenuItem onClick={() => onInfoOpen(item)} className="gap-2.5">
-            <Info className="h-3.5 w-3.5" />
+          <ContextMenuItem onClick={() => onInfoOpen(item)} className="gap-3">
+            <Info className="size-4" />
             File Info
           </ContextMenuItem>
         )}
         {onFindSimilar && ENABLE_AI_FEATURES && (
           <ContextMenuItem
             onClick={() => onFindSimilar(item.id)}
-            className="gap-2.5 text-primary focus:text-primary"
+            className="gap-3 text-primary focus:text-primary"
           >
-            <Sparkles className="h-3.5 w-3.5" />
+            <Sparkles className="size-4" />
             Find Similar
           </ContextMenuItem>
         )}
         <ContextMenuSeparator />
         <ContextMenuItem
           onClick={() => (onReviewAction ? onReviewAction(item.id, "keep") : onClick())}
-          className="gap-2.5 text-green-500 focus:text-green-500"
+          className="gap-3 text-green-500 focus:text-green-500"
         >
-          <Bookmark className="h-3.5 w-3.5" />
+          <Bookmark className="size-4" />
           Mark to Keep
         </ContextMenuItem>
         <ContextMenuItem
           onClick={() => (onReviewAction ? onReviewAction(item.id, "delete") : onClick())}
-          className="gap-2.5 text-destructive focus:text-destructive"
+          className="gap-3 text-destructive focus:text-destructive"
         >
-          <Trash2 className="h-3.5 w-3.5" />
+          <Trash2 className="size-4" />
           Mark to Delete
         </ContextMenuItem>
         <ContextMenuSeparator />
-        <ContextMenuItem onClick={handleOpenFile} className="gap-2.5">
-          <ExternalLink className="h-3.5 w-3.5" />
+        <ContextMenuItem onClick={handleOpenFile} className="gap-3">
+          <ExternalLink className="size-4" />
           Open in default app
         </ContextMenuItem>
-        <ContextMenuItem onClick={handleOpenFolder} className="gap-2.5">
-          <FolderOpen className="h-3.5 w-3.5" />
+        <ContextMenuItem onClick={handleOpenFolder} className="gap-3">
+          <FolderOpen className="size-4" />
           Show in {getFileManagerName()}
         </ContextMenuItem>
       </ContextMenuContent>

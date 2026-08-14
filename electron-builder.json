@@ -35,6 +35,7 @@
     "allowToChangeInstallationDirectory": true,
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
+    "deleteAppDataOnUninstall": true,
     "installerSidebar": "build/installerSidebar.bmp",
     "installerHeader": "build/installerHeader.bmp",
     "include": "build/installer.nsh"

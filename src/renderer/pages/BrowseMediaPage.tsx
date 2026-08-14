@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react"
-import { useMediaStore } from "../stores/media-store"
+import { useMediaStore, filterAndSortItems } from "../stores/media-store"
 import { useSessionStore } from "../stores/session-store"
 import { useScanStore } from "../stores/scan-store"
 import { MediaGrid } from "../components/media/MediaGrid"
@@ -36,6 +36,7 @@ import {
 import { formatBytes } from "../lib/format"
 import { storage } from "../lib/storage"
 import { ENABLE_AI_FEATURES } from "../../shared/constants"
+import { toast } from "sonner"
 
 export const BrowseMediaPage: React.FC = () => {
   const items = useMediaStore((s) => s.items)
@@ -50,11 +51,11 @@ export const BrowseMediaPage: React.FC = () => {
   const sortBy = useMediaStore((s) => s.sortBy)
   const setSortBy = useMediaStore((s) => s.setSortBy)
   const searchQuery = useMediaStore((s) => s.searchQuery)
-  const getFilteredItems = useMediaStore((s) => s.getFilteredItems)
 
   const {
     initSession,
     submitDecision,
+    undo,
     startTrashingInBackground,
     decisions,
     isCommitting,
@@ -166,7 +167,30 @@ export const BrowseMediaPage: React.FC = () => {
 
   const activeSearchResults = searchQuery.trim() ? searchResults : null
 
-  const rawFilteredItems = getFilteredItems()
+  // Single-pass filter + sort re-run only when the inputs that drive it
+  // change, not on every render of BrowseMediaPage.
+  const rawFilteredItems = React.useMemo(
+    () =>
+      filterAndSortItems(items, {
+        activeRootPath,
+        searchQuery,
+        filterType,
+        filterReviewState,
+        filterQuality,
+        sortBy,
+        decisions,
+      }),
+    [
+      items,
+      activeRootPath,
+      searchQuery,
+      filterType,
+      filterReviewState,
+      filterQuality,
+      sortBy,
+      decisions,
+    ]
+  )
   const filteredItems = React.useMemo(() => {
     if (activeSearchResults) {
       const searchMap = new Set(activeSearchResults.map((r) => r.mediaId))
@@ -224,6 +248,47 @@ export const BrowseMediaPage: React.FC = () => {
     [selectedIds, handleReviewAction]
   )
 
+  const handleUndo = React.useCallback(async () => {
+    const store = useSessionStore.getState()
+    const browseActions = store.undoStack.filter(
+      (a) => a.newState.source === "browse"
+    )
+    if (browseActions.length === 0) return
+
+    const lastAction = browseActions[browseActions.length - 1]
+    const item = items.find((i) => i.id === lastAction.mediaId)
+    const success = await undo("browse")
+    if (success) {
+      toast.success("Reverted decision", {
+        description: item
+          ? `Reverted review state for ${item.name}`
+          : undefined,
+      })
+    }
+  }, [undo, items])
+
+  React.useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (
+        document.activeElement?.tagName === "INPUT" ||
+        document.activeElement?.tagName === "TEXTAREA" ||
+        document.activeElement?.getAttribute("contenteditable") === "true" ||
+        previewItem !== null ||
+        infoItem !== null
+      ) {
+        return
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault()
+        void handleUndo()
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [handleUndo, previewItem, infoItem])
+
   const handleSetPreviewItem = React.useCallback(
     (item: MediaItem) => setPreviewItem(item),
     []
@@ -237,6 +302,13 @@ export const BrowseMediaPage: React.FC = () => {
     []
   )
 
+  // Compute review-state badge counts once per items change instead of
+  // calling items.filter() four separate times inside JSX.
+  const reviewStateCounts = React.useMemo(() => ({
+    keep: items.filter((i) => i.reviewState === "keep").length,
+    delete: items.filter((i) => i.reviewState === "delete").length,
+  }), [items])
+
   if (!activeRootPath) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 font-sans text-xs text-muted-foreground select-none">
@@ -249,12 +321,12 @@ export const BrowseMediaPage: React.FC = () => {
 
   return (
     <PageContainer
-      className="h-full gap-3 select-none md:gap-3.5"
+      className="h-full gap-3 select-none"
       maxWidth="full"
     >
       {/* Filters & Toolbar Header */}
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2.5 rounded-lg border border-border bg-card/45 p-2.5 backdrop-blur-md">
-        {/* Group 1: Tabs (Type & Review State) - stays in one line */}
+        {/* Group 1: Tabs (Type & Review State) */}
         <div className="flex shrink-0 items-center gap-2.5">
           <Tabs
             value={filterType}
@@ -265,19 +337,19 @@ export const BrowseMediaPage: React.FC = () => {
             <TabsList className="h-8 rounded-lg border border-border bg-background p-0.5">
               <TabsTrigger
                 value="all"
-                className="h-7 rounded-md px-3 text-xs font-medium"
+                className="h-7 rounded-md px-2.5 text-xs font-medium"
               >
                 All
               </TabsTrigger>
               <TabsTrigger
                 value="photo"
-                className="h-7 rounded-md px-3 text-xs font-medium"
+                className="h-7 rounded-md px-2.5 text-xs font-medium"
               >
                 Photos
               </TabsTrigger>
               <TabsTrigger
                 value="video"
-                className="h-7 rounded-md px-3 text-xs font-medium"
+                className="h-7 rounded-md px-2.5 text-xs font-medium"
               >
                 Videos
               </TabsTrigger>
@@ -297,7 +369,7 @@ export const BrowseMediaPage: React.FC = () => {
                 className="flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium"
                 title="All Items"
               >
-                <InboxIcon className="h-3.5 w-3.5 shrink-0" />
+                <InboxIcon className="size-3.5 shrink-0" />
                 <span className="hidden sm:inline">All</span>
               </TabsTrigger>
               <TabsTrigger
@@ -305,7 +377,7 @@ export const BrowseMediaPage: React.FC = () => {
                 className="flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium"
                 title="Pending Review"
               >
-                <Clock className="h-3.5 w-3.5 shrink-0" />
+                <Clock className="size-3.5 shrink-0" />
                 <span className="hidden sm:inline">Pending</span>
               </TabsTrigger>
               <TabsTrigger
@@ -313,14 +385,14 @@ export const BrowseMediaPage: React.FC = () => {
                 className="flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium"
                 title="Marked to Keep"
               >
-                <Bookmark className="h-3.5 w-3.5 shrink-0" />
+                <Bookmark className="size-3.5 shrink-0" />
                 <span className="hidden sm:inline">Kept</span>
-                {items.filter((i) => i.reviewState === "keep").length > 0 && (
+                {reviewStateCounts.keep > 0 && (
                   <Badge
                     variant="outline"
                     className="flex h-4 min-w-4 items-center justify-center border-green-500/20 bg-green-500/10 px-1 text-xs text-green-600 dark:text-green-400"
                   >
-                    {items.filter((i) => i.reviewState === "keep").length}
+                    {reviewStateCounts.keep}
                   </Badge>
                 )}
               </TabsTrigger>
@@ -329,14 +401,14 @@ export const BrowseMediaPage: React.FC = () => {
                 className="flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium"
                 title="Marked to Delete"
               >
-                <Trash2 className="h-3.5 w-3.5 shrink-0" />
+                <Trash2 className="size-3.5 shrink-0" />
                 <span className="hidden sm:inline">To Delete</span>
-                {items.filter((i) => i.reviewState === "delete").length > 0 && (
+                {reviewStateCounts.delete > 0 && (
                   <Badge
                     variant="outline"
                     className="flex h-4 min-w-4 items-center justify-center border-destructive/20 bg-destructive/10 px-1 text-xs text-destructive"
                   >
-                    {items.filter((i) => i.reviewState === "delete").length}
+                    {reviewStateCounts.delete}
                   </Badge>
                 )}
               </TabsTrigger>
@@ -344,7 +416,7 @@ export const BrowseMediaPage: React.FC = () => {
           </Tabs>
         </div>
 
-        {/* Group 2: Selects & Views (Quality, Sort, Layout & Grouping toggles) - stays in one line */}
+        {/* Group 2: Selects & Views (Quality, Sort, Layout & Grouping toggles) */}
         <div className="flex shrink-0 items-center gap-2.5">
           {/* Quality & Feature Filters Dropdown Select */}
           <Select
@@ -412,7 +484,7 @@ export const BrowseMediaPage: React.FC = () => {
                 className="flex h-7 items-center justify-center gap-1.5 rounded-md px-2.5 text-xs font-semibold"
                 title="Card Layout"
               >
-                <Grid className="h-3.5 w-3.5" />
+                <Grid className="size-3.5" />
                 <span className="hidden lg:inline">Cards</span>
               </TabsTrigger>
               <TabsTrigger
@@ -420,7 +492,7 @@ export const BrowseMediaPage: React.FC = () => {
                 className="flex h-7 items-center justify-center gap-1.5 rounded-md px-2.5 text-xs font-semibold"
                 title="List Layout"
               >
-                <List className="h-3.5 w-3.5" />
+                <List className="size-3.5" />
                 <span className="hidden lg:inline">List</span>
               </TabsTrigger>
             </TabsList>
@@ -437,7 +509,7 @@ export const BrowseMediaPage: React.FC = () => {
                 className="flex h-7 items-center justify-center gap-1.5 rounded-md px-2.5 text-xs font-semibold"
                 title="Normal Sorted View"
               >
-                <Summary className="h-3.5 w-3.5" />
+                <Summary className="size-3.5" />
                 <span className="hidden lg:inline">Normal</span>
               </TabsTrigger>
               <TabsTrigger
@@ -445,7 +517,7 @@ export const BrowseMediaPage: React.FC = () => {
                 className="flex h-7 items-center justify-center gap-1.5 rounded-md px-2.5 text-xs font-semibold"
                 title="Date Grouped View"
               >
-                <CalendarClock className="h-3.5 w-3.5" />
+                <CalendarClock className="size-3.5" />
                 <span className="hidden lg:inline">Date</span>
               </TabsTrigger>
             </TabsList>
@@ -457,7 +529,7 @@ export const BrowseMediaPage: React.FC = () => {
       {filterReviewState === "trash" && deleteDetails.count > 0 && (
         <div className="flex shrink-0 animate-in items-center justify-between gap-4 rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3 font-sans text-xs duration-200 fade-in slide-in-from-top-2">
           <div className="flex items-center gap-2 font-medium text-destructive dark:text-red-400">
-            <AlertCircle className="h-4 w-4" />
+            <AlertCircle className="size-4" />
             <span>
               You have <strong>{deleteDetails.count}</strong> files (
               {formatBytes(deleteDetails.size)}) marked for deletion.
@@ -466,11 +538,11 @@ export const BrowseMediaPage: React.FC = () => {
           <Button
             variant="destructive"
             size="sm"
-            className="h-8 cursor-pointer gap-1.5 px-4 font-semibold"
+            className="h-8 cursor-pointer gap-2 px-4 font-semibold"
             onClick={() => setShowCommitConfirm(true)}
             disabled={isCommitting}
           >
-            <ListX className="h-3.5 w-3.5" />
+            <ListX className="size-4" />
             Commit Deletions
           </Button>
         </div>
@@ -478,7 +550,7 @@ export const BrowseMediaPage: React.FC = () => {
 
       {/* Batch Operations Floating Bar (only shown if cards selected) */}
       {selectedIds.size > 0 && (
-        <div className="flex shrink-0 flex-col justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-2.5 font-sans text-xs sm:flex-row sm:items-center">
+        <div className="flex shrink-0 flex-col justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-2 font-sans text-xs sm:flex-row sm:items-center">
           <div className="flex flex-wrap items-center gap-3 font-medium text-foreground">
             <span>
               Selected: <strong>{selectedIds.size}</strong> items
@@ -507,19 +579,19 @@ export const BrowseMediaPage: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
-              className="h-8 flex-1 justify-center gap-1.5 border-green-500/20 bg-green-500/10 text-xs text-green-600 hover:bg-green-500/20 sm:flex-none"
+              className="h-8 flex-1 justify-center gap-2 border-green-500/20 bg-green-500/10 text-xs text-green-600 hover:bg-green-500/20 sm:flex-none"
               onClick={() => handleBatchReviewAction("keep")}
             >
-              <CheckCircle2 className="h-3.5 w-3.5" />
+              <CheckCircle2 className="size-4" />
               Mark to Keep
             </Button>
             <Button
               variant="outline"
               size="sm"
-              className="h-8 flex-1 justify-center gap-1.5 border-destructive/20 bg-destructive/10 text-xs text-destructive hover:bg-destructive/20 sm:flex-none"
+              className="h-8 flex-1 justify-center gap-2 border-destructive/20 bg-destructive/10 text-xs text-destructive hover:bg-destructive/20 sm:flex-none"
               onClick={() => handleBatchReviewAction("delete")}
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <Trash2 className="size-4" />
               Mark to Delete
             </Button>
           </div>

@@ -18,6 +18,7 @@ export const IPC_CHANNELS = {
   SCAN_INTERRUPTED_CHECK: "scan:interrupted-check",
   MEDIA_GET: "media:get",
   MEDIA_UPDATE_REVIEWS: "media:update-reviews",
+  MEDIA_UPDATE_ORIENTATION: "media:update-orientation",
   SESSION_GET_CHECKPOINT: "session:get-checkpoint",
   SESSION_SAVE_CHECKPOINT: "session:save-checkpoint",
   SESSION_CLEAR: "session:clear",
@@ -31,6 +32,7 @@ export const IPC_CHANNELS = {
   MEDIA_TRASH_COMPLETE: "media:trash-complete",
   MEDIA_GET_TRASH_STATUS: "media:get-trash-status",
   APP_RESET: "app:reset",
+  APP_STORAGE_USAGE: "app:storage-usage",
   MEDIA_CLEAR_INDEX: "media:clear-index",
   APP_CHECK_UPDATE: "app:check-update",
   URL_OPEN: "url:open",
@@ -120,6 +122,13 @@ export interface FolderCountResult {
   changeLog?: FileChangeEvent[]
 }
 
+export interface AppStorageUsage {
+  databaseBytes: number
+  thumbnailBytes: number
+  thumbnailCount: number
+  totalBytes: number
+}
+
 export interface GalleoAPI {
   getSettings: () => Promise<AppSettings>
   saveSettings: (settings: AppSettings) => Promise<Result<void>>
@@ -149,6 +158,10 @@ export interface GalleoAPI {
       state: "keep" | "delete" | "skipped" | "pending"
     }[],
     undoAction?: UndoableAction
+  ) => Promise<Result<void>>
+  updateMediaOrientation: (
+    idOrPath: string,
+    orientation: number
   ) => Promise<Result<void>>
   getSessionCheckpoint: (
     folderPath: string
@@ -186,6 +199,7 @@ export interface GalleoAPI {
     cache?: boolean
     sessions?: boolean
   }) => Promise<Result<void>>
+  getStorageUsage: (force?: boolean) => Promise<AppStorageUsage>
   clearFolderIndex: (folderPath: string) => Promise<Result<void>>
   checkForUpdates: (force?: boolean) => Promise<Result<UpdateCheckResult>>
   openExternal: (url: string) => Promise<Result<void>>

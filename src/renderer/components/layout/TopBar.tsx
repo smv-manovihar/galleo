@@ -76,16 +76,16 @@ const ScanningPill = React.memo<{
   return (
     <div
       style={{ viewTransitionName: "scan-pill-container" }}
-      className="flex h-9 shrink-0 items-center gap-2 sm:gap-2.5 rounded-lg border border-primary/20 bg-primary/5 px-2.5 sm:px-3.5 animate-in fade-in duration-200"
+      className="flex h-9 shrink-0 items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 animate-in fade-in duration-200"
     >
-      <Loader2 className="h-3.5 w-3.5 text-primary animate-spin shrink-0 stroke-[2.5]" />
+      <Loader2 className="size-4 text-primary animate-spin shrink-0 stroke-[2.5]" />
       <div className="flex flex-col min-w-0 justify-center leading-tight">
         <span className="text-xs font-semibold text-foreground truncate">
           {isStopping ? "Stopping..." : "Scanning"}
         </span>
         {fileName && (
           <span
-            className="hidden xl:inline-block max-w-[120px] truncate text-2xs font-mono text-muted-foreground"
+            className="hidden xl:inline-block max-w-32 truncate text-xs font-mono text-muted-foreground"
             title={scanProgress.currentFile}
           >
             {fileName}
@@ -114,7 +114,7 @@ const ScanningPill = React.memo<{
             {isStopping ? (
               <Loader2 className="h-3 w-3 animate-spin stroke-[2.5]" />
             ) : (
-              <Square className="h-2.5 w-2.5 fill-current" />
+              <Square className="size-3 fill-current" />
             )}
           </Button>
         </TooltipTrigger>
@@ -132,9 +132,9 @@ const AIDownloadPill = React.memo(() => {
   return (
     <div
       style={{ viewTransitionName: "scan-pill-container" }}
-      className="flex h-9 shrink-0 items-center gap-2 sm:gap-2.5 rounded-lg border border-primary/20 bg-primary/5 px-2.5 sm:px-3.5 animate-in fade-in duration-200"
+      className="flex h-9 shrink-0 items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 animate-in fade-in duration-200"
     >
-      <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
+      <Sparkles className="size-4 text-primary shrink-0" />
       <span className="hidden md:inline-block text-xs font-semibold text-foreground shrink-0">AI Model</span>
       <div className="hidden lg:block w-12 xl:w-16 shrink-0 h-1 rounded-full bg-primary/20 overflow-hidden">
         <div
@@ -154,13 +154,13 @@ const PostProcessingPill = React.memo(() => {
   return (
     <div
       style={{ viewTransitionName: "scan-pill-container" }}
-      className="flex h-9 shrink-0 items-center gap-2 sm:gap-2.5 rounded-lg border border-primary/20 bg-primary/5 px-2.5 sm:px-3.5 animate-in fade-in duration-200"
+      className="flex h-9 shrink-0 items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 animate-in fade-in duration-200"
     >
-      <Loader2 className="h-3.5 w-3.5 text-primary animate-spin shrink-0 stroke-[2.5]" />
+      <Loader2 className="size-4 text-primary animate-spin shrink-0 stroke-[2.5]" />
       <span className="text-xs font-semibold text-foreground shrink-0">Post-Processing</span>
       <div className="relative hidden lg:block w-12 xl:w-16 shrink-0 h-1 overflow-hidden rounded-full bg-primary/20">
         <div
-          className="absolute inset-y-0 rounded-full bg-gradient-to-r from-transparent via-primary to-transparent"
+          className="absolute inset-y-0 rounded-full bg-linear-to-r from-transparent via-primary to-transparent"
           style={{ width: "50%", animation: "shimmer-slide 1.4s ease-in-out infinite" }}
         />
       </div>
@@ -181,9 +181,9 @@ const AIIndexingPill = React.memo(() => {
   return (
     <div
       style={{ viewTransitionName: "scan-pill-container" }}
-      className="flex h-9 shrink-0 items-center gap-2 sm:gap-2.5 rounded-lg border border-primary/20 bg-primary/5 px-2.5 sm:px-3.5 animate-in fade-in duration-200"
+      className="flex h-9 shrink-0 items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 animate-in fade-in duration-200"
     >
-      <Sparkles className="h-3.5 w-3.5 text-primary animate-pulse shrink-0" />
+      <Sparkles className="size-4 text-primary animate-pulse shrink-0" />
       <span className="hidden md:inline-block text-xs font-semibold text-foreground shrink-0">AI Indexing</span>
       <div className="hidden lg:block w-12 xl:w-16 shrink-0 h-1 rounded-full bg-primary/20 overflow-hidden">
         <div
@@ -210,9 +210,9 @@ const TrashingPill = React.memo(() => {
   return (
     <div
       style={{ viewTransitionName: "scan-pill-container" }}
-      className="flex h-9 shrink-0 items-center gap-2 sm:gap-2.5 rounded-lg border border-primary/20 bg-primary/5 px-2.5 sm:px-3.5 animate-in fade-in duration-200"
+      className="flex h-9 shrink-0 items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 animate-in fade-in duration-200"
     >
-      <Trash2 className="h-3.5 w-3.5 text-primary animate-pulse shrink-0" />
+      <Trash2 className="size-4 text-primary animate-pulse shrink-0" />
       <span className="hidden md:inline-block text-xs font-semibold text-foreground shrink-0">
         {trashingProgress?.isDone ? "Trashed" : "Trashing..."}
       </span>
@@ -245,16 +245,16 @@ const OrganizingPill = React.memo(() => {
   return (
     <div
       style={{ viewTransitionName: "scan-pill-container" }}
-      className="flex h-9 shrink-0 items-center gap-2 sm:gap-2.5 rounded-lg border border-primary/20 bg-primary/5 px-2.5 sm:px-3.5 animate-in fade-in duration-200"
+      className="flex h-9 shrink-0 items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 animate-in fade-in duration-200"
     >
-      <FolderOutput className="h-3.5 w-3.5 text-primary animate-pulse shrink-0" />
+      <FolderOutput className="size-4 text-primary animate-pulse shrink-0" />
       <div className="flex flex-col min-w-0 justify-center leading-tight">
         <span className="text-xs font-semibold text-foreground truncate">
           Organizing
         </span>
         {fileName && (
           <span
-            className="hidden xl:inline-block max-w-[120px] truncate text-2xs font-mono text-muted-foreground"
+            className="hidden xl:inline-block max-w-32 truncate text-xs font-mono text-muted-foreground"
             title={organizeProgress?.currentFile}
           >
             {fileName}
@@ -316,7 +316,7 @@ const MultiTaskPill = React.memo<{
         title: "AI Search Model",
         subtitle: "Downloading weights (~200MB)",
         progress: aiDownloadProgress,
-        icon: <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />,
+        icon: <Sparkles className="size-4 text-primary shrink-0" />,
       })
     }
 
@@ -332,7 +332,7 @@ const MultiTaskPill = React.memo<{
           ? "Stopping..."
           : scanProgress.currentFile || "Reading files...",
         progress: pct,
-        icon: <RefreshCw className="h-3.5 w-3.5 text-primary animate-spin shrink-0" />,
+        icon: <RefreshCw className="size-4 text-primary animate-spin shrink-0" />,
         action: (
           <Tooltip key="stop-scan-item">
             <TooltipTrigger asChild>
@@ -346,7 +346,7 @@ const MultiTaskPill = React.memo<{
                 {isStopping ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
                 ) : (
-                  <Square className="h-2.5 w-2.5 fill-current" />
+                  <Square className="size-3 fill-current" />
                 )}
               </Button>
             </TooltipTrigger>
@@ -364,7 +364,7 @@ const MultiTaskPill = React.memo<{
         title: "Post-Processing",
         subtitle: "Analyzing duplicates & similarity...",
         progress: 100,
-        icon: <Loader2 className="h-3.5 w-3.5 text-primary animate-spin shrink-0" />,
+        icon: <Loader2 className="size-4 text-primary animate-spin shrink-0" />,
       })
     }
 
@@ -382,7 +382,7 @@ const MultiTaskPill = React.memo<{
         title: "AI Indexing",
         subtitle: aiIndexingProgress.currentFile || "Indexing background...",
         progress: pct,
-        icon: <Sparkles className="h-3.5 w-3.5 animate-pulse text-amber-500 shrink-0" />,
+        icon: <Sparkles className="size-4 animate-pulse text-amber-500 shrink-0" />,
       })
     }
 
@@ -400,7 +400,7 @@ const MultiTaskPill = React.memo<{
           ? `Trashed ${trashingProgress.successCount} files`
           : `Trashing ${trashingProgress.successCount} / ${trashingProgress.totalCount}`,
         progress: trashingProgress.isDone ? 100 : pct,
-        icon: <Trash2 className="h-3.5 w-3.5 text-destructive animate-pulse shrink-0" />,
+        icon: <Trash2 className="size-4 text-destructive animate-pulse shrink-0" />,
       })
     }
 
@@ -419,7 +419,7 @@ const MultiTaskPill = React.memo<{
           : "Organizing files...",
         progress: pct,
         icon: (
-          <FolderOutput className="h-3.5 w-3.5 text-primary animate-pulse shrink-0" />
+          <FolderOutput className="size-4 text-primary animate-pulse shrink-0" />
         ),
       })
     }
@@ -437,9 +437,9 @@ const MultiTaskPill = React.memo<{
         <HoverCardTrigger asChild>
           <div
             style={{ viewTransitionName: "scan-pill-container" }}
-            className="flex h-9 shrink-0 items-center gap-2.5 rounded-lg border border-primary/20 bg-primary/5 px-3 select-none cursor-pointer hover:bg-primary/10 transition-colors animate-in fade-in duration-200"
+            className="flex h-9 shrink-0 items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 px-3 select-none cursor-pointer hover:bg-primary/10 transition-colors animate-in fade-in duration-200"
           >
-            <Loader2 className="h-3.5 w-3.5 text-primary animate-spin shrink-0" />
+            <Loader2 className="size-4 text-primary animate-spin shrink-0" />
             <span className="text-xs font-semibold text-foreground shrink-0">
               {activeTasks.length} Operations
             </span>
@@ -465,7 +465,7 @@ const MultiTaskPill = React.memo<{
                     {isStopping ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
                     ) : (
-                      <Square className="h-2.5 w-2.5 fill-current" />
+                      <Square className="size-3 fill-current" />
                     )}
                   </Button>
                 </TooltipTrigger>
@@ -499,12 +499,12 @@ const MultiTaskPill = React.memo<{
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     {task.icon}
-                    <span className="text-2xs font-semibold text-foreground truncate">
+                    <span className="text-xs font-semibold text-foreground truncate">
                       {task.title}
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
-                    <span className="font-mono text-2xs font-semibold text-muted-foreground tabular-nums">
+                    <span className="font-mono text-xs font-semibold text-muted-foreground tabular-nums">
                       {task.progress}%
                     </span>
                     {task.action}
@@ -515,7 +515,7 @@ const MultiTaskPill = React.memo<{
                   className="h-1 rounded-full bg-muted/60"
                 />
                 <p
-                  className="truncate text-2xs text-muted-foreground"
+                  className="truncate text-xs text-muted-foreground"
                   title={task.subtitle}
                 >
                   {task.subtitle}
@@ -530,50 +530,18 @@ const MultiTaskPill = React.memo<{
 )
 MultiTaskPill.displayName = "MultiTaskPill"
 
-export const TopBar: React.FC = () => {
-  const { currentView, setCurrentView } = useUIStore()
-  const { theme, setTheme } = useTheme()
+// Isolated search input so keystroke updates only re-render the search box,
+// not the whole TopBar (view switchers, scan controls, theme toggle, dialogs).
+const TopBarSearch: React.FC = () => {
   const searchQuery = useMediaStore((state) => state.searchQuery)
   const setSearchQuery = useMediaStore((state) => state.setSearchQuery)
-  const isScanning = useScanStore((state) => state.isScanning)
-  const isStopping = useScanStore((state) => state.isStopping)
-  const isPostProcessing = useScanStore((state) => state.isPostProcessing)
-  const startScan = useScanStore((state) => state.startScan)
-  const cancelScan = useScanStore((state) => state.cancelScan)
+  const currentView = useUIStore((s) => s.currentView)
+  const setCurrentView = useUIStore((s) => s.setCurrentView)
   const aiStatus = useScanStore((state) => state.aiStatus)
-  const checkAIStatus = useScanStore((state) => state.checkAIStatus)
-  const isDownloadingAI = useScanStore((state) => state.isDownloadingAI)
-  const isAIIndexing = useScanStore((state) => Boolean(state.aiIndexingProgress?.isIndexing))
-  const isTrashing = useSessionStore((state) => Boolean(state.trashingProgress))
-  const isOrganizing = useOrganizeStore((state) => Boolean(state.isExecuting))
-  const folderCounts = useScanStore((state) => state.folderCounts)
-  const { settings, saveSettings } = useSettingsStore()
-
-  const [showRescanDialog, setShowRescanDialog] = React.useState(false)
-  const [showSelectiveScanDialog, setShowSelectiveScanDialog] = React.useState(false)
-  const [selectedPaths, setSelectedPaths] = React.useState<string[]>([])
-  const [showInfoDialog, setShowInfoDialog] = React.useState(false)
 
   const [localSearch, setLocalSearch] = React.useState(searchQuery)
   const [prevSearchQuery, setPrevSearchQuery] = React.useState(searchQuery)
   const searchTimeoutRef = React.useRef<number | null>(null)
-  const scanGroupRef = React.useRef<HTMLDivElement>(null)
-  const [scanGroupWidth, setScanGroupWidth] = React.useState(0)
-
-  React.useEffect(() => {
-    checkAIStatus()
-  }, [checkAIStatus])
-
-  React.useEffect(() => {
-    const el = scanGroupRef.current
-    if (!el) return
-    const observer = new ResizeObserver(() => {
-      setScanGroupWidth(el.offsetWidth)
-    })
-    observer.observe(el)
-    setScanGroupWidth(el.offsetWidth)
-    return () => observer.disconnect()
-  }, [])
 
   // Sync global search query back to local input (e.g. if cleared from store)
   if (prevSearchQuery !== searchQuery) {
@@ -581,18 +549,6 @@ export const TopBar: React.FC = () => {
     setLocalSearch(searchQuery)
   }
 
-  // Onboarding: Auto-open page info dialog on first visit to Media Culling
-  React.useEffect(() => {
-    if (currentView === "review") {
-      const hasVisited = localStorage.getItem("galleo_visited_review")
-      if (!hasVisited) {
-        localStorage.setItem("galleo_visited_review", "true")
-        setTimeout(() => setShowInfoDialog(true), 0)
-      }
-    }
-  }, [currentView])
-
-  // Cleanup timeout on unmount
   React.useEffect(() => {
     return () => {
       if (searchTimeoutRef.current) {
@@ -626,8 +582,98 @@ export const TopBar: React.FC = () => {
     }, 300)
   }
 
+  if (currentView !== "browse" && currentView !== "dashboard") {
+    return null
+  }
+
+  return (
+    <div className="relative w-full max-w-sm min-w-0">
+      <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground shrink-0" />
+      <Input
+        type="text"
+        placeholder={
+          ENABLE_AI_FEATURES && aiStatus?.isDownloaded
+            ? "Search by concept..."
+            : "Search files..."
+        }
+        className="h-9 w-full min-w-0 truncate rounded-lg border-border bg-background/50 pl-9 pr-8 text-xs focus-visible:ring-1 focus-visible:ring-primary"
+        value={localSearch}
+        onChange={(e) => handleSearchChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            handleSearchSubmit()
+          }
+        }}
+      />
+      {ENABLE_AI_FEATURES && aiStatus?.isDownloaded && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Sparkles className="absolute top-1/2 right-3 size-4 -translate-y-1/2 text-primary" />
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="text-xs">
+            Visual AI Search Active
+          </TooltipContent>
+        </Tooltip>
+      )}
+    </div>
+  )
+}
+TopBarSearch.displayName = "TopBarSearch"
+
+export const TopBar: React.FC = () => {
+  const { currentView } = useUIStore()
+  const { theme, setTheme } = useTheme()
+  const isScanning = useScanStore((state) => state.isScanning)
+  const isStopping = useScanStore((state) => state.isStopping)
+  const isPostProcessing = useScanStore((state) => state.isPostProcessing)
+  const startScan = useScanStore((state) => state.startScan)
+  const cancelScan = useScanStore((state) => state.cancelScan)
+  const aiStatus = useScanStore((state) => state.aiStatus)
+  const checkAIStatus = useScanStore((state) => state.checkAIStatus)
+  const isDownloadingAI = useScanStore((state) => state.isDownloadingAI)
+  const isAIIndexing = useScanStore((state) => Boolean(state.aiIndexingProgress?.isIndexing))
+  const isTrashing = useSessionStore((state) => Boolean(state.trashingProgress))
+  const isOrganizing = useOrganizeStore((state) => Boolean(state.isExecuting))
+  const folderCounts = useScanStore((state) => state.folderCounts)
+  const folderRoots = useSettingsStore((state) => state.settings.folders.roots)
+  const saveSettings = useSettingsStore((state) => state.saveSettings)
+
+  const [showRescanDialog, setShowRescanDialog] = React.useState(false)
+  const [showSelectiveScanDialog, setShowSelectiveScanDialog] = React.useState(false)
+  const [selectedPaths, setSelectedPaths] = React.useState<string[]>([])
+  const [showInfoDialog, setShowInfoDialog] = React.useState(false)
+
+  const scanGroupRef = React.useRef<HTMLDivElement>(null)
+  const [scanGroupWidth, setScanGroupWidth] = React.useState(0)
+
+  React.useEffect(() => {
+    checkAIStatus()
+  }, [checkAIStatus])
+
+  React.useEffect(() => {
+    const el = scanGroupRef.current
+    if (!el) return
+    const observer = new ResizeObserver(() => {
+      setScanGroupWidth(el.offsetWidth)
+    })
+    observer.observe(el)
+    setScanGroupWidth(el.offsetWidth)
+    return () => observer.disconnect()
+  }, [])
+
+  // Onboarding: Auto-open page info dialog on first visit to Media Culling
+  React.useEffect(() => {
+    if (currentView === "review") {
+      const hasVisited = localStorage.getItem("galleo_visited_review")
+      if (!hasVisited) {
+        localStorage.setItem("galleo_visited_review", "true")
+        setTimeout(() => setShowInfoDialog(true), 0)
+      }
+    }
+  }, [currentView])
+
   const handleOpenRescanDialog = () => {
-    const enabledRoots = settings.folders.roots
+    const enabledRoots = folderRoots
       .filter((r) => r.enabled)
       .map((r) => r.path)
     setSelectedPaths(enabledRoots)
@@ -635,7 +681,7 @@ export const TopBar: React.FC = () => {
   }
 
   const handleOpenSelectiveScanDialog = () => {
-    const enabledRoots = settings.folders.roots
+    const enabledRoots = folderRoots
       .filter((r) => r.enabled)
       .map((r) => r.path)
     setSelectedPaths(enabledRoots)
@@ -656,7 +702,7 @@ export const TopBar: React.FC = () => {
   }
 
   const handleToggleSelectAll = () => {
-    const allPaths = settings.folders.roots.map((r) => r.path)
+    const allPaths = folderRoots.map((r) => r.path)
     if (selectedPaths.length === allPaths.length) {
       setSelectedPaths([])
     } else {
@@ -696,7 +742,7 @@ export const TopBar: React.FC = () => {
   )
   const activeFolderName = React.useMemo(() => {
     if (!activeRootPath || activeRootPath === "all") return null
-    const root = settings.folders.roots.find(
+    const root = folderRoots.find(
       (r) => r.path.toLowerCase() === activeRootPath.toLowerCase()
     )
     return (
@@ -704,13 +750,13 @@ export const TopBar: React.FC = () => {
       activeRootPath.split(/[\\/]/).filter(Boolean).pop() ||
       "Active Folder"
     )
-  }, [activeRootPath, settings.folders.roots])
+  }, [activeRootPath, folderRoots])
 
   const handleScanClick = () => {
     if (isScanning) {
       cancelScan()
     } else {
-      const enabledRoots = settings.folders.roots.filter((r) => r.enabled)
+      const enabledRoots = folderRoots.filter((r) => r.enabled)
       if (activeRootPath && activeRootPath !== "all") {
         const match = enabledRoots.find(
           (r) => r.path.toLowerCase() === activeRootPath.toLowerCase()
@@ -731,7 +777,7 @@ export const TopBar: React.FC = () => {
     if (isScanning) {
       cancelScan()
     } else {
-      const enabledRoots = settings.folders.roots
+      const enabledRoots = folderRoots
         .filter((r) => r.enabled)
         .map((r) => r.path)
       if (enabledRoots.length > 0) {
@@ -756,10 +802,11 @@ export const TopBar: React.FC = () => {
     setTheme(nextTheme)
 
     // Persist theme to database settings
+    const currentSettings = useSettingsStore.getState().settings
     const updated = {
-      ...settings,
+      ...currentSettings,
       ui: {
-        ...settings.ui,
+        ...currentSettings.ui,
         theme: nextTheme,
       },
     }
@@ -802,7 +849,7 @@ export const TopBar: React.FC = () => {
       {/* Title & Trigger */}
       <div className="flex shrink-0 items-center gap-1.5 sm:gap-2 min-w-0">
         <SidebarTrigger className="h-8 w-8 rounded-lg border border-border bg-background/50 text-muted-foreground hover:text-foreground shrink-0" />
-        <h2 className="font-heading text-base sm:text-lg leading-none font-bold text-foreground truncate max-w-[120px] sm:max-w-[180px] md:max-w-none">
+        <h2 className="font-heading text-base sm:text-lg leading-none font-bold text-foreground truncate max-w-32 sm:max-w-44 md:max-w-none">
           {getTitle()}
         </h2>
 
@@ -812,10 +859,10 @@ export const TopBar: React.FC = () => {
             <Button
               variant="ghost"
               size="icon"
-              className="ml-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md p-0 text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground"
+              className="ml-1 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md p-0 text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground"
               onClick={() => setShowInfoDialog(true)}
             >
-              <Info className="h-3.5 w-3.5" />
+              <Info className="size-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent side="right">Help</TooltipContent>
@@ -824,43 +871,13 @@ export const TopBar: React.FC = () => {
 
       {/* Centered Search Bar (Only shown on Browse/Dashboard views) */}
       <div className="flex flex-1 items-center justify-center px-1 sm:px-2 min-w-0">
-        {(currentView === "browse" || currentView === "dashboard") && (
-          <div className="relative w-full max-w-sm min-w-0">
-            <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground shrink-0" />
-            <Input
-              type="text"
-              placeholder={
-                ENABLE_AI_FEATURES && aiStatus?.isDownloaded
-                  ? "Search by concept..."
-                  : "Search files..."
-              }
-              className="h-9 w-full min-w-0 truncate rounded-lg border-border bg-background/50 pl-9 pr-8 text-xs focus-visible:ring-1 focus-visible:ring-primary"
-              value={localSearch}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  handleSearchSubmit()
-                }
-              }}
-            />
-            {ENABLE_AI_FEATURES && aiStatus?.isDownloaded && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Sparkles className="absolute top-1/2 right-3 h-3.5 w-3.5 -translate-y-1/2 text-primary" />
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="text-2xs">
-                  Visual AI Search Active
-                </TooltipContent>
-              </Tooltip>
-            )}
-          </div>
-        )}
+        <TopBarSearch />
       </div>
 
       {/* Global Actions */}
       <div className="ml-auto flex shrink-0 items-center gap-3">
         {/* Scan Controls & Unified Progress */}
-        {(settings.folders.roots.some((r) => r.enabled) || activeTaskCount > 0) && (
+        {(folderRoots.some((r) => r.enabled) || activeTaskCount > 0) && (
           <div className="flex items-center gap-2">
             {activeTaskCount > 1 ? (
               <MultiTaskPill
@@ -896,10 +913,10 @@ export const TopBar: React.FC = () => {
                 <Button
                   variant="default"
                   size="sm"
-                  className="h-9 cursor-pointer gap-2 rounded-l-lg border-r border-primary-foreground/15 px-3.5 text-xs font-medium shadow-sm"
+                  className="h-9 cursor-pointer gap-2 rounded-l-lg border-r border-primary-foreground/15 px-3 text-xs font-medium shadow-sm"
                   onClick={handleScanClick}
                 >
-                  <Play className="h-3.5 w-3.5 fill-current" />
+                  <Play className="size-4 fill-current" />
                   <span className="hidden lg:inline">
                     {isFolderViewActive ? `Scan ${activeFolderName}` : "Scan All Folders"}
                   </span>
@@ -920,7 +937,7 @@ export const TopBar: React.FC = () => {
                       size="icon"
                       className="h-9 w-7 cursor-pointer rounded-r-lg px-0 shadow-sm"
                     >
-                      <ChevronDown className="h-3.5 w-3.5 text-primary-foreground/90" />
+                      <ChevronDown className="size-4 text-primary-foreground/90" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent
@@ -936,7 +953,7 @@ export const TopBar: React.FC = () => {
                         onClick={handleScanAllFolders}
                         className="cursor-pointer gap-2"
                       >
-                        <Play className="h-3.5 w-3.5 text-muted-foreground group-data-[highlighted]/dropdown-menu-item:text-accent-foreground" />
+                        <Play className="size-4 text-muted-foreground group-data-highlighted/dropdown-menu-item:text-accent-foreground" />
                         Scan All Folders
                       </DropdownMenuItem>
                     )}
@@ -944,14 +961,14 @@ export const TopBar: React.FC = () => {
                       onClick={handleOpenSelectiveScanDialog}
                       className="cursor-pointer gap-2"
                     >
-                      <Play className="h-3.5 w-3.5 text-muted-foreground group-data-[highlighted]/dropdown-menu-item:text-accent-foreground" />
+                      <Play className="size-4 text-muted-foreground group-data-highlighted/dropdown-menu-item:text-accent-foreground" />
                       Scan Folders...
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={handleOpenRescanDialog}
                       className="cursor-pointer gap-2 font-medium"
                     >
-                      <RefreshCw className="h-3.5 w-3.5 text-primary" />
+                      <RefreshCw className="size-4 text-primary" />
                       Force Rescan...
                     </DropdownMenuItem>
                     {ENABLE_AI_FEATURES && aiStatus?.isDownloaded && (
@@ -960,7 +977,7 @@ export const TopBar: React.FC = () => {
                         className="cursor-pointer gap-2 font-medium"
                         disabled={isAIIndexing}
                       >
-                        <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
+                        <Sparkles className="size-4 text-emerald-500" />
                         Scan Visual Index
                       </DropdownMenuItem>
                     )}
@@ -994,7 +1011,7 @@ export const TopBar: React.FC = () => {
               <Play className="h-4 w-4 fill-primary/20 text-primary" />
               Scan Selected Folders
             </DialogTitle>
-            <DialogDescription className="text-2xs leading-normal text-muted-foreground">
+            <DialogDescription className="text-xs leading-normal text-muted-foreground">
               Choose which folders to scan. Only new or changed files will be
               indexed — existing metadata is preserved.
             </DialogDescription>
@@ -1002,23 +1019,23 @@ export const TopBar: React.FC = () => {
 
           <div className="flex min-h-0 flex-1 flex-col space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-2xs font-semibold tracking-wider text-muted-foreground uppercase">
+              <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                 Select Folders
               </span>
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 cursor-pointer px-2 text-2xs font-semibold text-primary hover:bg-primary/5 hover:text-primary/80"
+                className="h-7 cursor-pointer px-2 text-xs font-semibold text-primary hover:bg-primary/5 hover:text-primary/80"
                 onClick={handleToggleSelectAll}
               >
-                {selectedPaths.length === settings.folders.roots.length
+                {selectedPaths.length === folderRoots.length
                   ? "Deselect All"
                   : "Select All"}
               </Button>
             </div>
 
             <div className="max-h-56 scrollbar-thin space-y-2 overflow-y-auto pr-1">
-              {settings.folders.roots.map((root) => {
+              {folderRoots.map((root) => {
                 const isChecked = selectedPaths.includes(root.path)
                 return (
                   <div
@@ -1044,7 +1061,7 @@ export const TopBar: React.FC = () => {
                       >
                         {root.label}
                       </Label>
-                      <span className="truncate text-2xs leading-normal text-muted-foreground">
+                      <span className="truncate text-xs leading-normal text-muted-foreground">
                         {root.path}
                       </span>
                     </div>
@@ -1077,12 +1094,12 @@ export const TopBar: React.FC = () => {
 
       <Dialog open={showRescanDialog} onOpenChange={setShowRescanDialog}>
         <DialogContent className="max-w-md gap-5 border border-border bg-card p-6 font-sans text-foreground outline-none">
-          <DialogHeader className="space-y-1.5 border-b border-border pb-4">
-            <DialogTitle className="flex items-center gap-2.5 text-sm font-bold text-foreground">
-              <RefreshCw className="h-4.5 w-4.5 text-primary" />
+          <DialogHeader className="space-y-2 border-b border-border pb-4">
+            <DialogTitle className="flex items-center gap-3 text-sm font-bold text-foreground">
+              <RefreshCw className="size-5 text-primary" />
               Force Rescan Folders
             </DialogTitle>
-            <DialogDescription className="text-2xs leading-normal text-muted-foreground">
+            <DialogDescription className="text-xs leading-normal text-muted-foreground">
               Bypass cached metadata and re-analyze all files. This is useful if
               files were edited outside the app, but scanning will take longer.
             </DialogDescription>
@@ -1090,23 +1107,23 @@ export const TopBar: React.FC = () => {
 
           <div className="flex min-h-0 flex-1 flex-col space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-2xs font-semibold tracking-wider text-muted-foreground uppercase">
+              <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                 Select Folders
               </span>
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 cursor-pointer px-2 text-2xs font-semibold text-primary hover:bg-primary/5 hover:text-primary/80"
+                className="h-7 cursor-pointer px-2 text-xs font-semibold text-primary hover:bg-primary/5 hover:text-primary/80"
                 onClick={handleToggleSelectAll}
               >
-                {selectedPaths.length === settings.folders.roots.length
+                {selectedPaths.length === folderRoots.length
                   ? "Deselect All"
                   : "Select All"}
               </Button>
             </div>
 
             <div className="max-h-56 scrollbar-thin space-y-2 overflow-y-auto pr-1">
-              {settings.folders.roots.map((root) => {
+              {folderRoots.map((root) => {
                 const isChecked = selectedPaths.includes(root.path)
                 const folderData = folderCounts.get(root.path)
                 return (
@@ -1135,12 +1152,12 @@ export const TopBar: React.FC = () => {
                           {root.label}
                         </Label>
                         {folderData?.rescanReason && (
-                          <span className="shrink-0 text-2xs font-medium text-amber-500">
+                          <span className="shrink-0 text-xs font-medium text-amber-500">
                             {folderData.rescanReason}
                           </span>
                         )}
                       </div>
-                      <span className="truncate text-2xs leading-normal text-muted-foreground">
+                      <span className="truncate text-xs leading-normal text-muted-foreground">
                         {root.path}
                       </span>
                     </div>

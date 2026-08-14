@@ -1,6 +1,6 @@
 import type { Database } from "better-sqlite3"
 import type { AppSettings } from "../../shared/types/settings"
-import { DEFAULT_SETTINGS } from "../../shared/constants"
+import { DEFAULT_SETTINGS, DEFAULT_EXCLUDE_PATTERNS } from "../../shared/constants"
 import { initDatabase } from "../infrastructure/database"
 
 export class SettingsRepository {
@@ -26,7 +26,14 @@ export class SettingsRepository {
         ...DEFAULT_SETTINGS,
         ...parsed,
         folders: { ...DEFAULT_SETTINGS.folders, ...parsed.folders },
-        scanning: { ...DEFAULT_SETTINGS.scanning, ...parsed.scanning },
+        scanning: {
+          ...DEFAULT_SETTINGS.scanning,
+          ...parsed.scanning,
+          excludePatterns:
+            parsed.scanning?.excludePatterns && parsed.scanning.excludePatterns.length > 0
+              ? Array.from(new Set([...parsed.scanning.excludePatterns, ...DEFAULT_EXCLUDE_PATTERNS]))
+              : [...DEFAULT_EXCLUDE_PATTERNS],
+        },
         quality: { ...DEFAULT_SETTINGS.quality, ...parsed.quality },
         organization: {
           ...DEFAULT_SETTINGS.organization,

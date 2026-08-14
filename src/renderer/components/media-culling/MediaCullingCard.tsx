@@ -67,6 +67,8 @@ const MediaCullingCardInner: React.FC<MediaCullingCardInnerProps> = React.memo(
               <VideoPlayer
                 ref={videoPlayerRef}
                 src={item.path}
+                mediaId={item.id}
+                rotation={item.orientation ?? 0}
                 poster={item.thumbnailPath}
                 className="absolute! inset-0 h-full w-full"
                 hideFullscreen={false}
@@ -77,6 +79,11 @@ const MediaCullingCardInner: React.FC<MediaCullingCardInnerProps> = React.memo(
               <img
                 src={safeSrc}
                 alt={item.name}
+                style={
+                  item.orientation
+                    ? { transform: `rotate(${item.orientation}deg)` }
+                    : undefined
+                }
                 className="pointer-events-none absolute inset-0 h-full w-full object-contain select-none"
               />
             )
@@ -91,7 +98,7 @@ const MediaCullingCardInner: React.FC<MediaCullingCardInnerProps> = React.memo(
               {item.quality.isBlurry && (
                 <Badge
                   variant="outline"
-                  className="border-yellow-500/20 bg-yellow-500/10 text-[0.5625rem] text-yellow-500 backdrop-blur"
+                  className="border-yellow-500/20 bg-yellow-500/10 text-xs text-yellow-500 backdrop-blur"
                 >
                   Blurry
                 </Badge>
@@ -99,7 +106,7 @@ const MediaCullingCardInner: React.FC<MediaCullingCardInnerProps> = React.memo(
               {item.quality.isDark && (
                 <Badge
                   variant="outline"
-                  className="border-yellow-500/20 bg-yellow-500/10 text-[0.5625rem] text-yellow-500 backdrop-blur"
+                  className="border-yellow-500/20 bg-yellow-500/10 text-xs text-yellow-500 backdrop-blur"
                 >
                   Dark
                 </Badge>
@@ -177,7 +184,7 @@ const MediaCullingCardInner: React.FC<MediaCullingCardInnerProps> = React.memo(
               <span className="truncate font-heading text-sm font-bold">
                 {item.name}
               </span>
-              <div className="mt-1 flex items-center gap-3 text-2xs opacity-75">
+              <div className="mt-1 flex items-center gap-3 text-xs opacity-75">
                 <span>{formatBytes(item.size)}</span>
                 {item.width && item.height && (
                   <span>

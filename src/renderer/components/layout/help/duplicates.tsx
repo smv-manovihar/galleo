@@ -21,6 +21,9 @@ import {
   ChevronDown,
   Code2,
   BookOpen,
+  FolderTree,
+  History,
+  RotateCcw,
 } from "lucide-react"
 import { useUIStore } from "../../../stores/ui-store"
 
@@ -34,11 +37,11 @@ export const DuplicatesHelp: React.FC = () => {
       <>
         {/* Header */}
         <DialogHeader className="shrink-0 border-b border-border pb-3">
-          <DialogTitle className="flex items-center gap-2.5 text-base font-bold text-foreground">
+          <DialogTitle className="flex items-center gap-3 text-base font-bold text-foreground">
             <Copy className="size-5 text-primary" />
             Duplicate Audit: Similar Media
           </DialogTitle>
-          <DialogDescription className="mt-0.5 text-2xs leading-normal font-semibold tracking-wider text-muted-foreground uppercase">
+          <DialogDescription className="mt-1 text-xs leading-normal text-muted-foreground">
             Burst photos, bracketed exposures, and similarity checking.
           </DialogDescription>
         </DialogHeader>
@@ -46,38 +49,38 @@ export const DuplicatesHelp: React.FC = () => {
         {/* Scrollable Content */}
         <div className="min-h-0 flex-1 scrollbar-thin space-y-4 overflow-y-auto pr-1">
           <p className="text-xs leading-relaxed text-muted-foreground">
-            Review visually similar photos and bursts to choose which copies to keep or delete.
+            Review visually similar photos, burst sequences, and near-identical shots. Compare composite quality scores to keep only the crispest version and stage the rest for deletion.
           </p>
 
           {/* 1. Key Terms */}
           <div className="space-y-2">
-            <h4 className="flex items-center gap-1.5 text-3xs font-extrabold tracking-wider text-primary uppercase">
+            <h4 className="flex items-center gap-2 text-xs font-semibold text-primary">
               <BookOpen className="size-3" />
               Key Terms
             </h4>
-            <div className="grid grid-cols-1 gap-2.5 md:grid-cols-3">
-              <div className="flex flex-col gap-1 rounded-xl border border-border/60 bg-muted/10 p-2.5">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <div className="flex flex-col gap-1 rounded-xl border border-border/60 bg-muted/10 p-3">
                 <span className="text-xs font-bold text-foreground">
-                  Similarity Score
+                  Similarity Cluster
                 </span>
-                <span className="mt-0.5 text-2xs leading-normal text-muted-foreground">
-                  Visual likeness percentage identifying burst shots or near-identical photos.
+                <span className="mt-1 text-xs leading-normal text-muted-foreground">
+                  Photos grouped by perceptual fingerprint (pHash), capturing burst sequences, angle variations, and edits.
                 </span>
               </div>
-              <div className="flex flex-col gap-1 rounded-xl border border-border/60 bg-muted/10 p-2.5">
+              <div className="flex flex-col gap-1 rounded-xl border border-border/60 bg-muted/10 p-3">
                 <span className="text-xs font-bold text-foreground">
                   Best Choice
                 </span>
-                <span className="mt-0.5 text-2xs leading-normal text-muted-foreground">
-                  Highest-scoring photo based on sharpness, resolution, and exposure metrics.
+                <span className="mt-1 text-xs leading-normal text-muted-foreground">
+                  Automatically elected highest-quality photo based on Laplacian sharpness, resolution, and exposure metrics.
                 </span>
               </div>
-              <div className="flex flex-col gap-1 rounded-xl border border-border/60 bg-muted/10 p-2.5">
+              <div className="flex flex-col gap-1 rounded-xl border border-border/60 bg-muted/10 p-3">
                 <span className="text-xs font-bold text-foreground">
-                  Review State
+                  Focus Mode
                 </span>
-                <span className="mt-0.5 text-2xs leading-normal text-muted-foreground">
-                  Decision status assigned to each item ("Keep", "Delete", or "Pending").
+                <span className="mt-1 text-xs leading-normal text-muted-foreground">
+                  Dedicated keyboard mode to navigate individual cards within a cluster using WASD or arrow keys.
                 </span>
               </div>
             </div>
@@ -85,41 +88,95 @@ export const DuplicatesHelp: React.FC = () => {
 
           {/* 2. Actions & Controls */}
           <div className="space-y-2">
-            <h4 className="text-3xs font-extrabold tracking-wider text-primary uppercase">
-              Actions & Controls
+            <h4 className="text-xs font-semibold text-primary">
+              Actions & Keyboard Shortcuts
             </h4>
             <div className="divide-y divide-border/40 overflow-hidden rounded-xl border border-border/60 bg-muted/5">
-              <div className="flex flex-col items-start gap-1 p-3 text-2xs transition-colors hover:bg-muted/10 sm:grid sm:grid-cols-[180px_1fr] sm:items-center sm:gap-4">
+              <div className="flex flex-col items-start gap-1 p-3 text-xs transition-colors hover:bg-muted/10 sm:grid sm:grid-cols-[180px_1fr] sm:items-center sm:gap-4">
                 <div className="flex shrink-0 items-center gap-2">
-                  <Sparkles className="size-3.5 shrink-0 text-primary" />
+                  <Sparkles className="size-4 shrink-0 text-primary" />
                   <span className="font-semibold text-foreground">
                     Auto-Keep Best
                   </span>
+                  <div className="flex gap-1">
+                    <kbd className="rounded border border-border/80 bg-muted px-1.5 py-0.5 font-mono text-xs font-bold text-muted-foreground">
+                      Space
+                    </kbd>
+                    <kbd className="rounded border border-border/80 bg-muted px-1.5 py-0.5 font-mono text-xs font-bold text-muted-foreground">
+                      ↵
+                    </kbd>
+                  </div>
                 </div>
                 <span className="text-muted-foreground">
-                  Keeps the highest quality photo in group and marks remaining copies for trash.
+                  Keeps the highest-quality photo in the group, marks all other copies for trash, and advances to the next cluster.
                 </span>
               </div>
-              <div className="flex flex-col items-start gap-1 p-3 text-2xs transition-colors hover:bg-muted/10 sm:grid sm:grid-cols-[180px_1fr] sm:items-center sm:gap-4">
+              <div className="flex flex-col items-start gap-1 p-3 text-xs transition-colors hover:bg-muted/10 sm:grid sm:grid-cols-[180px_1fr] sm:items-center sm:gap-4">
                 <div className="flex shrink-0 items-center gap-2">
-                  <Bookmark className="size-3.5 shrink-0 text-primary" />
+                  <Bookmark className="size-4 shrink-0 text-primary" />
                   <span className="font-semibold text-foreground">
                     Keep All / Delete All
                   </span>
+                  <div className="flex gap-1">
+                    <kbd className="rounded border border-border/80 bg-muted px-1.5 py-0.5 font-mono text-xs font-bold text-muted-foreground">
+                      C
+                    </kbd>
+                    <kbd className="rounded border border-border/80 bg-muted px-1.5 py-0.5 font-mono text-xs font-bold text-muted-foreground">
+                      X
+                    </kbd>
+                  </div>
                 </div>
                 <span className="text-muted-foreground">
-                  Bulk action to keep or delete all items in the current group.
+                  Bulk decision to keep all items (<kbd className="font-mono bg-muted px-1 rounded">C</kbd>) or delete all items (<kbd className="font-mono bg-muted px-1 rounded">X</kbd>) in the current group.
                 </span>
               </div>
-              <div className="flex flex-col items-start gap-1 p-3 text-2xs transition-colors hover:bg-muted/10 sm:grid sm:grid-cols-[180px_1fr] sm:items-center sm:gap-4">
+              <div className="flex flex-col items-start gap-1 p-3 text-xs transition-colors hover:bg-muted/10 sm:grid sm:grid-cols-[180px_1fr] sm:items-center sm:gap-4">
                 <div className="flex shrink-0 items-center gap-2">
-                  <Keyboard className="size-3.5 shrink-0 text-primary" />
+                  <Keyboard className="size-4 shrink-0 text-primary" />
                   <span className="font-semibold text-foreground">
-                    Keyboard Shortcuts
+                    Focus Mode
+                  </span>
+                  <div className="flex gap-1">
+                    <kbd className="rounded border border-border/80 bg-muted px-1.5 py-0.5 font-mono text-xs font-bold text-muted-foreground">
+                      F
+                    </kbd>
+                  </div>
+                </div>
+                <span className="text-muted-foreground">
+                  Press <kbd className="font-mono bg-muted px-1 rounded">F</kbd> to enter focus mode. Move between cards with <kbd className="font-mono bg-muted px-1 rounded">WASD</kbd> or arrow keys, toggle Keep/Delete with <kbd className="font-mono bg-muted px-1 rounded">Space</kbd> / <kbd className="font-mono bg-muted px-1 rounded">Enter</kbd>, and exit with <kbd className="font-mono bg-muted px-1 rounded">Esc</kbd> or <kbd className="font-mono bg-muted px-1 rounded">F</kbd>.
+                </span>
+              </div>
+              <div className="flex flex-col items-start gap-1 p-3 text-xs transition-colors hover:bg-muted/10 sm:grid sm:grid-cols-[180px_1fr] sm:items-center sm:gap-4">
+                <div className="flex shrink-0 items-center gap-2">
+                  <RotateCcw className="size-4 shrink-0 text-primary" />
+                  <span className="font-semibold text-foreground">
+                    Undo Decision
+                  </span>
+                  <div className="flex gap-1">
+                    <kbd className="rounded border border-border/80 bg-muted px-1.5 py-0.5 font-mono text-xs font-bold text-muted-foreground">
+                      S
+                    </kbd>
+                    <kbd className="rounded border border-border/80 bg-muted px-1.5 py-0.5 font-mono text-xs font-bold text-muted-foreground">
+                      ↓
+                    </kbd>
+                    <kbd className="rounded border border-border/80 bg-muted px-1.5 py-0.5 font-mono text-xs font-bold text-muted-foreground">
+                      Ctrl+Z
+                    </kbd>
+                  </div>
+                </div>
+                <span className="text-muted-foreground">
+                  Reverts decisions made on the previous duplicate cluster.
+                </span>
+              </div>
+              <div className="flex flex-col items-start gap-1 p-3 text-xs transition-colors hover:bg-muted/10 sm:grid sm:grid-cols-[180px_1fr] sm:items-center sm:gap-4">
+                <div className="flex shrink-0 items-center gap-2">
+                  <History className="size-4 shrink-0 text-primary" />
+                  <span className="font-semibold text-foreground">
+                    Decision History
                   </span>
                 </div>
                 <span className="text-muted-foreground">
-                  Press <kbd className="font-mono bg-muted px-1 text-[10px] rounded">F</kbd> to enter focus mode — a blue ring highlights the active card. Use <kbd className="font-mono bg-muted px-1 text-[10px] rounded">←</kbd><kbd className="font-mono bg-muted px-1 text-[10px] rounded">→</kbd><kbd className="font-mono bg-muted px-1 text-[10px] rounded">↑</kbd><kbd className="font-mono bg-muted px-1 text-[10px] rounded">↓</kbd> or <kbd className="font-mono bg-muted px-1 text-[10px] rounded">A</kbd><kbd className="font-mono bg-muted px-1 text-[10px] rounded">D</kbd><kbd className="font-mono bg-muted px-1 text-[10px] rounded">W</kbd><kbd className="font-mono bg-muted px-1 text-[10px] rounded">S</kbd> to move between cards, <kbd className="font-mono bg-muted px-1 text-[10px] rounded">Space</kbd> or <kbd className="font-mono bg-muted px-1 text-[10px] rounded">Enter</kbd> to toggle, and <kbd className="font-mono bg-muted px-1 text-[10px] rounded">Esc</kbd> or <kbd className="font-mono bg-muted px-1 text-[10px] rounded">F</kbd> to exit.
+                  Click the History button in the top toolbar to review previously audited duplicate groups and change individual decisions.
                 </span>
               </div>
             </div>
@@ -128,51 +185,51 @@ export const DuplicatesHelp: React.FC = () => {
           {/* 3. Collapsible Under the Hood Technical Concepts */}
           <Collapsible open={isOpenManual} onOpenChange={setIsOpenManual} className="space-y-2">
             <CollapsibleTrigger asChild>
-              <button className="flex w-full cursor-pointer items-center justify-between rounded-xl border border-border/60 bg-muted/20 px-3 py-2 text-2xs font-semibold text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground">
-                <div className="flex items-center gap-2 text-3xs font-extrabold tracking-wider text-primary uppercase">
-                  <Code2 className="size-3.5" />
+              <button className="flex w-full cursor-pointer items-center justify-between rounded-xl border border-border/60 bg-muted/20 px-3 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground">
+                <div className="flex items-center gap-2 text-xs font-semibold text-primary">
+                  <Code2 className="size-4" />
                   Under the Hood & Technical Concepts
                 </div>
                 <div className="flex items-center gap-1">
-                  <span className="text-[10px] font-normal text-muted-foreground">
+                  <span className="text-xs font-normal text-muted-foreground">
                     {isOpenManual ? "Hide details" : "Learn how it works"}
                   </span>
-                  <ChevronDown className={`size-3.5 text-muted-foreground transition-transform duration-200 ${isOpenManual ? "rotate-180" : ""}`} />
+                  <ChevronDown className={`size-4 text-muted-foreground transition-transform duration-200 ${isOpenManual ? "rotate-180" : ""}`} />
                 </div>
               </button>
             </CollapsibleTrigger>
             <CollapsibleContent className="space-y-2 pt-1">
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <div className="flex flex-col gap-1 rounded-xl border border-border/50 bg-muted/10 p-2.5">
-                  <span className="text-2xs font-bold text-foreground">
+                <div className="flex flex-col gap-1 rounded-xl border border-border/50 bg-muted/10 p-3">
+                  <span className="text-xs font-bold text-foreground">
                     Perceptual Hashing (pHash)
                   </span>
-                  <span className="text-[11px] leading-relaxed text-muted-foreground">
-                    Converts image frequencies into a 64-bit structural fingerprint to compute visual similarity independent of file format or resolution.
+                  <span className="text-xs leading-relaxed text-muted-foreground">
+                    Converts image frequencies into a 64-bit structural fingerprint to compute visual similarity independent of file format, compression, or resolution.
                   </span>
                 </div>
-                <div className="flex flex-col gap-1 rounded-xl border border-border/50 bg-muted/10 p-2.5">
-                  <span className="text-2xs font-bold text-foreground">
-                    Laplacian Variance (Blur Detection)
+                <div className="flex flex-col gap-1 rounded-xl border border-border/50 bg-muted/10 p-3">
+                  <span className="text-xs font-bold text-foreground">
+                    Laplacian Variance Blur Detection
                   </span>
-                  <span className="text-[11px] leading-relaxed text-muted-foreground">
+                  <span className="text-xs leading-relaxed text-muted-foreground">
                     Calculates high-frequency edge gradients across the image canvas to detect motion blur and select the sharpest photo in a burst.
                   </span>
                 </div>
-                <div className="flex flex-col gap-1 rounded-xl border border-border/50 bg-muted/10 p-2.5">
-                  <span className="text-2xs font-bold text-foreground">
-                    Luminance Histogram
+                <div className="flex flex-col gap-1 rounded-xl border border-border/50 bg-muted/10 p-3">
+                  <span className="text-xs font-bold text-foreground">
+                    Luminance Histogram Weighting
                   </span>
-                  <span className="text-[11px] leading-relaxed text-muted-foreground">
-                    Analyzes tone distribution to penalize underexposed or overexposed highlights.
+                  <span className="text-xs leading-relaxed text-muted-foreground">
+                    Analyzes tone distribution to penalize underexposed shadows or blown-out highlights.
                   </span>
                 </div>
-                <div className="flex flex-col gap-1 rounded-xl border border-border/50 bg-muted/10 p-2.5">
-                  <span className="text-2xs font-bold text-foreground">
-                    Resolution & Megapixel Weighting
+                <div className="flex flex-col gap-1 rounded-xl border border-border/50 bg-muted/10 p-3">
+                  <span className="text-xs font-bold text-foreground">
+                    Resolution & Dimension Tiebreakers
                   </span>
-                  <span className="text-[11px] leading-relaxed text-muted-foreground">
-                    Total pixel resolution and file size act as secondary tiebreakers when sharpness metrics are identical.
+                  <span className="text-xs leading-relaxed text-muted-foreground">
+                    Total megapixel resolution and file size act as secondary tiebreakers when sharpness metrics are identical.
                   </span>
                 </div>
               </div>
@@ -181,16 +238,16 @@ export const DuplicatesHelp: React.FC = () => {
         </div>
 
         {/* Pro Tip Banner */}
-        <div className="mt-auto flex shrink-0 flex-row items-start gap-3 border-t border-border pt-3.5">
-          <div className="shrink-0 rounded-lg border border-primary/20 bg-primary/10 p-1.5 text-primary">
+        <div className="mt-auto flex shrink-0 flex-row items-start gap-3 border-t border-border pt-4">
+          <div className="shrink-0 rounded-lg border border-primary/20 bg-primary/10 p-2 text-primary">
             <Zap className="size-4" />
           </div>
           <div className="min-w-0 flex-1">
-            <span className="block text-2xs font-extrabold tracking-wider text-primary uppercase">
-              PRO TIP
+            <span className="block text-xs font-semibold text-primary">
+              Pro Tip: Rapid Burst Triage
             </span>
-            <span className="mt-0.5 block text-2xs leading-relaxed text-muted-foreground">
-              Press <kbd className="font-mono bg-muted px-1 text-[10px] rounded">Space</kbd> or <kbd className="font-mono bg-muted px-1 text-[10px] rounded">Enter</kbd> to auto-keep the best photo. To manually adjust individual cards, press <kbd className="font-mono bg-muted px-1 text-[10px] rounded">F</kbd> to enter focus mode, navigate with <kbd className="font-mono bg-muted px-1 text-[10px] rounded">WASD</kbd> or arrow keys, and toggle with <kbd className="font-mono bg-muted px-1 text-[10px] rounded">Space</kbd>.
+            <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
+              Press <kbd className="font-mono bg-muted px-1 text-xs rounded">Space</kbd> to accept the auto-selected best shot and advance instantly. If you need manual adjustments, press <kbd className="font-mono bg-muted px-1 text-xs rounded">F</kbd> to enter Focus Mode, navigate with <kbd className="font-mono bg-muted px-1 text-xs rounded">WASD</kbd>, and toggle cards with <kbd className="font-mono bg-muted px-1 text-xs rounded">Space</kbd>.
             </span>
           </div>
         </div>
@@ -202,50 +259,50 @@ export const DuplicatesHelp: React.FC = () => {
     <>
       {/* Header */}
       <DialogHeader className="shrink-0 border-b border-border pb-3">
-        <DialogTitle className="flex items-center gap-2.5 text-base font-bold text-foreground">
+        <DialogTitle className="flex items-center gap-3 text-base font-bold text-foreground">
           <Copy className="size-5 text-primary" />
           Duplicate Audit: Exact Duplicates
         </DialogTitle>
-        <DialogDescription className="mt-0.5 text-2xs leading-normal font-semibold tracking-wider text-muted-foreground uppercase">
-          Automated exact matching and visual comparisons.
+        <DialogDescription className="mt-1 text-xs leading-normal text-muted-foreground">
+          Automated exact matching, strategy rules, and bulk resolution.
         </DialogDescription>
       </DialogHeader>
 
       {/* Scrollable Content */}
       <div className="min-h-0 flex-1 scrollbar-thin space-y-4 overflow-y-auto pr-1">
         <p className="text-xs leading-relaxed text-muted-foreground">
-          Locate and clean exact duplicate files using content hashes.
+          Locate and delete 100% binary identical files identified by fast content hashing. Choose an auto-keep strategy or customize folder rules to decide which copy to keep.
         </p>
 
         {/* 1. Key Terms */}
         <div className="space-y-2">
-          <h4 className="flex items-center gap-1.5 text-3xs font-extrabold tracking-wider text-primary uppercase">
+          <h4 className="flex items-center gap-2 text-xs font-semibold text-primary">
             <BookOpen className="size-3" />
             Key Terms
           </h4>
-          <div className="grid grid-cols-1 gap-2.5 md:grid-cols-3">
-            <div className="flex flex-col gap-1 rounded-xl border border-border/60 bg-muted/10 p-2.5">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div className="flex flex-col gap-1 rounded-xl border border-border/60 bg-muted/10 p-3">
               <span className="text-xs font-bold text-foreground">
-                Content Hash
+                Content Hash (xxHash64)
               </span>
-              <span className="mt-0.5 text-2xs leading-normal text-muted-foreground">
-                Unique binary signature. Matching hashes indicate 100% identical files.
+              <span className="mt-1 text-xs leading-normal text-muted-foreground">
+                Deterministic binary checksum. Matching hashes guarantee 100% identical file data with zero false positives.
               </span>
             </div>
-            <div className="flex flex-col gap-1 rounded-xl border border-border/60 bg-muted/10 p-2.5">
+            <div className="flex flex-col gap-1 rounded-xl border border-border/60 bg-muted/10 p-3">
               <span className="text-xs font-bold text-foreground">
                 Canonical Copy
               </span>
-              <span className="mt-0.5 text-2xs leading-normal text-muted-foreground">
-                Single copy selected to keep based on directory rules, marked green.
+              <span className="mt-1 text-xs leading-normal text-muted-foreground">
+                The single copy chosen to be kept based on your active strategy, highlighted with a green badge.
               </span>
             </div>
-            <div className="flex flex-col gap-1 rounded-xl border border-border/60 bg-muted/10 p-2.5">
+            <div className="flex flex-col gap-1 rounded-xl border border-border/60 bg-muted/10 p-3">
               <span className="text-xs font-bold text-foreground">
-                Staged Deletion
+                Folder Rules
               </span>
-              <span className="mt-0.5 text-2xs leading-normal text-muted-foreground">
-                Flagging redundant copies to safely move to OS Recycle Bin.
+              <span className="mt-1 text-xs leading-normal text-muted-foreground">
+                Configurable directory priorities (Preferred Keep vs Preferred Delete) that automatically dictate which folder wins.
               </span>
             </div>
           </div>
@@ -253,41 +310,52 @@ export const DuplicatesHelp: React.FC = () => {
 
         {/* 2. Actions & Controls */}
         <div className="space-y-2">
-          <h4 className="text-3xs font-extrabold tracking-wider text-primary uppercase">
-            Actions & Controls
+          <h4 className="text-xs font-semibold text-primary">
+            Auto-Keep Strategies & Controls
           </h4>
           <div className="divide-y divide-border/40 overflow-hidden rounded-xl border border-border/60 bg-muted/5">
-            <div className="flex flex-col items-start gap-1 p-3 text-2xs transition-colors hover:bg-muted/10 sm:grid sm:grid-cols-[180px_1fr] sm:items-center sm:gap-4">
+            <div className="flex flex-col items-start gap-1 p-3 text-xs transition-colors hover:bg-muted/10 sm:grid sm:grid-cols-[180px_1fr] sm:items-center sm:gap-4">
               <div className="flex shrink-0 items-center gap-2">
-                <Trash2 className="size-3.5 shrink-0 text-primary" />
+                <MousePointerClick className="size-4 shrink-0 text-primary" />
                 <span className="font-semibold text-foreground">
-                  Trash All
+                  Strategy Selection
                 </span>
               </div>
               <span className="text-muted-foreground">
-                Pre-selects redundant exact copies for deletion, keeping the best copy.
+                Choose the rule used to elect the kept copy: <strong>Most Grouped</strong> (folder with most sibling photos), <strong>Oldest</strong> (earliest capture date), <strong>Newest</strong>, <strong>Shortest Path</strong>, or <strong>Folder Rules</strong>.
               </span>
             </div>
-            <div className="flex flex-col items-start gap-1 p-3 text-2xs transition-colors hover:bg-muted/10 sm:grid sm:grid-cols-[180px_1fr] sm:items-center sm:gap-4">
+            <div className="flex flex-col items-start gap-1 p-3 text-xs transition-colors hover:bg-muted/10 sm:grid sm:grid-cols-[180px_1fr] sm:items-center sm:gap-4">
               <div className="flex shrink-0 items-center gap-2">
-                <ArrowLeftRight className="size-3.5 shrink-0 text-primary" />
+                <ArrowLeftRight className="size-4 shrink-0 text-primary" />
                 <span className="font-semibold text-foreground">
-                  Swap Selection
+                  Manual Swap
                 </span>
               </div>
               <span className="text-muted-foreground">
-                Click any row to swap which copy is kept and which is trashed.
+                Click any file row in a group card to manually override the strategy and designate that copy to be kept instead.
               </span>
             </div>
-            <div className="flex flex-col items-start gap-1 p-3 text-2xs transition-colors hover:bg-muted/10 sm:grid sm:grid-cols-[180px_1fr] sm:items-center sm:gap-4">
+            <div className="flex flex-col items-start gap-1 p-3 text-xs transition-colors hover:bg-muted/10 sm:grid sm:grid-cols-[180px_1fr] sm:items-center sm:gap-4">
               <div className="flex shrink-0 items-center gap-2">
-                <MousePointerClick className="size-3.5 shrink-0 text-primary" />
+                <Trash2 className="size-4 shrink-0 text-primary" />
                 <span className="font-semibold text-foreground">
-                  Auto-keep Strategy
+                  Trash Redundant Copies
                 </span>
               </div>
               <span className="text-muted-foreground">
-                Select strategy (Oldest, Newest, Most Grouped, Shortest Path) to pick the default copy to keep.
+                Stages all redundant duplicate copies for deletion, calculating total space reclaimed before sending them to the OS Recycle Bin in the background.
+              </span>
+            </div>
+            <div className="flex flex-col items-start gap-1 p-3 text-xs transition-colors hover:bg-muted/10 sm:grid sm:grid-cols-[180px_1fr] sm:items-center sm:gap-4">
+              <div className="flex shrink-0 items-center gap-2">
+                <FolderTree className="size-4 shrink-0 text-primary" />
+                <span className="font-semibold text-foreground">
+                  Configure Folder Rules
+                </span>
+              </div>
+              <span className="text-muted-foreground">
+                Set Preferred Keep Folders (e.g. Master Library) and Preferred Delete Folders (e.g. Backup / Imports) in Settings to automatically resolve conflicts.
               </span>
             </div>
           </div>
@@ -296,71 +364,56 @@ export const DuplicatesHelp: React.FC = () => {
         {/* 3. Collapsible Under the Hood Technical Concepts */}
         <Collapsible open={isOpenAuto} onOpenChange={setIsOpenAuto} className="space-y-2">
           <CollapsibleTrigger asChild>
-            <button className="flex w-full cursor-pointer items-center justify-between rounded-xl border border-border/60 bg-muted/20 px-3 py-2 text-2xs font-semibold text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground">
-              <div className="flex items-center gap-2 text-3xs font-extrabold tracking-wider text-primary uppercase">
-                <Code2 className="size-3.5" />
+            <button className="flex w-full cursor-pointer items-center justify-between rounded-xl border border-border/60 bg-muted/20 px-3 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground">
+              <div className="flex items-center gap-2 text-xs font-semibold text-primary">
+                <Code2 className="size-4" />
                 Under the Hood & Technical Concepts
               </div>
               <div className="flex items-center gap-1">
-                <span className="text-[10px] font-normal text-muted-foreground">
+                <span className="text-xs font-normal text-muted-foreground">
                   {isOpenAuto ? "Hide details" : "Learn how it works"}
                 </span>
-                <ChevronDown className={`size-3.5 text-muted-foreground transition-transform duration-200 ${isOpenAuto ? "rotate-180" : ""}`} />
+                <ChevronDown className={`size-4 text-muted-foreground transition-transform duration-200 ${isOpenAuto ? "rotate-180" : ""}`} />
               </div>
             </button>
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-2 pt-1">
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <div className="flex flex-col gap-1 rounded-xl border border-border/50 bg-muted/10 p-2.5">
-                <span className="text-2xs font-bold text-foreground">
-                  xxHash & SHA-256 Hashing
+              <div className="flex flex-col gap-1 rounded-xl border border-border/50 bg-muted/10 p-3">
+                <span className="text-xs font-bold text-foreground">
+                  xxHash64 & Fast Chunk Hashing
                 </span>
-                <span className="text-[11px] leading-relaxed text-muted-foreground">
-                  Computes fast, deterministic binary signatures of file content. Guaranteed zero false positives even if files are renamed across drives.
-                </span>
-              </div>
-              <div className="flex flex-col gap-1 rounded-xl border border-border/50 bg-muted/10 p-2.5">
-                <span className="text-2xs font-bold text-foreground">
-                  Folder Sibling Density
-                </span>
-                <span className="text-[11px] leading-relaxed text-muted-foreground">
-                  The "Most Grouped" strategy calculates cluster weights by counting sibling files in parent directories to prevent breaking up main photo albums.
+                <span className="text-xs leading-relaxed text-muted-foreground">
+                  Computes high-speed 64-bit content signatures of file bytes. Files with identical content match even if renamed or located on different drives.
                 </span>
               </div>
-              <div className="flex flex-col gap-1 rounded-xl border border-border/50 bg-muted/10 p-2.5">
-                <span className="text-2xs font-bold text-foreground">
-                  Path Depth Heuristic
+              <div className="flex flex-col gap-1 rounded-xl border border-border/50 bg-muted/10 p-3">
+                <span className="text-xs font-bold text-foreground">
+                  Folder Sibling Density Heuristic
                 </span>
-                <span className="text-[11px] leading-relaxed text-muted-foreground">
-                  Analyzes folder nesting levels to prefer shallow, clean directory paths over deep nested backup locations.
+                <span className="text-xs leading-relaxed text-muted-foreground">
+                  The "Most Grouped" strategy calculates cluster weights by counting sibling files in parent directories to prevent breaking up curated photo albums.
                 </span>
               </div>
-              <div className="flex flex-col gap-1 rounded-xl border border-border/50 bg-muted/10 p-2.5">
-                <span className="text-2xs font-bold text-foreground">
-                  Session Checkpointing
+              <div className="flex flex-col gap-1 rounded-xl border border-border/50 bg-muted/10 p-3">
+                <span className="text-xs font-bold text-foreground">
+                  Path Depth Analysis
                 </span>
-                <span className="text-[11px] leading-relaxed text-muted-foreground">
-                  All review decisions persist in a local SQLite transaction log so you can close the app mid-audit without losing progress.
+                <span className="text-xs leading-relaxed text-muted-foreground">
+                  Evaluates folder nesting levels to prefer clean, shallow directory paths over deeply nested backup subfolders.
+                </span>
+              </div>
+              <div className="flex flex-col gap-1 rounded-xl border border-border/50 bg-muted/10 p-3">
+                <span className="text-xs font-bold text-foreground">
+                  Background Trashing Pipeline
+                </span>
+                <span className="text-xs leading-relaxed text-muted-foreground">
+                  Deletion operations execute in a non-blocking background queue with live progress pills in the TopBar.
                 </span>
               </div>
             </div>
           </CollapsibleContent>
         </Collapsible>
-      </div>
-
-      {/* Pro Tip Banner */}
-      <div className="mt-auto flex shrink-0 flex-row items-start gap-3 border-t border-border pt-3.5">
-        <div className="shrink-0 rounded-lg border border-primary/20 bg-primary/10 p-1.5 text-primary">
-          <Zap className="size-4" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <span className="block text-2xs font-extrabold tracking-wider text-primary uppercase">
-            PRO TIP
-          </span>
-          <span className="mt-0.5 block text-2xs leading-relaxed text-muted-foreground">
-            Use the <strong>"Most Grouped"</strong> strategy to keep photos in main parent folders instead of backup copies.
-          </span>
-        </div>
       </div>
     </>
   )

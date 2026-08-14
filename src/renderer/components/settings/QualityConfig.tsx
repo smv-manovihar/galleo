@@ -50,25 +50,25 @@ export const QualityConfig: React.FC = () => {
 
   return (
     <div className="space-y-4 font-sans text-xs select-none">
-      <Card className="border-border/60 bg-card/50 shadow-xs">
+      <Card className="border-border/60 bg-card/50 shadow-xs py-0 gap-0">
         <CardHeader className="border-b border-border/40 px-4 py-3">
-          <CardTitle className="flex items-center gap-2 text-xs font-bold text-foreground">
-            <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
+          <CardTitle className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <SlidersHorizontal className="size-4 text-primary" />
             Defect Thresholds
           </CardTitle>
-          <CardDescription className="text-2xs text-muted-foreground">
+          <CardDescription className="text-xs text-muted-foreground">
             Configure sensitivity parameters for automated photo quality flags.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 p-4">
           {/* Blur Score Slider */}
-          <div className="space-y-2.5">
+          <div className="space-y-3">
             <div className="flex items-center justify-between gap-2">
-              <Label className="flex items-center gap-1.5 text-2xs font-bold text-muted-foreground">
-                <Focus className="h-3.5 w-3.5 text-sky-500 dark:text-sky-400" />
+              <Label className="flex items-center gap-2 text-xs font-bold text-muted-foreground">
+                <Focus className="size-4 text-sky-500 dark:text-sky-400" />
                 Blurry Threshold
               </Label>
-              <span className="font-mono text-2xs font-semibold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
+              <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
                 {blurVal} (below = blurry)
               </span>
             </div>
@@ -81,7 +81,7 @@ export const QualityConfig: React.FC = () => {
               step={1}
               className="py-1"
             />
-            <p className="text-2xs text-muted-foreground leading-relaxed">
+            <p className="text-xs text-muted-foreground leading-relaxed">
               Higher values increase blur detection sensitivity during library scanning.
             </p>
           </div>
@@ -89,13 +89,13 @@ export const QualityConfig: React.FC = () => {
           <div className="h-px bg-border/40" />
 
           {/* Exposure Darkness Slider */}
-          <div className="space-y-2.5">
+          <div className="space-y-3">
             <div className="flex items-center justify-between gap-2">
-              <Label className="flex items-center gap-1.5 text-2xs font-bold text-muted-foreground">
-                <Moon className="h-3.5 w-3.5 text-indigo-500 dark:text-indigo-400" />
+              <Label className="flex items-center gap-2 text-xs font-bold text-muted-foreground">
+                <Moon className="size-4 text-indigo-500 dark:text-indigo-400" />
                 Darkness Threshold
               </Label>
-              <span className="font-mono text-2xs font-semibold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
+              <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
                 {darkVal} (0-255, below = dark)
               </span>
             </div>
@@ -108,7 +108,7 @@ export const QualityConfig: React.FC = () => {
               step={1}
               className="py-1"
             />
-            <p className="text-2xs text-muted-foreground leading-relaxed">
+            <p className="text-xs text-muted-foreground leading-relaxed">
               Higher values flag more underexposed photos as dark in quality review.
             </p>
           </div>

@@ -25,7 +25,9 @@ import { SettingsPage } from "../../pages/SettingsPage"
 export const AppShell: React.FC = () => {
   const currentView = useUIStore((s) => s.currentView)
   const { setTheme } = useTheme()
-  const settings = useSettingsStore((s) => s.settings)
+  const folderRoots = useSettingsStore((s) => s.settings.folders.roots)
+  const theme = useSettingsStore((s) => s.settings.ui.theme)
+  const fontSize = useSettingsStore((s) => s.settings.ui.fontSize)
   const fetchSettings = useSettingsStore((s) => s.fetchSettings)
   const isInitialized = useSettingsStore((s) => s.isInitialized)
   const hasItems = useMediaStore((s) => s.items.length > 0)
@@ -35,15 +37,15 @@ export const AppShell: React.FC = () => {
   const checkActiveScanStatus = useScanStore((s) => s.checkActiveScanStatus)
 
   const isScanned = React.useMemo(() => {
-    if (settings.folders.roots.length === 0) return true
+    if (folderRoots.length === 0) return true
     if (!activeRootPath || activeRootPath === "all") {
-      return settings.folders.roots.some((r) => r.enabled && r.scanned)
+      return folderRoots.some((r) => r.enabled && r.scanned)
     }
-    const root = settings.folders.roots.find(
+    const root = folderRoots.find(
       (r) => r.path.toLowerCase() === activeRootPath.toLowerCase()
     )
     return root ? !!root.scanned : false
-  }, [activeRootPath, settings.folders.roots])
+  }, [activeRootPath, folderRoots])
 
   useEffect(() => {
     // Initial settings load and active scan check on mount
@@ -53,27 +55,27 @@ export const AppShell: React.FC = () => {
 
   useEffect(() => {
     // Sync theme settings class list
-    setTheme(settings.ui.theme || "system")
-  }, [settings.ui.theme, setTheme])
+    setTheme(theme || "system")
+  }, [theme, setTheme])
 
   useEffect(() => {
     // Sync base font size zoom scale
-    const fontSize = settings.ui.fontSize || "md"
+    const fontSizeScale = fontSize || "md"
     const scaleMap = {
       sm: "85%",
       md: "100%",
       lg: "115%",
       xl: "130%",
     }
-    const scaleValue = scaleMap[fontSize] || "100%"
+    const scaleValue = scaleMap[fontSizeScale] || "100%"
     document.documentElement.style.setProperty("--font-scale", scaleValue)
-  }, [settings.ui.fontSize])
+  }, [fontSize])
 
   useEffect(() => {
     // Auto-load items on startup or when root folders exist but store has no items
     if (
       isInitialized &&
-      settings.folders.roots.length > 0 &&
+      folderRoots.length > 0 &&
       !hasItems &&
       !isLoading
     ) {
@@ -81,7 +83,7 @@ export const AppShell: React.FC = () => {
     }
   }, [
     isInitialized,
-    settings.folders.roots.length,
+    folderRoots.length,
     fetchMediaItems,
     hasItems,
     isLoading,
@@ -97,7 +99,7 @@ export const AppShell: React.FC = () => {
     }
 
     // Onboarding setup wizard triggers if roots list is completely empty
-    if (settings.folders.roots.length === 0) {
+    if (folderRoots.length === 0) {
       return <SetupWizard />
     }
 
@@ -107,9 +109,9 @@ export const AppShell: React.FC = () => {
       case "browse":
         return <BrowseMediaPage />
       case "review":
-        return <MediaCullingPage />
+        return <MediaCullingPage key={activeRootPath || "none"} />
       case "duplicates":
-        return <DuplicateAuditPage />
+        return <DuplicateAuditPage key={activeRootPath || "none"} />
       case "organize":
         return <OrganizeFilesPage />
       default:
@@ -145,7 +147,7 @@ export const AppShell: React.FC = () => {
                 </span>
               </div>
             )}
-            {!isScanned && currentView !== "settings" && settings.folders.roots.length > 0 && (
+            {!isScanned && currentView !== "settings" && folderRoots.length > 0 && (
               <FolderNotScanned activeRootPath={activeRootPath || "all"} />
             )}
             <main className="page-transition-main relative flex-1 overflow-x-hidden overflow-y-auto bg-background/50 contain-strict">

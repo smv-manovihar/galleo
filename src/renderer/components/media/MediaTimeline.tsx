@@ -34,16 +34,16 @@ export const MediaTimeline: React.FC<MediaTimelineProps> = ({
   const [containerWidth, setContainerWidth] = useState<number>(800)
 
   const activeRootPath = useMediaStore((s) => s.activeRootPath)
-  const { settings } = useSettingsStore()
+  const folderRoots = useSettingsStore((s) => s.settings.folders.roots)
 
   const isScanned = useMemo(() => {
     if (!activeRootPath || activeRootPath === "all") {
-      return settings.folders.roots.some((r) => r.enabled && r.scanned)
+      return folderRoots.some((r) => r.enabled && r.scanned)
     }
-    return !!settings.folders.roots.find(
+    return !!folderRoots.find(
       (r) => r.path.toLowerCase() === activeRootPath.toLowerCase()
     )?.scanned
-  }, [activeRootPath, settings.folders.roots])
+  }, [activeRootPath, folderRoots])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -162,12 +162,12 @@ export const MediaTimeline: React.FC<MediaTimelineProps> = ({
           <>
             <FolderSearch className="h-8 w-8 text-amber-500/80 mb-1" />
             <span className="text-sm font-medium text-foreground">Folder not scanned</span>
-            <span className="mt-1 text-2xs text-muted-foreground">Use the Scan Folders button above to index media files.</span>
+            <span className="mt-1 text-xs text-muted-foreground">Use the Scan Folders button above to index media files.</span>
           </>
         ) : (
           <>
             <span className="text-sm font-medium text-foreground">No photos or videos found</span>
-            <span className="mt-1 text-2xs text-muted-foreground">No timeline media items available in this folder.</span>
+            <span className="mt-1 text-xs text-muted-foreground">No timeline media items available in this folder.</span>
           </>
         )}
       </div>
@@ -202,16 +202,16 @@ export const MediaTimeline: React.FC<MediaTimelineProps> = ({
                 }}
                 onClick={() => toggleGroup(row.dateKey)}
               >
-                <span className="flex items-center gap-1.5 font-heading text-xs font-bold tracking-wide text-foreground">
+                <span className="flex items-center gap-2 font-heading text-xs font-bold tracking-wide text-foreground">
                   <ChevronRight
-                    className={`h-3.5 w-3.5 text-muted-foreground/80 transition-transform ${
+                    className={`size-4 text-muted-foreground/80 transition-transform ${
                       !isCollapsed ? "rotate-90" : ""
                     }`}
                   />
                   {row.dateFormatted}
                 </span>
                 <div className="h-px flex-1 bg-border" />
-                <span className="font-sans text-2xs font-semibold text-muted-foreground uppercase">
+                <span className="font-sans text-xs font-semibold text-muted-foreground uppercase">
                   {row.count} items
                 </span>
               </div>

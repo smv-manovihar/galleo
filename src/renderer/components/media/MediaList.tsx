@@ -119,17 +119,17 @@ const MediaListRow = React.memo<MediaListRowProps>(
                     shiftKey: false,
                   } as unknown as React.MouseEvent)
                 }}
-                className="h-3.5 w-3.5 cursor-pointer border-border focus-visible:ring-1"
+                className="size-4 cursor-pointer border-border focus-visible:ring-1"
               />
             </div>
 
             {/* File Icon + Name */}
             <div className="flex h-full items-center truncate border-r border-border/30 pr-4 pl-3 font-medium">
-              <div className="flex min-w-0 items-center gap-2.5">
+              <div className="flex min-w-0 items-center gap-3">
                 {isVideo ? (
                   <button
                     type="button"
-                    className="group/play flex items-center justify-center cursor-pointer rounded p-0.5 hover:bg-primary/20 transition-colors"
+                    className="group/play flex items-center justify-center cursor-pointer rounded p-1 hover:bg-primary/20 transition-colors"
                     onClick={(e) => {
                       e.stopPropagation()
                       if (onPlayOpen) {
@@ -140,10 +140,10 @@ const MediaListRow = React.memo<MediaListRowProps>(
                     }}
                     title="Play Video"
                   >
-                    <Play className="h-3.5 w-3.5 shrink-0 text-primary transition-transform group-hover/play:scale-110" />
+                    <Play className="size-4 shrink-0 text-primary transition-transform group-hover/play:scale-110" />
                   </button>
                 ) : (
-                  <FileImage className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <FileImage className="size-4 shrink-0 text-muted-foreground" />
                 )}
                 <span className="truncate text-foreground" title={item.name}>
                   {item.name}
@@ -152,7 +152,7 @@ const MediaListRow = React.memo<MediaListRowProps>(
             </div>
 
             {/* Type */}
-            <div className="flex h-full items-center border-r border-border/30 pl-3 text-2xs text-muted-foreground capitalize">
+            <div className="flex h-full items-center border-r border-border/30 pl-3 text-xs text-muted-foreground capitalize">
               {item.mediaType}
             </div>
 
@@ -171,7 +171,7 @@ const MediaListRow = React.memo<MediaListRowProps>(
               {score !== null ? (
                 <Badge
                   variant={score < 50 ? "destructive" : "secondary"}
-                  className="h-4.5 px-1.5 py-0 text-2xs font-bold"
+                  className="h-5 px-2 py-0 text-xs font-bold"
                 >
                   {score}
                 </Badge>
@@ -185,7 +185,7 @@ const MediaListRow = React.memo<MediaListRowProps>(
               {item.reviewState === "keep" && (
                 <Badge
                   variant="outline"
-                  className="h-4.5 border-green-500/20 bg-green-500/10 px-1.5 py-0 text-2xs text-green-500"
+                  className="h-5 border-green-500/20 bg-green-500/10 px-2 py-0 text-xs text-green-500"
                 >
                   Keep
                 </Badge>
@@ -193,7 +193,7 @@ const MediaListRow = React.memo<MediaListRowProps>(
               {item.reviewState === "delete" && (
                 <Badge
                   variant="outline"
-                  className="h-4.5 border-destructive/20 bg-destructive/10 px-1.5 py-0 text-2xs text-destructive"
+                  className="h-5 border-destructive/20 bg-destructive/10 px-2 py-0 text-xs text-destructive"
                 >
                   Delete
                 </Badge>
@@ -201,19 +201,19 @@ const MediaListRow = React.memo<MediaListRowProps>(
               {item.reviewState === "skipped" && (
                 <Badge
                   variant="outline"
-                  className="h-4.5 border-border bg-muted px-1.5 py-0 text-2xs text-muted-foreground"
+                  className="h-5 border-border bg-muted px-2 py-0 text-xs text-muted-foreground"
                 >
                   Skipped
                 </Badge>
               )}
               {item.reviewState === "pending" && (
-                <span className="text-2xs text-muted-foreground">Pending</span>
+                <span className="text-xs text-muted-foreground">Pending</span>
               )}
             </div>
 
             {/* Quick Actions */}
             <div
-              className="flex h-full items-center justify-center gap-0.5 px-3"
+              className="flex h-full items-center justify-center gap-1 px-3"
               onClick={(e: React.MouseEvent) => e.stopPropagation()}
             >
               <Tooltip>
@@ -221,10 +221,10 @@ const MediaListRow = React.memo<MediaListRowProps>(
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6.5 w-6.5 cursor-pointer rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+                    className="size-7 cursor-pointer rounded text-muted-foreground hover:bg-accent hover:text-foreground"
                     onClick={() => onPreviewOpen(item)}
                   >
-                    <Eye className="h-3.5 w-3.5" />
+                    <Eye className="size-4" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="top">Preview</TooltipContent>
@@ -235,7 +235,7 @@ const MediaListRow = React.memo<MediaListRowProps>(
                   <Button
                     variant="ghost"
                     size="icon"
-                    className={`h-6.5 w-6.5 rounded transition-colors ${
+                    className={`size-7 rounded transition-colors ${
                       item.reviewState === "keep"
                         ? "cursor-default border border-green-500/35 bg-green-500/20 text-green-500 hover:border-green-500/55! hover:bg-green-500/35! hover:text-green-400!"
                         : item.reviewState === "delete"
@@ -249,7 +249,7 @@ const MediaListRow = React.memo<MediaListRowProps>(
                     }
                   >
                     <Bookmark
-                      className={`h-3.5 w-3.5 ${
+                      className={`size-4 ${
                         item.reviewState === "keep" ? "fill-current" : ""
                       }`}
                     />
@@ -265,7 +265,7 @@ const MediaListRow = React.memo<MediaListRowProps>(
                   <Button
                     variant="ghost"
                     size="icon"
-                    className={`h-6.5 w-6.5 rounded transition-colors ${
+                    className={`size-7 rounded transition-colors ${
                       item.reviewState === "delete"
                         ? "cursor-default border border-destructive/35 bg-destructive/20 text-destructive hover:border-destructive/55! hover:bg-destructive/35! hover:text-destructive!"
                         : item.reviewState === "keep"
@@ -278,7 +278,7 @@ const MediaListRow = React.memo<MediaListRowProps>(
                         : () => onReviewAction(item.id, "delete")
                     }
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 className="size-4" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="top">
@@ -293,48 +293,48 @@ const MediaListRow = React.memo<MediaListRowProps>(
         <ContextMenuContent className="w-44 border-border bg-card font-sans text-sm text-foreground">
           <ContextMenuItem
             onClick={() => onPreviewOpen(item)}
-            className="gap-2.5"
+            className="gap-3"
           >
-            <Eye className="h-3.5 w-3.5" />
+            <Eye className="size-4" />
             Preview File
           </ContextMenuItem>
           {onInfoOpen && (
-            <ContextMenuItem onClick={() => onInfoOpen(item)} className="gap-2.5">
-              <Info className="h-3.5 w-3.5" />
+            <ContextMenuItem onClick={() => onInfoOpen(item)} className="gap-3">
+              <Info className="size-4" />
               File Info
             </ContextMenuItem>
           )}
           {onFindSimilar && ENABLE_AI_FEATURES && (
             <ContextMenuItem
               onClick={() => onFindSimilar(item.id)}
-              className="gap-2.5 text-primary focus:text-primary"
+              className="gap-3 text-primary focus:text-primary"
             >
-              <Sparkles className="h-3.5 w-3.5" />
+              <Sparkles className="size-4" />
               Find Similar
             </ContextMenuItem>
           )}
           <ContextMenuSeparator />
           <ContextMenuItem
             onClick={() => onReviewAction(item.id, "keep")}
-            className="gap-2.5 text-green-500 focus:text-green-500"
+            className="gap-3 text-green-500 focus:text-green-500"
           >
-            <Bookmark className="h-3.5 w-3.5" />
+            <Bookmark className="size-4" />
             Mark to Keep
           </ContextMenuItem>
           <ContextMenuItem
             onClick={() => onReviewAction(item.id, "delete")}
-            className="gap-2.5 text-destructive focus:text-destructive"
+            className="gap-3 text-destructive focus:text-destructive"
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <Trash2 className="size-4" />
             Mark to Delete
           </ContextMenuItem>
           <ContextMenuSeparator />
-          <ContextMenuItem onClick={handleOpenFile} className="gap-2.5">
-            <ExternalLink className="h-3.5 w-3.5" />
+          <ContextMenuItem onClick={handleOpenFile} className="gap-3">
+            <ExternalLink className="size-4" />
             Open in default app
           </ContextMenuItem>
-          <ContextMenuItem onClick={handleOpenFolder} className="gap-2.5">
-            <FolderOpen className="h-3.5 w-3.5" />
+          <ContextMenuItem onClick={handleOpenFolder} className="gap-3">
+            <FolderOpen className="size-4" />
             Show in {getFileManagerName()}
           </ContextMenuItem>
         </ContextMenuContent>
@@ -397,6 +397,8 @@ export const MediaList: React.FC<MediaListProps> = ({
     // Since total fr is 100, 1 fr = availableWidth / 100 pixels
     const pixelsPerFr = availableWidth / 100
 
+    let rafId: number | null = null
+
     const handleMouseMove = (moveEvent: MouseEvent) => {
       const deltaX = moveEvent.clientX - startX
       const deltaFr = deltaX / pixelsPerFr
@@ -408,30 +410,38 @@ export const MediaList: React.FC<MediaListProps> = ({
       const newOtherSum = 100 - newVal
       const scaleFactor = newOtherSum / otherSum
 
-      setWidths((prev) => {
-        const next = { ...prev }
-        next[columnKey] = newVal
+      if (rafId !== null) return
+      rafId = requestAnimationFrame(() => {
+        rafId = null
+        setWidths((prev) => {
+          const next = { ...prev }
+          next[columnKey] = newVal
 
-        const keys = Object.keys(startWidths) as Array<keyof typeof widths>
-        let runningSum = newVal
+          const keys = Object.keys(startWidths) as Array<keyof typeof widths>
+          let runningSum = newVal
 
-        // Scale other columns proportionally to preserve the exact sum of 100
-        const otherKeys = keys.filter((k) => k !== columnKey)
-        otherKeys.forEach((key, idx) => {
-          if (idx === otherKeys.length - 1) {
-            next[key] = 100 - runningSum
-          } else {
-            const val = startWidths[key] * scaleFactor
-            next[key] = val
-            runningSum += val
-          }
+          // Scale other columns proportionally to preserve the exact sum of 100
+          const otherKeys = keys.filter((k) => k !== columnKey)
+          otherKeys.forEach((key, idx) => {
+            if (idx === otherKeys.length - 1) {
+              next[key] = 100 - runningSum
+            } else {
+              const val = startWidths[key] * scaleFactor
+              next[key] = val
+              runningSum += val
+            }
+          })
+
+          return next
         })
-
-        return next
       })
     }
 
     const handleMouseUp = () => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId)
+        rafId = null
+      }
       document.removeEventListener("mousemove", handleMouseMove)
       document.removeEventListener("mouseup", handleMouseUp)
       dragCleanupRef.current = null
@@ -542,16 +552,16 @@ estimateSize: (index) => {
   )
 
   const activeRootPath = useMediaStore((s) => s.activeRootPath)
-  const { settings } = useSettingsStore()
+  const folderRoots = useSettingsStore((s) => s.settings.folders.roots)
 
   const isScanned = useMemo(() => {
     if (!activeRootPath || activeRootPath === "all") {
-      return settings.folders.roots.some((r) => r.enabled && r.scanned)
+      return folderRoots.some((r) => r.enabled && r.scanned)
     }
-    return !!settings.folders.roots.find(
+    return !!folderRoots.find(
       (r) => r.path.toLowerCase() === activeRootPath.toLowerCase()
     )?.scanned
-  }, [activeRootPath, settings.folders.roots])
+  }, [activeRootPath, folderRoots])
 
   if (items.length === 0) {
     return (
@@ -560,12 +570,12 @@ estimateSize: (index) => {
           <>
             <FolderSearch className="h-8 w-8 text-amber-500/80 mb-1" />
             <span className="text-sm font-medium text-foreground">Folder not scanned</span>
-            <span className="mt-1 text-2xs text-muted-foreground">Use the Scan Folders button above to index media files.</span>
+            <span className="mt-1 text-xs text-muted-foreground">Use the Scan Folders button above to index media files.</span>
           </>
         ) : (
           <>
             <span className="text-sm font-medium text-foreground">No items match current filters</span>
-            <span className="mt-1 text-2xs text-muted-foreground">Try clearing filters or search terms.</span>
+            <span className="mt-1 text-xs text-muted-foreground">Try clearing filters or search terms.</span>
           </>
         )}
       </div>
@@ -580,7 +590,7 @@ estimateSize: (index) => {
       >
         {/* Table Header Row (sticky top to remain visible on scroll) */}
         <div
-          className="sticky top-0 z-20 grid h-9 w-full shrink-0 items-center border-b border-border bg-muted/90 py-2.5 font-sans text-[0.6875rem] font-medium text-muted-foreground backdrop-blur-xs select-none"
+          className="sticky top-0 z-20 grid h-9 w-full shrink-0 items-center border-b border-border bg-muted/90 py-2.5 font-sans text-xs font-medium text-muted-foreground backdrop-blur-xs select-none"
           style={gridStyle}
         >
           <div className="flex h-full items-center justify-center border-r border-border/40 text-center"></div>
@@ -590,7 +600,7 @@ estimateSize: (index) => {
             <span>Filename</span>
             <div
               onMouseDown={(e) => handleMouseDown("name", e)}
-              className="absolute top-0 right-0 bottom-0 z-30 w-1.5 cursor-col-resize transition-colors hover:bg-primary/45 active:bg-primary"
+              className="absolute top-0 right-0 bottom-0 z-30 w-1 cursor-col-resize transition-colors hover:bg-primary/45 active:bg-primary"
             />
           </div>
 
@@ -599,7 +609,7 @@ estimateSize: (index) => {
             <span>Type</span>
             <div
               onMouseDown={(e) => handleMouseDown("type", e)}
-              className="absolute top-0 right-0 bottom-0 z-30 w-1.5 cursor-col-resize transition-colors hover:bg-primary/45 active:bg-primary"
+              className="absolute top-0 right-0 bottom-0 z-30 w-1 cursor-col-resize transition-colors hover:bg-primary/45 active:bg-primary"
             />
           </div>
 
@@ -608,7 +618,7 @@ estimateSize: (index) => {
             <span>Date</span>
             <div
               onMouseDown={(e) => handleMouseDown("date", e)}
-              className="absolute top-0 right-0 bottom-0 z-30 w-1.5 cursor-col-resize transition-colors hover:bg-primary/45 active:bg-primary"
+              className="absolute top-0 right-0 bottom-0 z-30 w-1 cursor-col-resize transition-colors hover:bg-primary/45 active:bg-primary"
             />
           </div>
 
@@ -617,7 +627,7 @@ estimateSize: (index) => {
             <span>File Size</span>
             <div
               onMouseDown={(e) => handleMouseDown("size", e)}
-              className="absolute top-0 right-0 bottom-0 z-30 w-1.5 cursor-col-resize transition-colors hover:bg-primary/45 active:bg-primary"
+              className="absolute top-0 right-0 bottom-0 z-30 w-1 cursor-col-resize transition-colors hover:bg-primary/45 active:bg-primary"
             />
           </div>
 
@@ -626,7 +636,7 @@ estimateSize: (index) => {
             <span>Quality Score</span>
             <div
               onMouseDown={(e) => handleMouseDown("score", e)}
-              className="absolute top-0 right-0 bottom-0 z-30 w-1.5 cursor-col-resize transition-colors hover:bg-primary/45 active:bg-primary"
+              className="absolute top-0 right-0 bottom-0 z-30 w-1 cursor-col-resize transition-colors hover:bg-primary/45 active:bg-primary"
             />
           </div>
 
@@ -635,7 +645,7 @@ estimateSize: (index) => {
             <span>Review State</span>
             <div
               onMouseDown={(e) => handleMouseDown("state", e)}
-              className="absolute top-0 right-0 bottom-0 z-30 w-1.5 cursor-col-resize transition-colors hover:bg-primary/45 active:bg-primary"
+              className="absolute top-0 right-0 bottom-0 z-30 w-1 cursor-col-resize transition-colors hover:bg-primary/45 active:bg-primary"
             />
           </div>
 
@@ -644,7 +654,7 @@ estimateSize: (index) => {
             <span>Actions</span>
             <div
               onMouseDown={(e) => handleMouseDown("actions", e)}
-              className="absolute top-0 right-0 bottom-0 z-30 w-1.5 cursor-col-resize transition-colors hover:bg-primary/45 active:bg-primary"
+              className="absolute top-0 right-0 bottom-0 z-30 w-1 cursor-col-resize transition-colors hover:bg-primary/45 active:bg-primary"
             />
           </div>
         </div>
@@ -674,16 +684,16 @@ estimateSize: (index) => {
                   }}
                   onClick={() => toggleGroup(row.dateKey)}
                 >
-                  <span className="flex items-center gap-1.5 font-sans text-xs font-bold tracking-wide text-foreground">
+                  <span className="flex items-center gap-2 font-sans text-xs font-bold tracking-wide text-foreground">
                     <ChevronRight
-                      className={`h-3.5 w-3.5 text-muted-foreground/80 ${
+                      className={`size-4 text-muted-foreground/80 ${
                         !isCollapsed ? "rotate-90" : ""
                       }`}
                     />
                     {row.dateFormatted}
                   </span>
                   <div className="h-px flex-1 bg-border" />
-                  <span className="font-sans text-2xs font-semibold text-muted-foreground uppercase">
+                  <span className="font-sans text-xs font-semibold text-muted-foreground uppercase">
                     {row.count} items
                   </span>
                 </div>

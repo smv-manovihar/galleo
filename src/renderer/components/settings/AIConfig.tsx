@@ -108,15 +108,15 @@ export const AIConfig: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header Banner */}
-      <Card className="border-border/60 bg-card/80 backdrop-blur-md">
+      <Card className="border-border/60 bg-card/80 backdrop-blur-md py-4 gap-3">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                <Sparkles className="h-5 w-5" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Sparkles className="size-5" />
               </div>
               <div>
-                <CardTitle className="text-base font-semibold">
+                <CardTitle className="text-sm font-semibold text-foreground">
                   Native Vision AI & Semantic Search
                 </CardTitle>
                 <p className="text-xs text-muted-foreground">
@@ -125,18 +125,18 @@ export const AIConfig: React.FC = () => {
               </div>
             </div>
             {!ENABLE_AI_FEATURES ? (
-              <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-600 gap-1.5 py-1">
-                <AlertTriangle className="h-3.5 w-3.5" />
+              <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-600 gap-2 py-1">
+                <AlertTriangle className="size-4" />
                 Disabled (Feature Flag Off)
               </Badge>
             ) : status?.isDownloaded ? (
-              <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 gap-1.5 py-1">
-                <CheckCircle2 className="h-3.5 w-3.5" />
+              <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 gap-2 py-1">
+                <CheckCircle2 className="size-4" />
                 AI Model Active
               </Badge>
             ) : (
-              <Badge variant="secondary" className="gap-1.5 py-1">
-                <Download className="h-3.5 w-3.5" />
+              <Badge variant="secondary" className="gap-2 py-1">
+                <Download className="size-4" />
                 Opt-in Required (~200MB)
               </Badge>
             )}
@@ -148,21 +148,21 @@ export const AIConfig: React.FC = () => {
               <ShieldCheck className="h-5 w-5 text-emerald-500 shrink-0" />
               <div className="min-w-0">
                 <p className="text-xs font-medium">100% Private</p>
-                <p className="text-2xs text-muted-foreground truncate">Zero cloud or remote API calls</p>
+                <p className="text-xs text-muted-foreground truncate">Zero cloud or remote API calls</p>
               </div>
             </div>
             <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-background/50 p-3">
               <Cpu className="h-5 w-5 text-blue-500 shrink-0" />
               <div className="min-w-0">
                 <p className="text-xs font-medium">Hardware Accelerated</p>
-                <p className="text-2xs text-muted-foreground truncate">Local ONNX Runtime CPU execution</p>
+                <p className="text-xs text-muted-foreground truncate">Local ONNX Runtime CPU execution</p>
               </div>
             </div>
             <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-background/50 p-3">
               <Video className="h-5 w-5 text-purple-500 shrink-0" />
               <div className="min-w-0">
                 <p className="text-xs font-medium">Multimodal Video Search</p>
-                <p className="text-2xs text-muted-foreground truncate">Exact timestamp frame matching</p>
+                <p className="text-xs text-muted-foreground truncate">Exact timestamp frame matching</p>
               </div>
             </div>
           </div>
@@ -170,9 +170,9 @@ export const AIConfig: React.FC = () => {
       </Card>
 
       {/* Download / Management Card */}
-      <Card className="border-border/60 bg-card/80 backdrop-blur-md">
-        <CardHeader>
-          <CardTitle className="text-sm font-semibold">Model Status & Indexing Stats</CardTitle>
+      <Card className="border-border/60 bg-card/80 backdrop-blur-md py-0 gap-0">
+        <CardHeader className="border-b border-border/40 px-4 py-3">
+          <CardTitle className="text-sm font-semibold text-foreground">Model Status & Indexing Stats</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           {!status?.isDownloaded ? (
@@ -237,9 +237,9 @@ export const AIConfig: React.FC = () => {
                   variant="outline"
                   size="sm"
                   onClick={() => setShowPurgeDialog(true)}
-                  className="text-destructive hover:bg-destructive/10 hover:text-destructive gap-1.5"
+                  className="text-destructive hover:bg-destructive/10 hover:text-destructive gap-2"
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
+                  <Trash2 className="size-4" />
                   Reset AI Index
                 </Button>
               </div>
@@ -286,8 +286,8 @@ export const AIConfig: React.FC = () => {
             </label>
           </div>
 
-          <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/20 p-2.5 text-2xs text-muted-foreground">
-            <Info className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+          <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground">
+            <Info className="size-4 shrink-0 text-blue-500" />
             <span>
               {deleteModel 
                 ? "You will need to download the model weights again before you can index your library."

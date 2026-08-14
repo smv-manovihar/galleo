@@ -223,7 +223,7 @@ const VirtualizedFolderTree: React.FC<VirtualizedFolderTreeProps> = ({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 items-center justify-between border-b border-border/50 px-3 py-1.5 text-xs text-muted-foreground">
+      <div className="flex shrink-0 items-center justify-between border-b border-border/50 px-3 py-2 text-xs text-muted-foreground">
         <span>
           Showing <strong>{flatNodes.length}</strong> items in tree
         </span>
@@ -268,7 +268,7 @@ const VirtualizedFolderTree: React.FC<VirtualizedFolderTreeProps> = ({
                 {node.type === "folder" ? (
                   <div
                     onClick={() => toggleFolder(node.path)}
-                    className="flex min-w-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-foreground transition-colors select-none hover:bg-accent/40"
+                    className="flex min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-xs font-medium text-foreground transition-colors select-none hover:bg-accent/40"
                     style={{ paddingLeft: `${node.depth * 16 + 8}px` }}
                   >
                     <ChevronRight
@@ -278,9 +278,9 @@ const VirtualizedFolderTree: React.FC<VirtualizedFolderTreeProps> = ({
                       )}
                     />
                     {node.isExpanded ? (
-                      <FolderOpen className="size-3.5 shrink-0 fill-amber-500/10 text-amber-500" />
+                      <FolderOpen className="size-4 shrink-0 fill-amber-500/10 text-amber-500" />
                     ) : (
-                      <FolderOpen className="size-3.5 shrink-0 fill-amber-500/5 text-amber-500" />
+                      <FolderOpen className="size-4 shrink-0 fill-amber-500/5 text-amber-500" />
                     )}
                     <span className="truncate">{node.name}</span>
                   </div>
@@ -322,12 +322,12 @@ const getFileIcon = (filename: string) => {
   if (
     ["jpg", "jpeg", "png", "gif", "webp", "heic", "tiff"].includes(ext || "")
   ) {
-    return <Image className="h-3.5 w-3.5 text-blue-500/70" />
+    return <Image className="size-4 text-blue-500/70" />
   }
   if (["mp4", "mov", "avi", "mkv", "webm", "3gp"].includes(ext || "")) {
-    return <Video className="h-3.5 w-3.5 text-purple-500/70" />
+    return <Video className="size-4 text-purple-500/70" />
   }
-  return <FileText className="h-3.5 w-3.5 text-muted-foreground/70" />
+  return <FileText className="size-4 text-muted-foreground/70" />
 }
 
 export const DateOrganizer: React.FC = () => {
@@ -426,7 +426,7 @@ export const DateOrganizer: React.FC = () => {
             if (mediaItem) setPreviewItem(mediaItem)
           }}
         >
-          <div className="flex min-w-0 flex-1 items-center gap-1.5">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
             {getFileIcon(filename)}
             <span
               className="min-w-0 flex-1 truncate font-medium text-foreground select-text"
@@ -451,7 +451,7 @@ export const DateOrganizer: React.FC = () => {
             {item.conflict && (
               <Badge
                 variant="destructive"
-                className="bg-destructive/80 px-1.5 py-0 text-3xs tracking-wider uppercase"
+                className="bg-destructive/80 px-2 py-0 text-xs tracking-wider uppercase"
               >
                 File Exists
               </Badge>
@@ -465,322 +465,324 @@ export const DateOrganizer: React.FC = () => {
 
   return (
     <>
-      {/* Left Column: Configuration Form */}
-      <div className="flex w-full shrink-0 flex-col gap-4 pr-1 lg:w-80">
-        <Card className="flex shrink-0 flex-col border-border bg-card/65 shadow-sm">
-          <CardContent className="space-y-4 p-4">
-            {/* Top Helper Header with Dialog Link */}
-            <div className="mb-2 flex items-center justify-between border-b border-border pb-2">
-              <span className="flex items-center gap-2 text-xs font-bold text-foreground">
-                <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
-                Settings
-              </span>
-              <Button
-                variant="ghost"
-                size="xs"
-                className="h-6 cursor-pointer gap-1 rounded-md px-1.5 text-xs text-muted-foreground hover:text-primary"
-                onClick={() => setShowHelpDialog(true)}
-              >
-                <Info className="h-3.5 w-3.5" />
-                How it works
-              </Button>
-            </div>
-
-            {/* Destination Path Selector */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-foreground">
-                Destination Directory
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  type="text"
-                  readOnly
-                  placeholder="Select output folder..."
-                  value={destination}
-                  className="h-8 flex-1 truncate border-border bg-background/50 text-xs"
-                />
+      <div className="flex h-full min-h-125 max-h-[calc(100vh-8rem)] w-full min-w-0 flex-1 flex-col items-stretch gap-4 font-sans text-xs select-none md:flex-row">
+        {/* Left Column: Organization Configuration Panel */}
+        <div className="flex h-full max-h-full w-full shrink-0 flex-col md:w-80">
+          <Card className="flex h-full max-h-full min-h-0 shrink-0 flex-col border-border bg-card/65 shadow-sm py-0 gap-0">
+            <CardContent className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+              {/* Top Helper Header with Dialog Link */}
+              <div className="mb-2 flex items-center justify-between border-b border-border pb-2">
+                <span className="flex items-center gap-2 text-xs font-bold text-foreground">
+                  <SlidersHorizontal className="size-4 text-primary" />
+                  Settings
+                </span>
                 <Button
-                  variant="outline"
-                  size="lg"
-                  className="shrink-0"
-                  onClick={handleSelectDest}
+                  variant="ghost"
+                  size="xs"
+                  className="h-6 cursor-pointer gap-1 rounded-md px-2 text-xs text-muted-foreground hover:text-primary"
+                  onClick={() => setShowHelpDialog(true)}
                 >
-                  <FolderPlus className="mr-1 h-3.5 w-3.5" />
-                  Browse
+                  <Info className="size-4" />
+                  How it works
                 </Button>
               </div>
-            </div>
 
-            {/* Pattern Input and Presets */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-foreground">
-                Subfolder Naming Pattern
-              </Label>
-              <Input
-                type="text"
-                value={pattern}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setPattern(e.target.value)
-                }
-                placeholder="e.g. YYYY/MM/"
-                className="h-8 border-border bg-background/50 font-mono text-xs"
-              />
-
-              {/* Pattern Presets list */}
-              <div className="space-y-1">
-                <span className="text-xs text-muted-foreground">
-                  Quick Presets:
-                </span>
-                <div className="flex flex-wrap gap-1">
-                  {PRESETS.map((preset) => (
-                    <Button
-                      key={preset.value}
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className={`rounded-md ${pattern === preset.value ? "border-primary/30 bg-primary/10 text-primary hover:bg-primary/20" : "bg-background hover:bg-accent"}`}
-                      onClick={() => setPattern(preset.value)}
-                    >
-                      {preset.label}
-                    </Button>
-                  ))}
+              {/* Destination Path Selector */}
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-foreground">
+                  Destination Directory
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="text"
+                    readOnly
+                    placeholder="Select output folder..."
+                    value={destination}
+                    className="h-8 flex-1 truncate border-border bg-background/50 text-xs"
+                  />
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="shrink-0"
+                    onClick={handleSelectDest}
+                  >
+                    <FolderPlus className="mr-1 size-4" />
+                    Browse
+                  </Button>
                 </div>
               </div>
 
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                Tokens:{" "}
-                <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-primary">
-                  YYYY
-                </code>
-                ,{" "}
-                <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-primary">
-                  MM
-                </code>
-                ,{" "}
-                <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-primary">
-                  MMMM
-                </code>
-                ,{" "}
-                <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-primary">
-                  DD
-                </code>
-              </p>
-            </div>
-
-            {/* Dynamic Preview path */}
-            <div className="space-y-1.5">
-              <Label className="flex items-center gap-1 text-xs font-semibold text-foreground">
-                <Info className="h-3.5 w-3.5 text-muted-foreground" />
-                Example Destination Path
-              </Label>
-              <div className="overflow-x-auto rounded-lg border border-border bg-background/80 p-2.5 font-mono text-xs whitespace-nowrap shadow-inner">
-                <span className="text-muted-foreground">
-                  {destination
-                    ? destination.split(/[\\/]/).pop() || destination
-                    : "Destination"}
-                </span>
-                <span className="text-muted-foreground/40">/</span>
-                <span className="font-semibold text-primary">
-                  {getPatternPreview(pattern)}
-                </span>
-              </div>
-            </div>
-
-            {/* Preserves originals copy vs move */}
-            <div className="flex items-center justify-between rounded-lg border border-border bg-muted/10 p-2.5">
-              <div className="space-y-0.5">
-                <Label
-                  htmlFor="preserve-switch"
-                  className="cursor-pointer text-xs font-semibold text-foreground"
-                >
-                  Copy instead of Move
-                </Label>
-                <p className="mt-0.5 text-xs leading-snug text-muted-foreground">
-                  Keep original files in current folder
-                </p>
-              </div>
-              <Switch
-                id="preserve-switch"
-                checked={preserveOriginals}
-                onCheckedChange={(val: boolean) => {
-                  setPreserveOriginals(val)
-                  saveSettings({
-                    ...settings,
-                    organization: {
-                      ...settings.organization,
-                      preserveOriginals: val,
-                    },
-                  })
-                }}
-              />
-            </div>
-          </CardContent>
-
-          <CardFooter className="flex shrink-0 justify-end border-t border-border bg-muted/10 p-4">
-            <Button
-              className="h-8 w-full cursor-pointer bg-primary px-4 py-2 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/95"
-              onClick={handlePreview}
-              disabled={isPlanning || isExecuting || !destination}
-            >
-              {isPlanning ? (
-                <span className="flex items-center justify-center gap-1.5">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Analyzing Target Paths...
-                </span>
-              ) : (
-                "Preview Organization"
-              )}
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
-
-      {/* Right Column: Dynamic Preview / State Container */}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        {/* State 1: Executing Progress */}
-        {isExecuting && progress && (
-          <Card className="flex min-h-0 flex-1 flex-col justify-center border-border bg-card/65 p-8 shadow-sm">
-            <div className="mx-auto w-full max-w-md space-y-6 text-center">
-              <div className="mx-auto flex h-14 w-14 animate-pulse items-center justify-center rounded-full bg-primary/10 p-4 text-primary">
-                <Loader2 className="h-7 w-7 animate-spin" />
-              </div>
+              {/* Pattern Input and Presets */}
               <div className="space-y-2">
-                <h3 className="text-sm font-semibold text-foreground">
-                  Executing File Transitions
-                </h3>
-                <p className="text-xs text-muted-foreground">
-                  Moving or copying files to their designated structures. Please
-                  do not close the application.
+                <Label className="text-xs font-semibold text-foreground">
+                  Subfolder Naming Pattern
+                </Label>
+                <Input
+                  type="text"
+                  value={pattern}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setPattern(e.target.value)
+                  }
+                  placeholder="e.g. YYYY/MM/"
+                  className="h-8 border-border bg-background/50 font-mono text-xs"
+                />
+
+                {/* Pattern Presets list */}
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground">
+                    Quick Presets:
+                  </span>
+                  <div className="flex flex-wrap gap-1">
+                    {PRESETS.map((preset) => (
+                      <Button
+                        key={preset.value}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className={`rounded-md ${pattern === preset.value ? "border-primary/30 bg-primary/10 text-primary hover:bg-primary/20" : "bg-background hover:bg-accent"}`}
+                        onClick={() => setPattern(preset.value)}
+                      >
+                        {preset.label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Tokens:{" "}
+                  <code className="rounded bg-muted px-2 py-0.5 font-mono text-primary">
+                    YYYY
+                  </code>
+                  ,{" "}
+                  <code className="rounded bg-muted px-2 py-0.5 font-mono text-primary">
+                    MM
+                  </code>
+                  ,{" "}
+                  <code className="rounded bg-muted px-2 py-0.5 font-mono text-primary">
+                    MMMM
+                  </code>
+                  ,{" "}
+                  <code className="rounded bg-muted px-2 py-0.5 font-mono text-primary">
+                    DD
+                  </code>
                 </p>
               </div>
-              <div className="space-y-3 rounded-lg border border-border bg-background/50 p-4 shadow-inner">
-                <div className="flex justify-between text-[0.6875rem] font-semibold">
-                  <span className="text-primary">Processed Files</span>
-                  <span>
-                    {progress.processedCount} / {progress.totalCount} (
-                    {Math.round(
-                      (progress.processedCount / progress.totalCount) * 100
-                    )}
-                    %)
+
+              {/* Dynamic Preview path */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1 text-xs font-semibold text-foreground">
+                  <Info className="size-4 text-muted-foreground" />
+                  Example Destination Path
+                </Label>
+                <div className="overflow-x-auto rounded-lg border border-border bg-background/80 p-3 font-mono text-xs whitespace-nowrap shadow-inner">
+                  <span className="text-muted-foreground">
+                    {destination
+                      ? destination.split(/[\\/]/).pop() || destination
+                      : "Destination"}
+                  </span>
+                  <span className="text-muted-foreground/40">/</span>
+                  <span className="font-semibold text-primary">
+                    {getPatternPreview(pattern)}
                   </span>
                 </div>
-                <Progress
-                  value={(progress.processedCount / progress.totalCount) * 100}
-                  className="h-2 rounded-full bg-muted"
-                />
-                <div
-                  className="truncate text-left text-2xs text-muted-foreground"
-                  title={progress.currentFile}
-                >
-                  {progress.currentFile || "Initializing first file..."}
+              </div>
+
+              {/* Preserves originals copy vs move */}
+              <div className="flex items-center justify-between rounded-lg border border-border bg-muted/10 p-3">
+                <div className="space-y-1">
+                  <Label
+                    htmlFor="preserve-switch"
+                    className="cursor-pointer text-xs font-semibold text-foreground"
+                  >
+                    Copy instead of Move
+                  </Label>
+                  <p className="mt-1 text-xs leading-snug text-muted-foreground">
+                    Keep original files in current folder
+                  </p>
                 </div>
+                <Switch
+                  id="preserve-switch"
+                  checked={preserveOriginals}
+                  onCheckedChange={(val: boolean) => {
+                    setPreserveOriginals(val)
+                    saveSettings({
+                      ...settings,
+                      organization: {
+                        ...settings.organization,
+                        preserveOriginals: val,
+                      },
+                    })
+                  }}
+                />
               </div>
-            </div>
-          </Card>
-        )}
-
-        {/* State 2: Planning (Loading Preview) */}
-        {!isExecuting && isPlanning && (
-          <Card className="flex min-h-0 flex-1 flex-col items-center justify-center border-border bg-card/65 p-8 shadow-sm">
-            <div className="mx-auto w-full max-w-md space-y-4 text-center">
-              <div className="mx-auto flex h-14 w-14 animate-spin items-center justify-center rounded-full bg-muted p-4 text-muted-foreground">
-                <Loader2 className="h-7 w-7" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-sm font-semibold text-foreground">
-                  Analyzing Folders & Exif
-                </h3>
-                <p className="text-xs text-muted-foreground">
-                  Scanning your folder to construct the organization plan...
-                </p>
-              </div>
-            </div>
-          </Card>
-        )}
-
-        {/* State 3: Empty state when no preview generated */}
-        {!isExecuting && !isPlanning && previewItems.length === 0 && (
-          <Card className="flex min-h-0 flex-1 flex-col items-center justify-center border-border bg-card/65 p-8 shadow-sm">
-            <div className="mx-auto w-full max-w-md space-y-4 text-center">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-muted p-4 text-muted-foreground">
-                <FolderOpen className="h-7 w-7" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-sm font-semibold text-foreground">
-                  No Preview Generated
-                </h3>
-                <p className="text-xs text-muted-foreground">
-                  Select a destination directory and naming pattern on the left,
-                  then click <strong>Preview Organization</strong> to generate a
-                  plan of action.
-                </p>
-              </div>
-            </div>
-          </Card>
-        )}
-
-        {/* State 4: Preview items loaded */}
-        {!isExecuting && !isPlanning && previewItems.length > 0 && (
-          <Card className="flex min-h-0 min-w-0 flex-1 flex-col border-border bg-card/65 shadow-sm">
-            <CardHeader className="flex shrink-0 flex-row items-center justify-between border-b border-border pb-3">
-              <div>
-                <CardTitle className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                  <Play className="h-3.5 w-3.5 fill-current text-primary" />
-                  Organize Preview Plan
-                </CardTitle>
-                <CardDescription className="mt-0.5 text-2xs text-muted-foreground">
-                  Review proposed file modifications.{" "}
-                  <strong>{previewItems.length}</strong> items scheduled.
-                </CardDescription>
-              </div>
-              {conflictCount > 0 ? (
-                <Badge
-                  variant="destructive"
-                  className="flex shrink-0 animate-pulse items-center gap-1 px-2 py-0.5 text-[0.5625rem]"
-                >
-                  <ShieldAlert className="h-3 w-3" />
-                  {conflictCount} conflicts
-                </Badge>
-              ) : (
-                <Badge
-                  variant="outline"
-                  className="flex shrink-0 items-center gap-1 border-green-500/20 bg-green-500/5 px-2 py-0.5 text-[0.5625rem] text-green-500"
-                >
-                  <CheckCircle2 className="h-3 w-3" />
-                  All ready
-                </Badge>
-              )}
-            </CardHeader>
-
-            {/* Table Content with Virtualized Tree View */}
-            <CardContent className="min-h-0 flex-1 border-b border-border bg-muted/5 p-0">
-              <VirtualizedFolderTree
-                folderTree={folderTree}
-                renderFile={renderFile}
-                allFolderPaths={allFolderPaths}
-              />
             </CardContent>
 
-            <CardFooter className="flex shrink-0 justify-end gap-3 bg-muted/10 p-4">
+            <CardFooter className="flex shrink-0 justify-end border-t border-border bg-muted/10 p-4">
               <Button
-                variant="outline"
-                size="lg"
-                onClick={() => setPreviewItems([])}
+                className="h-8 w-full cursor-pointer bg-primary px-4 py-2 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/95"
+                onClick={handlePreview}
+                disabled={isPlanning || isExecuting || !destination}
               >
-                Cancel Plan
-              </Button>
-              <Button
-                variant="default"
-                size="lg"
-                className="gap-1.5"
-                onClick={handleExecute}
-              >
-                <Play className="h-3.5 w-3.5 fill-current" />
-                Apply Organization Changes
+                {isPlanning ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Loader2 className="size-4 animate-spin" />
+                    Analyzing Target Paths...
+                  </span>
+                ) : (
+                  "Preview Organization"
+                )}
               </Button>
             </CardFooter>
           </Card>
-        )}
+        </div>
+
+        {/* Right Column: Dynamic Preview / State Container */}
+        <div className="flex h-full max-h-full min-h-0 min-w-0 flex-1 flex-col">
+          {/* State 1: Executing Progress */}
+          {isExecuting && progress && (
+            <Card className="flex h-full min-h-0 flex-1 flex-col justify-center border-border bg-card/65 p-8 shadow-sm">
+              <div className="mx-auto w-full max-w-md space-y-6 text-center">
+                <div className="mx-auto flex h-14 w-14 animate-pulse items-center justify-center rounded-full bg-primary/10 p-4 text-primary">
+                  <Loader2 className="h-7 w-7 animate-spin" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-foreground">
+                    Executing File Transitions
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Moving or copying files to their designated structures. Please
+                    do not close the application.
+                  </p>
+                </div>
+                <div className="space-y-3 rounded-lg border border-border bg-background/50 p-4 shadow-inner">
+                  <div className="flex justify-between text-xs font-semibold">
+                    <span className="text-primary">Processed Files</span>
+                    <span>
+                      {progress.processedCount} / {progress.totalCount} (
+                      {Math.round(
+                        (progress.processedCount / progress.totalCount) * 100
+                      )}
+                      %)
+                    </span>
+                  </div>
+                  <Progress
+                    value={(progress.processedCount / progress.totalCount) * 100}
+                    className="h-2 rounded-full bg-muted"
+                  />
+                  <div
+                    className="truncate text-left text-xs text-muted-foreground"
+                    title={progress.currentFile}
+                  >
+                    {progress.currentFile || "Initializing first file..."}
+                  </div>
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {/* State 2: Planning (Loading Preview) */}
+          {!isExecuting && isPlanning && (
+            <Card className="flex h-full min-h-0 flex-1 flex-col items-center justify-center border-border bg-card/65 p-8 shadow-sm">
+              <div className="mx-auto w-full max-w-md space-y-4 text-center">
+                <div className="mx-auto flex h-14 w-14 animate-spin items-center justify-center rounded-full bg-muted p-4 text-muted-foreground">
+                  <Loader2 className="h-7 w-7" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-sm font-semibold text-foreground">
+                    Analyzing Folders & Exif
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Scanning your folder to construct the organization plan...
+                  </p>
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {/* State 3: Empty state when no preview generated */}
+          {!isExecuting && !isPlanning && previewItems.length === 0 && (
+            <Card className="flex h-full min-h-0 flex-1 flex-col items-center justify-center border-border bg-card/65 p-8 shadow-sm">
+              <div className="mx-auto w-full max-w-md space-y-4 text-center">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-muted p-4 text-muted-foreground">
+                  <FolderOpen className="h-7 w-7" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-sm font-semibold text-foreground">
+                    No Preview Generated
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Select a destination directory and naming pattern on the left,
+                    then click <strong>Preview Organization</strong> to generate a
+                    plan of action.
+                  </p>
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {/* State 4: Preview items loaded */}
+          {!isExecuting && !isPlanning && previewItems.length > 0 && (
+            <Card className="flex h-full max-h-full min-h-0 min-w-0 flex-1 flex-col border-border bg-card/65 shadow-sm py-0 gap-0">
+              <CardHeader className="flex shrink-0 flex-row items-center justify-between border-b border-border px-4 py-3">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-xs font-semibold text-foreground">
+                    <Play className="size-4 fill-current text-primary" />
+                    Organize Preview Plan
+                  </CardTitle>
+                  <CardDescription className="mt-1 text-xs text-muted-foreground">
+                    Review proposed file modifications.{" "}
+                    <strong>{previewItems.length}</strong> items scheduled.
+                  </CardDescription>
+                </div>
+                {conflictCount > 0 ? (
+                  <Badge
+                    variant="destructive"
+                    className="flex shrink-0 animate-pulse items-center gap-1 px-2 py-0.5 text-xs"
+                  >
+                    <ShieldAlert className="h-3 w-3" />
+                    {conflictCount} conflicts
+                  </Badge>
+                ) : (
+                  <Badge
+                    variant="outline"
+                    className="flex shrink-0 items-center gap-1 border-green-500/20 bg-green-500/5 px-2 py-0.5 text-xs text-green-500"
+                  >
+                    <CheckCircle2 className="h-3 w-3" />
+                    All ready
+                  </Badge>
+                )}
+              </CardHeader>
+
+              {/* Table Content with Virtualized Tree View */}
+              <CardContent className="min-h-0 flex-1 border-b border-border bg-muted/5 p-0 overflow-hidden">
+                <VirtualizedFolderTree
+                  folderTree={folderTree}
+                  renderFile={renderFile}
+                  allFolderPaths={allFolderPaths}
+                />
+              </CardContent>
+
+              <CardFooter className="flex shrink-0 justify-end gap-3 bg-muted/10 p-4">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={() => setPreviewItems([])}
+                >
+                  Cancel Plan
+                </Button>
+                <Button
+                  variant="default"
+                  size="lg"
+                  className="gap-2"
+                  onClick={handleExecute}
+                >
+                  <Play className="size-4 fill-current" />
+                  Apply Organization Changes
+                </Button>
+              </CardFooter>
+            </Card>
+          )}
+        </div>
       </div>
 
       <MediaPreview
@@ -801,7 +803,7 @@ export const DateOrganizer: React.FC = () => {
               Learn how Galleo automatically structures and names your folders.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3.5 py-2 text-xs leading-relaxed">
+          <div className="space-y-4 py-2 text-xs leading-relaxed">
             <div className="space-y-1">
               <h4 className="font-semibold text-foreground">
                 1. Exif Date Extraction
@@ -837,11 +839,11 @@ export const DateOrganizer: React.FC = () => {
               <p className="text-muted-foreground">
                 Once the date is determined, the file is moved or copied to a
                 folder matching your naming pattern (e.g.{" "}
-                <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-primary">
+                <code className="rounded bg-muted px-2 py-0.5 font-mono text-primary">
                   YYYY/MM - MMMM/
                 </code>{" "}
                 will organize files into folders like{" "}
-                <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-primary">
+                <code className="rounded bg-muted px-2 py-0.5 font-mono text-primary">
                   2026/06 - June/
                 </code>
                 ).

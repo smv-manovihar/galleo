@@ -58,21 +58,21 @@ export const AppearanceConfig: React.FC = () => {
 
   return (
     <div className="space-y-4 font-sans text-xs select-none">
-      <Card className="border-border/60 bg-card/50 shadow-xs">
+      <Card className="border-border/60 bg-card/50 shadow-xs py-0 gap-0">
         <CardHeader className="border-b border-border/40 px-4 py-3">
-          <CardTitle className="flex items-center gap-2 text-xs font-bold text-foreground">
-            <Palette className="h-3.5 w-3.5 text-primary" />
+          <CardTitle className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <Palette className="size-4 text-primary" />
             Theme & Interface
           </CardTitle>
-          <CardDescription className="text-2xs text-muted-foreground">
+          <CardDescription className="text-xs text-muted-foreground">
             Configure application visual styles and appearance preferences.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 p-4">
           {/* Color Theme Section */}
           <div className="space-y-2">
-            <Label className="flex items-center gap-1.5 text-2xs font-semibold text-muted-foreground">
-              <Sun className="h-3.5 w-3.5 text-primary" />
+            <Label className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+              <Sun className="size-4 text-primary" />
               Color Theme
             </Label>
 
@@ -111,7 +111,7 @@ export const AppearanceConfig: React.FC = () => {
                   <label
                     key={themeOpt.value}
                     htmlFor={themeOpt.id}
-                    className={`relative flex cursor-pointer items-center justify-between gap-1.5 rounded-md border pl-2 pr-2.5 py-2 transition-all select-none ${
+                    className={`relative flex cursor-pointer items-center justify-between gap-2 rounded-md border px-3 py-2 transition-all select-none ${
                       isSelected
                         ? "border-primary/50 bg-primary/10 text-foreground font-medium shadow-2xs"
                         : "border-border/50 bg-muted/20 text-muted-foreground hover:bg-muted/30 hover:text-foreground"
@@ -124,12 +124,12 @@ export const AppearanceConfig: React.FC = () => {
                         className="sr-only"
                       />
                       <div className="flex h-5 w-4 shrink-0 items-center justify-start">
-                        <IconComponent className={`h-3.5 w-3.5 ${themeOpt.iconColor}`} />
+                        <IconComponent className={`size-4 ${themeOpt.iconColor}`} />
                       </div>
                       <span className="truncate text-xs">{themeOpt.label}</span>
                     </div>
                     {isSelected && (
-                      <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
+                      <Check className="size-4 shrink-0 text-primary" />
                     )}
                   </label>
                 )
@@ -141,8 +141,8 @@ export const AppearanceConfig: React.FC = () => {
 
           {/* Font Size Scale Section */}
           <div className="space-y-2">
-            <Label className="flex items-center gap-1.5 text-2xs font-semibold text-muted-foreground">
-              <Type className="h-3.5 w-3.5 text-primary" />
+            <Label className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+              <Type className="size-4 text-primary" />
               Font Size Scale
             </Label>
 
@@ -157,28 +157,28 @@ export const AppearanceConfig: React.FC = () => {
                   id: "font-sm",
                   label: "Small",
                   sub: "85%",
-                  iconSize: "h-3 w-3",
+                  iconSize: "size-3",
                 },
                 {
                   value: "md",
                   id: "font-md",
                   label: "Normal",
                   sub: "100%",
-                  iconSize: "h-3.5 w-3.5",
+                  iconSize: "size-4",
                 },
                 {
                   value: "lg",
                   id: "font-lg",
                   label: "Large",
                   sub: "115%",
-                  iconSize: "h-4 w-4",
+                  iconSize: "size-5",
                 },
                 {
                   value: "xl",
                   id: "font-xl",
                   label: "Extra Large",
                   sub: "130%",
-                  iconSize: "h-4.5 w-4.5",
+                  iconSize: "size-6",
                 },
               ].map((fontOpt) => {
                 const isSelected = currentFontSize === fontOpt.value
@@ -187,7 +187,7 @@ export const AppearanceConfig: React.FC = () => {
                   <label
                     key={fontOpt.value}
                     htmlFor={fontOpt.id}
-                    className={`relative flex cursor-pointer items-center justify-between gap-1.5 rounded-md border pl-2 pr-2.5 py-2 transition-all select-none ${
+                    className={`relative flex cursor-pointer items-center justify-between gap-2 rounded-md border px-3 py-2 transition-all select-none ${
                       isSelected
                         ? "border-primary/50 bg-primary/10 text-foreground font-medium shadow-2xs"
                         : "border-border/50 bg-muted/20 text-muted-foreground hover:bg-muted/30 hover:text-foreground"
@@ -204,11 +204,11 @@ export const AppearanceConfig: React.FC = () => {
                       </div>
                       <div className="flex flex-col min-w-0 leading-none">
                         <span className="truncate text-xs">{fontOpt.label}</span>
-                        <span className="text-3xs text-muted-foreground/80 mt-0.5">{fontOpt.sub}</span>
+                        <span className="text-xs text-muted-foreground/80 mt-1">{fontOpt.sub}</span>
                       </div>
                     </div>
                     {isSelected && (
-                      <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
+                      <Check className="size-4 shrink-0 text-primary" />
                     )}
                   </label>
                 )

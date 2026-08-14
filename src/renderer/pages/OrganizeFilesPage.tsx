@@ -25,10 +25,10 @@ export const OrganizeFilesPage: React.FC = () => {
         className="flex h-full min-h-100 flex-1 flex-col items-center justify-center font-sans text-xs select-none"
         maxWidth="xl"
       >
-        <div className="flex flex-col items-center justify-center gap-1.5 text-center text-muted-foreground">
+        <div className="flex flex-col items-center justify-center gap-2 text-center text-muted-foreground">
           <FolderSearch className="h-8 w-8 text-muted-foreground/60 mb-1" />
           <span className="text-sm font-medium text-foreground">No Folder Selected</span>
-          <span className="text-2xs text-muted-foreground">Please select a folder from the sidebar directory listing to begin.</span>
+          <span className="text-xs text-muted-foreground">Please select a folder from the sidebar directory listing to begin.</span>
         </div>
       </PageContainer>
     )
@@ -40,17 +40,17 @@ export const OrganizeFilesPage: React.FC = () => {
         className="flex h-full min-h-100 flex-1 flex-col items-center justify-center font-sans text-xs select-none"
         maxWidth="xl"
       >
-        <div className="flex flex-1 flex-col items-center justify-center gap-1.5 text-center text-muted-foreground">
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center text-muted-foreground">
           {!isScanned ? (
             <>
               <FolderSearch className="h-8 w-8 text-amber-500/80 mb-1" />
               <span className="text-sm font-medium text-foreground">Folder not scanned</span>
-              <span className="text-2xs text-muted-foreground">Use the Scan Folders button above to index media files.</span>
+              <span className="text-xs text-muted-foreground">Use the Scan Folders button above to index media files.</span>
             </>
           ) : (
             <>
               <span className="text-sm font-medium text-foreground">No photos or videos found</span>
-              <span className="text-2xs text-muted-foreground">This folder contains no media files to organize.</span>
+              <span className="text-xs text-muted-foreground">This folder contains no media files to organize.</span>
             </>
           )}
         </div>
@@ -60,12 +60,10 @@ export const OrganizeFilesPage: React.FC = () => {
 
   return (
     <PageContainer
-      className="flex min-h-0 flex-1 flex-col justify-start gap-4 py-3 md:py-4 font-sans text-xs select-none"
+      className="flex h-full min-h-0 flex-1 flex-col py-3 md:py-4 font-sans text-xs select-none"
       maxWidth="xl"
     >
-      <div className="flex min-h-0 w-full flex-col items-stretch gap-6 lg:flex-row">
-        <DateOrganizer />
-      </div>
+      <DateOrganizer />
     </PageContainer>
   )
 }

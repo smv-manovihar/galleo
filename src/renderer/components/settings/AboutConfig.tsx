@@ -24,13 +24,13 @@ export const AboutConfig: React.FC = () => {
 
   return (
     <div className="space-y-4 font-sans text-xs select-none">
-      <Card className="border-border/60 bg-card/50 shadow-xs">
+      <Card className="border-border/60 bg-card/50 shadow-xs py-0 gap-0">
         <CardHeader className="border-b border-border/40 px-4 py-3">
-          <CardTitle className="flex items-center gap-2 text-xs font-bold text-foreground">
-            <Info className="h-3.5 w-3.5 text-primary" />
+          <CardTitle className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <Info className="size-4 text-primary" />
             About Galleo
           </CardTitle>
-          <CardDescription className="text-2xs text-muted-foreground">
+          <CardDescription className="text-xs text-muted-foreground">
             Current version and application updates.
           </CardDescription>
         </CardHeader>
@@ -40,7 +40,7 @@ export const AboutConfig: React.FC = () => {
               <div className="text-sm font-semibold text-foreground">
                 Galleo Desktop App
               </div>
-              <div className="text-2xs text-muted-foreground">
+              <div className="text-xs text-muted-foreground">
                 Current Version:{" "}
                 <span className="rounded-md border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-mono font-semibold text-primary">
                   v{updateInfo?.currentVersion || "0.1.3"}
@@ -58,7 +58,7 @@ export const AboutConfig: React.FC = () => {
                     window.api.openExternal(updateInfo.downloadUrl)
                   }
                 >
-                  <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                  <ExternalLink className="size-4 shrink-0" />
                   <span className="sm:hidden">Download</span>
                   <span className="hidden sm:inline">Download Installer</span>
                 </Button>
@@ -73,13 +73,13 @@ export const AboutConfig: React.FC = () => {
               >
                 {isCheckingUpdate ? (
                   <>
-                    <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+                    <Loader2 className="size-4 shrink-0 animate-spin" />
                     <span className="sm:hidden">Checking...</span>
                     <span className="hidden sm:inline">Checking...</span>
                   </>
                 ) : (
                   <>
-                    <RefreshCw className="h-3.5 w-3.5 shrink-0" />
+                    <RefreshCw className="size-4 shrink-0" />
                     <span className="sm:hidden">Check</span>
                     <span className="hidden sm:inline">Check for Updates</span>
                   </>
@@ -92,21 +92,21 @@ export const AboutConfig: React.FC = () => {
 
           {/* Update Status Display */}
           {isCheckingUpdate ? (
-            <div className="flex items-center gap-2 text-2xs text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="size-4 shrink-0 animate-spin text-primary" />
               <span>
                 Contacting update servers to check for latest release...
               </span>
             </div>
           ) : updateError ? (
-            <div className="flex items-center gap-2 rounded-lg border border-destructive/10 bg-destructive/5 p-3 text-2xs text-destructive">
+            <div className="flex items-center gap-2 rounded-lg border border-destructive/10 bg-destructive/5 p-3 text-xs text-destructive">
               <AlertCircle className="h-4 w-4 shrink-0" />
               <span>Failed to check for updates: {updateError}</span>
             </div>
           ) : updateInfo ? (
             updateInfo.updateAvailable ? (
-              <div className="space-y-3 rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-3.5 sm:p-4 dark:bg-emerald-500/10">
-                <div className="flex items-center gap-2.5">
+              <div className="space-y-3 rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-4 dark:bg-emerald-500/10">
+                <div className="flex items-center gap-3">
                   <span className="flex h-2 w-2 shrink-0 animate-pulse rounded-full bg-emerald-500" />
                   <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
                     New Update Available (v{updateInfo.latestVersion})
@@ -114,7 +114,7 @@ export const AboutConfig: React.FC = () => {
                 </div>
 
                 {updateInfo.releaseNotes && (
-                  <div className="prose prose-sm prose-invert max-w-none border-t border-emerald-500/15 pt-3 text-2xs text-muted-foreground select-text">
+                  <div className="prose prose-sm prose-invert max-w-none border-t border-emerald-500/15 pt-3 text-xs text-muted-foreground select-text">
                     <MarkdownRenderer>
                       {updateInfo.releaseNotes}
                     </MarkdownRenderer>
@@ -122,13 +122,13 @@ export const AboutConfig: React.FC = () => {
                 )}
               </div>
             ) : (
-              <div className="flex items-center gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-3 text-2xs text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400">
+              <div className="flex items-center gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-3 text-xs text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400">
                 <CheckCircle2 className="h-4 w-4 shrink-0" />
                 <span>You are running the latest version of Galleo!</span>
               </div>
             )
           ) : (
-            <div className="flex items-center gap-2 text-2xs text-muted-foreground">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span>
                 App updates are checked automatically on startup, but you can
                 check manually.

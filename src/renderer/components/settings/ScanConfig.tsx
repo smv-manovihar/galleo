@@ -206,20 +206,20 @@ export const ScanConfig: React.FC = () => {
   return (
     <div className="space-y-4 font-sans text-xs select-none">
       {/* Basic Scan Rules */}
-      <Card className="border-border/60 bg-card/50 shadow-xs">
+      <Card className="border-border/60 bg-card/50 shadow-xs py-0 gap-0">
         <CardHeader className="border-b border-border/40 px-4 py-3">
-          <CardTitle className="flex items-center gap-2 text-xs font-bold text-foreground">
-            <Settings2 className="h-3.5 w-3.5 text-primary" />
+          <CardTitle className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <Settings2 className="size-4 text-primary" />
             Scan Rules
           </CardTitle>
-          <CardDescription className="text-2xs text-muted-foreground">
+          <CardDescription className="text-xs text-muted-foreground">
             Tune scanning heuristics, filters, and background performance.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 p-4">
           {/* Subfolders toggle */}
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/10 p-3.5 sm:p-4">
-            <div className="min-w-0 flex-1 space-y-0.5">
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/10 p-4">
+            <div className="min-w-0 flex-1 space-y-1">
               <Label
                 htmlFor="include-subfolders"
                 className="cursor-pointer font-semibold text-foreground"
@@ -239,8 +239,8 @@ export const ScanConfig: React.FC = () => {
           </div>
 
           {/* Min file size filter */}
-          <div className="flex flex-col justify-between gap-3 rounded-lg border border-border bg-muted/10 p-3.5 sm:flex-row sm:items-center sm:gap-4 sm:p-4">
-            <div className="min-w-0 flex-1 space-y-0.5">
+          <div className="flex flex-col justify-between gap-3 rounded-lg border border-border bg-muted/10 p-4 sm:flex-row sm:items-center sm:gap-4">
+            <div className="min-w-0 flex-1 space-y-1">
               <Label
                 htmlFor="min-file-size"
                 className="cursor-pointer font-semibold text-foreground"
@@ -269,8 +269,8 @@ export const ScanConfig: React.FC = () => {
           </div>
 
           {/* Indexing parallelism */}
-          <div className="flex flex-col justify-between gap-3 rounded-lg border border-border bg-muted/10 p-3.5 sm:flex-row sm:items-center sm:gap-4 sm:p-4">
-            <div className="min-w-0 flex-1 space-y-0.5">
+          <div className="flex flex-col justify-between gap-3 rounded-lg border border-border bg-muted/10 p-4 sm:flex-row sm:items-center sm:gap-4">
+            <div className="min-w-0 flex-1 space-y-1">
               <Label className="font-semibold text-foreground">
                 Indexing Parallelism
               </Label>
@@ -298,22 +298,22 @@ export const ScanConfig: React.FC = () => {
       </Card>
 
       {/* Exclusion Rules & Patterns */}
-      <Card className="border-border/60 bg-card/50 shadow-xs">
+      <Card className="border-border/60 bg-card/50 shadow-xs py-0 gap-0">
         <CardHeader className="border-b border-border/40 px-4 py-3">
           <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <CardTitle className="flex items-center gap-2 text-xs font-bold text-foreground">
-                <FolderX className="h-3.5 w-3.5 text-primary" />
+            <div className="space-y-1">
+              <CardTitle className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <FolderX className="size-4 text-primary" />
                 Folder & File Exclusion List
               </CardTitle>
-              <CardDescription className="text-2xs text-muted-foreground">
+              <CardDescription className="text-xs text-muted-foreground">
                 Specify folder names, paths, or glob patterns to skip during folder indexing.
               </CardDescription>
             </div>
             <Button
               variant="outline"
               size="sm"
-              className="h-8 gap-1.5 text-2xs cursor-pointer"
+              className="h-8 gap-2 text-xs cursor-pointer"
               onClick={handleResetExcludePatterns}
             >
               <RotateCcw className="h-3 w-3" />
@@ -341,11 +341,11 @@ export const ScanConfig: React.FC = () => {
               <Button
                 variant="default"
                 size="sm"
-                className="h-9 gap-1.5 px-3.5 text-xs cursor-pointer shrink-0"
+                className="h-9 gap-2 px-4 text-xs cursor-pointer shrink-0"
                 onClick={() => handleAddExcludePattern()}
                 disabled={!newPatternInput.trim()}
               >
-                <Plus className="h-3.5 w-3.5" />
+                <Plus className="size-4" />
                 Add Pattern
               </Button>
             </div>
@@ -353,17 +353,17 @@ export const ScanConfig: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
-              className="h-9 gap-2 px-3.5 text-xs cursor-pointer shrink-0 border-border bg-background/40 hover:bg-accent"
+              className="h-9 gap-2 px-4 text-xs cursor-pointer shrink-0 border-border bg-background/40 hover:bg-accent"
               onClick={handleBrowseFolderToExclude}
             >
-              <FolderPlus className="h-3.5 w-3.5 text-primary" />
+              <FolderPlus className="size-4 text-primary" />
               Browse Folder...
             </Button>
           </div>
 
           {/* Custom User Exclusion List */}
           <div className="space-y-2">
-            <Label className="text-2xs font-semibold text-muted-foreground">
+            <Label className="text-xs font-semibold text-muted-foreground">
               Custom User Exclusions ({customPatterns.length})
             </Label>
 
@@ -372,18 +372,18 @@ export const ScanConfig: React.FC = () => {
                 No custom folder or file patterns added. Use the input or &quot;Browse Folder...&quot; above to exclude specific paths.
               </p>
             ) : (
-              <div className="flex flex-wrap gap-2 pt-0.5">
+              <div className="flex flex-wrap gap-2 pt-1">
                 {customPatterns.map((pattern) => (
                   <Badge
                     key={pattern}
                     variant="secondary"
-                    className="flex items-center gap-1.5 py-1 px-2.5 text-xs font-mono bg-primary/10 border border-primary/25 text-primary"
+                    className="flex items-center gap-2 py-1 px-3 text-xs font-mono bg-primary/10 border border-primary/25 text-primary"
                   >
                     <span className="truncate max-w-xs">{pattern}</span>
                     <button
                       type="button"
                       onClick={() => handleRemoveExcludePattern(pattern)}
-                      className="ml-0.5 text-primary/70 hover:text-destructive transition-colors cursor-pointer"
+                      className="ml-1 text-primary/70 hover:text-destructive transition-colors cursor-pointer"
                       title={`Remove exclusion "${pattern}"`}
                     >
                       <X className="h-3 w-3" />
@@ -403,16 +403,16 @@ export const ScanConfig: React.FC = () => {
             <CollapsibleTrigger asChild>
               <div className="flex items-center justify-between cursor-pointer select-none">
                 <div className="flex items-center gap-2">
-                  <span className="text-2xs font-semibold text-muted-foreground">
+                  <span className="text-xs font-semibold text-muted-foreground">
                     Default System Patterns ({activeDefaultPatterns.length}/{DEFAULT_EXCLUDE_PATTERNS.length})
                   </span>
                 </div>
-                <div className="flex items-center gap-1 text-2xs text-muted-foreground hover:text-foreground transition-colors">
+                <div className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
                   <span>{isDefaultsOpen ? "Hide Default List" : "Show Default List"}</span>
                   {isDefaultsOpen ? (
-                    <ChevronUp className="h-3.5 w-3.5" />
+                    <ChevronUp className="size-4" />
                   ) : (
-                    <ChevronDown className="h-3.5 w-3.5" />
+                    <ChevronDown className="size-4" />
                   )}
                 </div>
               </div>
@@ -422,14 +422,14 @@ export const ScanConfig: React.FC = () => {
               <p className="text-xs leading-normal text-muted-foreground">
                 These built-in patterns automatically prevent scanning heavy build artifacts, temporary caches, and system folders:
               </p>
-              <div className="flex flex-wrap gap-1.5 pt-1 max-h-48 overflow-y-auto scrollbar-thin">
+              <div className="flex flex-wrap gap-2 pt-1 max-h-48 overflow-y-auto scrollbar-thin">
                 {DEFAULT_EXCLUDE_PATTERNS.map((pattern) => {
                   const isActive = excludePatterns.includes(pattern)
                   return (
                     <Badge
                       key={pattern}
                       variant="outline"
-                      className={`flex items-center gap-1.5 py-0.5 px-2 text-2xs font-mono transition-colors ${
+                      className={`flex items-center gap-2 py-1 px-2 text-xs font-mono transition-colors ${
                         isActive
                           ? "border-border/60 bg-background/70 text-foreground/90 hover:bg-background"
                           : "border-border/20 bg-muted/20 text-muted-foreground/40"
@@ -443,10 +443,10 @@ export const ScanConfig: React.FC = () => {
                             e.stopPropagation()
                             handleRemoveExcludePattern(pattern)
                           }}
-                          className="ml-0.5 text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+                          className="ml-1 text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
                           title={`Remove default pattern "${pattern}"`}
                         >
-                          <X className="h-2.5 w-2.5" />
+                          <X className="size-3" />
                         </button>
                       ) : (
                         <button
@@ -455,7 +455,7 @@ export const ScanConfig: React.FC = () => {
                             e.stopPropagation()
                             handleAddExcludePattern(pattern)
                           }}
-                          className="ml-0.5 text-muted-foreground hover:text-primary transition-colors cursor-pointer text-3xs font-sans font-medium"
+                          className="ml-1 text-muted-foreground hover:text-primary transition-colors cursor-pointer text-xs font-sans font-medium"
                           title={`Re-enable pattern "${pattern}"`}
                         >
                           +Enable

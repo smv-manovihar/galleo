@@ -17,7 +17,8 @@ import type { MediaItem } from "../../shared/types/media"
 import { IPC_CHANNELS, type FolderCountResult, type FileChangeEvent } from "../../shared/types/ipc"
 import { ENABLE_AI_FEATURES } from "../../shared/constants"
 import { initDatabase } from "../infrastructure/database"
-
+import { isThumbnailCurrent } from "../infrastructure/image-processor"
+import { storageService } from "./storage.service"
 import { aiIndexerService } from "./ai-indexer.service"
 
 export class ScannerService {
@@ -207,6 +208,13 @@ export class ScannerService {
           }
 
           const fullPath = path.join(rootPath, filename)
+          const normPath = fullPath.replace(/\\/g, "/")
+
+          const excludeRegex = this.buildExcludeRegex(settings.scanning.excludePatterns)
+          if (excludeRegex && excludeRegex.test(normPath)) {
+            return
+          }
+
           const pathKey = this.normalizePath(fullPath)
 
           let baselineMap = this.folderFileBaseline.get(normRoot)
@@ -368,19 +376,22 @@ export class ScannerService {
         )
       }
 
-      // 2. Build cacheMap ONCE from ALL root paths before processing begins.
-      //    This ensures cache hits work correctly for multi-root scans.
-      const cacheMap = new Map<string, MediaItem>()
-      if (!forceRescan) {
-        for (const root of rootPaths) {
-          const dbItems = this.mediaRepository.getByFolderPath(root)
-          for (const item of dbItems) {
-            cacheMap.set(this.normalizePath(item.path), item)
-          }
+      // 2. Build existingDbItemsMap ONCE from ALL root paths before processing begins.
+      //    This ensures we know all currently stored DB items for pruning deleted or excluded files.
+      const existingDbItemsMap = new Map<string, MediaItem>()
+      for (const root of rootPaths) {
+        const dbItems = this.mediaRepository.getByFolderPath(root)
+        for (const item of dbItems) {
+          existingDbItemsMap.set(this.normalizePath(item.path), item)
         }
       }
 
-      // Track discovered paths for pruning deleted files later
+      // Cache hits are skipped on forceRescan to force fresh thumbnailing & metadata re-extraction
+      const cacheMap = forceRescan
+        ? new Map<string, MediaItem>()
+        : existingDbItemsMap
+
+      // Track discovered paths for pruning deleted/excluded files later
       const discoveredPaths = new Set<string>(
         scanList.map((f) => this.normalizePath(f.path))
       )
@@ -431,7 +442,11 @@ export class ScannerService {
                 const isOldThumb =
                   cached &&
                   cached.thumbnailPath &&
-                  !cached.thumbnailPath.endsWith("_v2.webp")
+                  !isThumbnailCurrent(cached.thumbnailPath, file.mediaType)
+
+                if (isOldThumb && cached?.thumbnailPath) {
+                  fs.unlink(cached.thumbnailPath).catch(() => {})
+                }
 
                 const fileMtimeMs = new Date(file.mtime).getTime()
                 const cachedMtimeMs = cached?.dateModified
@@ -532,7 +547,9 @@ export class ScannerService {
                   height: meta.height,
                   duration: meta.duration ?? undefined,
                   exactHash,
-                  dateAdded: cached?.dateAdded ?? new Date().toISOString(),
+                  dateAdded:
+                    existingDbItemsMap.get(this.normalizePath(file.path))?.dateAdded ??
+                    new Date().toISOString(),
                   dateOriginal: meta.dateOriginal ?? undefined,
                   dateInferred: meta.dateInferred ?? undefined,
                   dateFileSystem:
@@ -546,8 +563,10 @@ export class ScannerService {
                   isDuplicate: false,
                   isBestInDuplicateGroup: false,
                   // Preserve existing review state for changed files so user's decisions aren't reset
-                  reviewState: cached?.reviewState ?? "pending",
-                  reviewedAt: cached?.reviewedAt,
+                  reviewState:
+                    existingDbItemsMap.get(this.normalizePath(file.path))?.reviewState ??
+                    "pending",
+                  reviewedAt: existingDbItemsMap.get(this.normalizePath(file.path))?.reviewedAt,
                 }
 
                 processedItems.push(item)
@@ -594,14 +613,14 @@ export class ScannerService {
         }
       }
 
-      // 4. Prune files that were removed from disk since the last scan.
+      // 4. Prune files that were removed from disk or are now excluded since the last scan.
       //    Only runs on a full (non-cancelled) scan — a partial scan hasn't visited
       //    all paths yet, so we must not delete items that simply weren't reached.
       if (!this.isCancelled) {
         const deletedPaths: string[] = []
-        for (const [normPath, cachedItem] of cacheMap.entries()) {
+        for (const [normPath, existingItem] of existingDbItemsMap.entries()) {
           if (!discoveredPaths.has(normPath)) {
-            deletedPaths.push(cachedItem.path)
+            deletedPaths.push(existingItem.path)
           }
         }
         if (deletedPaths.length > 0) {
@@ -662,6 +681,9 @@ export class ScannerService {
           )
 
           await this.similarityService.resolveSimilarityInFolders(foldersToAnalyze)
+
+          // Invalidate storage metrics cache so Settings displays fresh values
+          storageService.invalidateCache()
 
           // Notify renderer that post-processing is done so it can re-fetch updated items
           if (this.isWindowAlive(window)) {
@@ -884,11 +906,46 @@ export class ScannerService {
 
   private buildExcludeRegex(excludePatterns: string[]): RegExp | null {
     if (!excludePatterns || excludePatterns.length === 0) return null
-    const escaped = excludePatterns
-      .map((p) => p.replace(/\*/g, "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-      .filter(Boolean)
-    if (escaped.length === 0) return null
-    return new RegExp(escaped.join("|"), "i")
+
+    const regexFragments: string[] = []
+
+    for (const rawPattern of excludePatterns) {
+      if (!rawPattern || typeof rawPattern !== "string") continue
+      let p = rawPattern.replace(/\\/g, "/").trim()
+      if (!p) continue
+
+      // Strip redundant leading/trailing glob syntax: **/name/** -> name
+      p = p
+        .replace(/^\*\*\/+/, "")
+        .replace(/\/+\*\*$/, "")
+        .replace(/\/+\*$/, "")
+        .replace(/\/+$/, "")
+      if (!p) continue
+
+      // If it's a simple extension pattern like *.tmp or .tmp
+      if (/^\*?\.[a-zA-Z0-9_-]+$/.test(p)) {
+        const ext = p.replace(/^\*/, "")
+        const escapedExt = ext.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+        regexFragments.push(`(?:^|/)[^/]*${escapedExt}(?:/|$)`)
+        continue
+      }
+
+      // If it has general wildcards
+      if (p.includes("*")) {
+        const escaped = p
+          .replace(/[.+?^${}()|[\]\\]/g, "\\$&")
+          .replace(/\*\*/g, ".*")
+          .replace(/\*/g, "[^/]*")
+        regexFragments.push(`(?:^|/)${escaped}(?:/|$)`)
+      } else {
+        // Simple name or relative path segment (e.g. ".thumbnails", "node_modules", "bin")
+        const escaped = p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+        regexFragments.push(`(?:^|/)${escaped}(?:/|$)`)
+      }
+    }
+
+    if (regexFragments.length === 0) return null
+    return new RegExp(regexFragments.join("|"), "i")
   }
 
   /**

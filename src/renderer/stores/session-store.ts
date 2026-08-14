@@ -31,6 +31,15 @@ interface SessionState {
     source: "culling" | "browse" | "duplicates",
     batchId?: string
   ) => Promise<void>
+  submitBatchDecisions: (
+    updates: {
+      mediaId: string
+      state: "keep" | "delete" | "skipped"
+      prevState?: "keep" | "delete" | "skipped" | "pending"
+    }[],
+    source: "culling" | "browse" | "duplicates",
+    batchId?: string
+  ) => Promise<void>
   undo: (sourceFilter?: "culling" | "browse" | "duplicates") => Promise<boolean>
   bulkChangeDecisions: (
     mediaIds: string[],
@@ -124,6 +133,19 @@ export function flushPendingReviews(sessionId: string): void {
   }
 }
 
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeunload", () => {
+    flushPendingCheckpointSave()
+    const sid = useSessionStore.getState().checkpoint?.sessionId
+    if (sid) {
+      flushPendingReviews(sid)
+    }
+  })
+}
+
+let activeInitPromise: Promise<void> | null = null
+let activeInitFolder: string | null = null
+
 export const useSessionStore = create<SessionState>((set, get) => ({
   checkpoint: null,
   currentIndex: 0,
@@ -133,68 +155,84 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   trashingProgress: null,
 
   initSession: async (folderPath: string, totalFilesCount: number) => {
-    try {
-      const existing = await window.api.getSessionCheckpoint(folderPath)
-
-      if (existing) {
-        let checkpoint = existing
-        if (existing.totalFiles !== totalFilesCount) {
-          checkpoint = { ...existing, totalFiles: totalFilesCount }
-          await window.api.saveSessionCheckpoint(checkpoint)
-        }
-
-        // Sync checkpoint decisions back to media store
-        const mediaStore = useMediaStore.getState()
-        if (mediaStore.items.length > 0) {
-          const updatedItems = mediaStore.items.map((item) => {
-            if (checkpoint.decisions[item.id]) {
-              return { ...item, reviewState: checkpoint.decisions[item.id] }
-            }
-            return { ...item, reviewState: "pending" as const }
-          })
-          useMediaStore.getState().setItems(updatedItems)
-        }
-
-        set({
-          checkpoint,
-          currentIndex: checkpoint.currentIndex,
-          decisions: checkpoint.decisions,
-          undoStack: checkpoint.undoStack,
-        })
-      } else {
-        const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-        const freshCheckpoint: SessionCheckpoint = {
-          sessionId,
-          folderPath,
-          totalFiles: totalFilesCount,
-          currentIndex: 0,
-          decisions: {},
-          undoStack: [],
-          savedAt: new Date().toISOString(),
-        }
-        await window.api.saveSessionCheckpoint(freshCheckpoint)
-
-        // For a fresh session, reset reviewState in mediaStore to pending
-        const mediaStore = useMediaStore.getState()
-        if (mediaStore.items.length > 0) {
-          const updatedItems = mediaStore.items.map((item) => ({
-            ...item,
-            reviewState: "pending" as const,
-          }))
-          useMediaStore.getState().setItems(updatedItems)
-        }
-
-        set({
-          checkpoint: freshCheckpoint,
-          currentIndex: 0,
-          decisions: {},
-          undoStack: [],
-        })
-      }
-    } catch {
-      // Fallback
-      set({ checkpoint: null, currentIndex: 0, decisions: {}, undoStack: [] })
+    const normFolder = folderPath
+      .replace(/\\/g, "/")
+      .toLowerCase()
+      .replace(/\/+$/, "")
+    if (activeInitPromise && activeInitFolder === normFolder) {
+      return activeInitPromise
     }
+
+    activeInitFolder = normFolder
+    activeInitPromise = (async () => {
+      try {
+        const existing = await window.api.getSessionCheckpoint(folderPath)
+
+        if (existing) {
+          let checkpoint = existing
+          if (existing.totalFiles !== totalFilesCount) {
+            checkpoint = { ...existing, totalFiles: totalFilesCount }
+            await window.api.saveSessionCheckpoint(checkpoint)
+          }
+
+          // Sync checkpoint decisions back to media store
+          const mediaStore = useMediaStore.getState()
+          if (mediaStore.items.length > 0) {
+            const updatedItems = mediaStore.items.map((item) => {
+              if (checkpoint.decisions[item.id]) {
+                return { ...item, reviewState: checkpoint.decisions[item.id] }
+              }
+              return { ...item, reviewState: "pending" as const }
+            })
+            useMediaStore.getState().setItems(updatedItems)
+          }
+
+          set({
+            checkpoint,
+            currentIndex: checkpoint.currentIndex,
+            decisions: checkpoint.decisions,
+            undoStack: checkpoint.undoStack,
+          })
+        } else {
+          const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+          const freshCheckpoint: SessionCheckpoint = {
+            sessionId,
+            folderPath,
+            totalFiles: totalFilesCount,
+            currentIndex: 0,
+            decisions: {},
+            undoStack: [],
+            savedAt: new Date().toISOString(),
+          }
+          await window.api.saveSessionCheckpoint(freshCheckpoint)
+
+          // For a fresh session, reset reviewState in mediaStore to pending
+          const mediaStore = useMediaStore.getState()
+          if (mediaStore.items.length > 0) {
+            const updatedItems = mediaStore.items.map((item) => ({
+              ...item,
+              reviewState: "pending" as const,
+            }))
+            useMediaStore.getState().setItems(updatedItems)
+          }
+
+          set({
+            checkpoint: freshCheckpoint,
+            currentIndex: 0,
+            decisions: {},
+            undoStack: [],
+          })
+        }
+      } catch {
+        // Fallback
+        set({ checkpoint: null, currentIndex: 0, decisions: {}, undoStack: [] })
+      } finally {
+        activeInitPromise = null
+        activeInitFolder = null
+      }
+    })()
+
+    return activeInitPromise
   },
 
   submitDecision: async (
@@ -258,6 +296,82 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
     // Queue review write — flushed as a batch on trailing-edge throttle
     pendingReviews.set(mediaId, state)
+    scheduleReviewFlush(checkpoint.sessionId)
+  },
+
+  submitBatchDecisions: async (
+    updates: {
+      mediaId: string
+      state: "keep" | "delete" | "skipped"
+      prevState?: "keep" | "delete" | "skipped" | "pending"
+    }[],
+    source: "culling" | "browse" | "duplicates",
+    batchId?: string
+  ) => {
+    const { checkpoint, decisions, undoStack } = get()
+    if (!checkpoint || updates.length === 0) return
+
+    const now = Date.now()
+    const baseBatchId =
+      batchId || `batch_${now}_${Math.random().toString(36).substr(2, 9)}`
+    const newActions: UndoableAction[] = []
+    const updatedDecisions = { ...decisions }
+    const mediaStore = useMediaStore.getState()
+    const itemMap = new Map(mediaStore.items.map((i) => [i.id, i]))
+
+    for (const { mediaId, state, prevState } of updates) {
+      const item = itemMap.get(mediaId)
+      const resolvedPrevState =
+        prevState !== undefined
+          ? prevState
+          : (decisions[mediaId] ?? item?.reviewState ?? "pending")
+      const actionId = `action_${now}_${Math.random().toString(36).substr(2, 9)}`
+
+      newActions.push({
+        id: actionId,
+        type:
+          state === "keep"
+            ? "mark-keep"
+            : state === "delete"
+              ? "mark-delete"
+              : "skip",
+        mediaId,
+        timestamp: now,
+        previousState: { reviewState: resolvedPrevState },
+        newState: { reviewState: state, source, batchId: baseBatchId },
+      })
+      updatedDecisions[mediaId] = state
+      pendingReviews.set(mediaId, state)
+    }
+
+    const updatedUndoStack = [...undoStack, ...newActions]
+    const updatedCheckpoint: SessionCheckpoint = {
+      ...checkpoint,
+      decisions: updatedDecisions,
+      undoStack: updatedUndoStack,
+      savedAt: new Date().toISOString(),
+    }
+
+    // Update state locally synchronously
+    set({
+      checkpoint: updatedCheckpoint,
+      decisions: updatedDecisions,
+      undoStack: updatedUndoStack,
+    })
+
+    // Update media store review states synchronously
+    const updateMap = new Map(updates.map((u) => [u.mediaId, u.state]))
+    useMediaStore.getState().setItems(
+      mediaStore.items.map((i) => {
+        const newState = updateMap.get(i.id)
+        return newState ? { ...i, reviewState: newState } : i
+      })
+    )
+
+    // Schedule debounced checkpoint save in background (non-blocking)
+    scheduleCheckpointSave(updatedCheckpoint)
+
+    // Queue review write — flushed as a batch on trailing-edge throttle
     scheduleReviewFlush(checkpoint.sessionId)
   },
 

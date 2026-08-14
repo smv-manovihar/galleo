@@ -15,3 +15,31 @@ export const storage = {
     localStorage.removeItem(prefixed(key))
   },
 }
+
+export function normalizeOrientation(degrees: number): number {
+  return ((degrees % 360) + 360) % 360
+}
+
+export function getMediaOrientation(pathOrSrc: string): number {
+  if (!pathOrSrc) return 0
+  const normalizedKey = `orientation:${pathOrSrc.replace(/^media:\/\/\//, "").replace(/\\/g, "/")}`
+  const val = storage.get(normalizedKey)
+  if (val !== null) {
+    const parsed = parseInt(val, 10)
+    if (!isNaN(parsed)) {
+      return normalizeOrientation(parsed)
+    }
+  }
+  return 0
+}
+
+export function setMediaOrientation(pathOrSrc: string, degrees: number): void {
+  if (!pathOrSrc) return
+  const normalizedKey = `orientation:${pathOrSrc.replace(/^media:\/\/\//, "").replace(/\\/g, "/")}`
+  const norm = normalizeOrientation(degrees)
+  if (norm === 0) {
+    storage.remove(normalizedKey)
+  } else {
+    storage.set(normalizedKey, norm.toString())
+  }
+}

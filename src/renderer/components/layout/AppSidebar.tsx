@@ -65,7 +65,7 @@ export const AppSidebar: React.FC = () => {
   const hasRunInitialUpdateCheck = useUIStore((s) => s.hasRunInitialUpdateCheck)
   const dismissedVersion = useUIStore((s) => s.dismissedVersion)
   const dismissUpdate = useUIStore((s) => s.dismissUpdate)
-  const settings = useSettingsStore((s) => s.settings)
+  const folderRoots = useSettingsStore((s) => s.settings.folders.roots)
   const addRootFolder = useSettingsStore((s) => s.addRootFolder)
   const removeRootFolder = useSettingsStore((s) => s.removeRootFolder)
 
@@ -84,7 +84,7 @@ export const AppSidebar: React.FC = () => {
 
   const [folderToDelete, setFolderToDelete] = useState<string | null>(null)
   const [showScanPrompt, setShowScanPrompt] = useState(false)
-  const isWizardState = settings.folders.roots.length === 0
+  const isWizardState = folderRoots.length === 0
 
   const navItems = [
     { view: "dashboard" as const, label: "Dashboard", icon: LayoutDashboard },
@@ -120,7 +120,7 @@ export const AppSidebar: React.FC = () => {
     await fetchMediaItems(path)
   }
 
-  const hasAnyScanned = settings.folders.roots.some((r) => r.scanned)
+  const hasAnyScanned = folderRoots.some((r) => r.scanned)
 
   const handleAllMediaClick = () => {
     handleFolderClick("all")
@@ -128,7 +128,7 @@ export const AppSidebar: React.FC = () => {
 
   const handleScanNow = () => {
     setShowScanPrompt(false)
-    const enabledRoots = settings.folders.roots
+    const enabledRoots = folderRoots
       .filter((r) => r.enabled)
       .map((r) => r.path)
     if (enabledRoots.length > 0) {
@@ -200,7 +200,7 @@ export const AppSidebar: React.FC = () => {
         <SidebarSeparator className="bg-border opacity-50" />
 
         {/* All Media — standalone, above the Root Directories section */}
-        {settings.folders.roots.length > 0 && (
+        {folderRoots.length > 0 && (
           <SidebarGroup className="p-0">
             <SidebarMenu>
               <SidebarMenuItem>
@@ -222,7 +222,7 @@ export const AppSidebar: React.FC = () => {
                       />
                       <span className="truncate">All Media</span>
                       {!hasAnyScanned && (
-                        <ScanSearch className="ml-auto h-3.5 w-3.5 shrink-0 text-amber-500/80" />
+                        <ScanSearch className="ml-auto size-4 shrink-0 text-amber-500/80" />
                       )}
                     </SidebarMenuButton>
                   </TooltipTrigger>
@@ -242,7 +242,7 @@ export const AppSidebar: React.FC = () => {
         {/* Source Directories */}
         <SidebarGroup className="flex min-h-0 flex-1 flex-col p-0">
           <div className="mb-2 flex items-center justify-between px-2">
-            <SidebarGroupLabel className="p-0 text-[0.6875rem] font-semibold tracking-wider text-muted-foreground uppercase">
+            <SidebarGroupLabel className="p-0 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
               Root Directories
             </SidebarGroupLabel>
             <Button
@@ -251,18 +251,18 @@ export const AppSidebar: React.FC = () => {
               className="h-5 w-5 rounded text-muted-foreground hover:bg-accent hover:text-foreground"
               onClick={handleAddFolder}
             >
-              <Plus className="h-3.5 w-3.5" />
+              <Plus className="size-4" />
             </Button>
           </div>
 
           <SidebarGroupContent className="flex flex-1 flex-col gap-1 overflow-y-auto pr-1">
-            {settings.folders.roots.length === 0 ? (
+            {folderRoots.length === 0 ? (
               <div className="rounded-lg border border-dashed border-border bg-muted/20 px-3 py-4 text-center text-xs text-muted-foreground">
                 No folders added yet
               </div>
             ) : (
               <SidebarMenu className="gap-1">
-                {settings.folders.roots.map((root) => {
+                {folderRoots.map((root) => {
                   const isScanned = !!root.scanned
                   const folderData = folderCounts.get(root.path)
                   const liveDiskCount = folderData?.count
@@ -311,7 +311,7 @@ export const AppSidebar: React.FC = () => {
                                   {label}
                                 </span>
                                 {!isScanned && (
-                                  <ScanSearch className="ml-auto h-3.5 w-3.5 shrink-0 text-amber-500/60" />
+                                  <ScanSearch className="ml-auto size-4 shrink-0 text-amber-500/60" />
                                 )}
                                 {isPartial && (
                                   <span className="ml-auto h-2 w-2 shrink-0 rounded-full bg-amber-400" />
@@ -336,7 +336,7 @@ export const AppSidebar: React.FC = () => {
                             }}
                             className="cursor-pointer gap-2"
                           >
-                            <FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />
+                            <FolderOpen className="size-4 text-muted-foreground" />
                             Open in {getFileManagerName()}
                           </ContextMenuItem>
                         </ContextMenuContent>
@@ -372,13 +372,13 @@ export const AppSidebar: React.FC = () => {
           <SidebarFooter className="p-3 pt-0">
             <div
               onClick={() => window.api.openExternal(updateInfo.downloadUrl)}
-              className="group/update relative flex cursor-pointer items-center justify-between gap-2.5 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-2xs transition-all select-none hover:bg-emerald-500/10 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/15"
+              className="group/update relative flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs transition-all select-none hover:bg-emerald-500/10 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/15"
             >
               <span
-                className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-300"
+                className="flex items-center gap-2 font-medium text-emerald-700 dark:text-emerald-300"
                 title="Click to download new update"
               >
-                <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-emerald-500" />
+                <span className="size-2 shrink-0 animate-pulse rounded-full bg-emerald-500" />
                 Update v{updateInfo.latestVersion}
               </span>
               <div className="flex items-center gap-2">
@@ -392,7 +392,7 @@ export const AppSidebar: React.FC = () => {
                 >
                   Notes
                 </span>
-                <span className="h-2.5 w-px bg-border/40" />
+                <span className="h-3 w-px bg-border/40" />
                 <span
                   className="font-semibold text-emerald-600 group-hover/update:underline dark:text-emerald-400"
                   title="Click to download new update"
@@ -406,10 +406,10 @@ export const AppSidebar: React.FC = () => {
                   e.stopPropagation()
                   dismissUpdate()
                 }}
-                className="absolute -top-1.5 -right-1.5 cursor-pointer rounded-full border border-border bg-background p-0.5 text-muted-foreground opacity-0 shadow-xs transition-opacity group-hover/update:opacity-100 hover:bg-destructive/10 hover:text-destructive"
+                className="absolute -top-1 -right-1 cursor-pointer rounded-full border border-border bg-background p-0.5 text-muted-foreground opacity-0 shadow-xs transition-opacity group-hover/update:opacity-100 hover:bg-destructive/10 hover:text-destructive"
                 title="Dismiss update notifier"
               >
-                <X className="h-2.5 w-2.5" />
+                <X className="size-3" />
               </button>
             </div>
           </SidebarFooter>

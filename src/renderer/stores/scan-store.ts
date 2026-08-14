@@ -320,14 +320,14 @@ export const useScanStore = create<ScanState>((set, get) => ({
       })
       .filter((n) => n.length > 0)
 
-    let folderDescription = ""
-    if (folderBasenames.length === 1) {
-      folderDescription = folderBasenames[0]
-    } else if (folderBasenames.length === 2) {
-      folderDescription = `${folderBasenames[0]} and ${folderBasenames[1]}`
-    } else if (folderBasenames.length > 2) {
-      folderDescription = `${folderBasenames[0]}, ${folderBasenames[1]} (+${folderBasenames.length - 2} more)`
-    }
+    const folderPhrase =
+      folderBasenames.length === 1
+        ? `in ${folderBasenames[0]}`
+        : folderBasenames.length === 2
+          ? `in ${folderBasenames[0]} and ${folderBasenames[1]}`
+          : folderBasenames.length > 2
+            ? `across ${folderBasenames.length} folders`
+            : "across selected folders"
 
     // Listen for background post-processing completion (duplicates + similarity)
     _cleanupPostProcessing = window.api.onScanPostProcessingComplete(async () => {
@@ -339,13 +339,20 @@ export const useScanStore = create<ScanState>((set, get) => ({
       const activeRootPath = useMediaStore.getState().activeRootPath
       await useMediaStore.getState().fetchMediaItems(activeRootPath || "all")
 
+      const totalCount = get().scanProgress.totalCount
+      const description = wasStoppedScan
+        ? `Post-processing complete ${folderPhrase}.`
+        : totalCount > 0
+          ? `${totalCount.toLocaleString()} files indexed ${folderPhrase}.`
+          : `No media files found ${folderPhrase}.`
+
       toast.success(
         wasStoppedScan
-          ? "Post-processing completed for stopped scan"
+          ? "Scan post-processing completed"
           : "Folder scan completed successfully",
         {
           id: "scan-complete-toast",
-          description: folderDescription ? `In ${folderDescription}` : undefined,
+          description,
         }
       )
     })

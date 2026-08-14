@@ -47,12 +47,14 @@
   ${EndIf}
 !macroend
 
-# 5. Clean up the shortcuts properly during uninstallation
+# 5. Clean up the shortcuts and application data properly during uninstallation
 !macro customUnInstall
-  # Only delete shortcuts if the user is actually uninstalling (not auto-updating)
+  # Only delete data if the user is actually uninstalling (not auto-updating)
   ${IfNot} ${isUpdated}
     Delete "$DESKTOP\Galleo.lnk"
     Delete "$SMPROGRAMS\Galleo\Galleo.lnk"
     RMDir "$SMPROGRAMS\Galleo"
+    RMDir /r "$APPDATA\Galleo"
+    RMDir /r "$LOCALAPPDATA\galleo-updater"
   ${EndIf}
 !macroend

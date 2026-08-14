@@ -11,6 +11,24 @@ describe("parseExifDate", () => {
     expect(d!.getHours()).toBe(10)
   })
 
+  it("parses EXIF date-only strings: YYYY:MM:DD", () => {
+    const d = parseExifDate("2024:03:15")
+    expect(d).not.toBeNull()
+    expect(d!.getFullYear()).toBe(2024)
+    expect(d!.getMonth()).toBe(2)
+    expect(d!.getDate()).toBe(15)
+  })
+
+  it("parses EXIF date strings with subseconds or timezone offsets", () => {
+    const d1 = parseExifDate("2024:03:15 10:30:45.500")
+    expect(d1).not.toBeNull()
+    expect(d1!.getFullYear()).toBe(2024)
+
+    const d2 = parseExifDate("2024:03:15 10:30:45Z")
+    expect(d2).not.toBeNull()
+    expect(d2!.getFullYear()).toBe(2024)
+  })
+
   it("parses fallback standard dates", () => {
     const d = parseExifDate("2024-03-15T10:30:45.000Z")
     expect(d).not.toBeNull()

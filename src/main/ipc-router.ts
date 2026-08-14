@@ -7,6 +7,7 @@ import { ScannerService } from "./services/scanner.service"
 import { FileOpsService } from "./services/file-ops.service"
 import { SessionService } from "./services/session.service"
 import { UpdateService } from "./services/update.service"
+import { storageService } from "./services/storage.service"
 import { aiService } from "./services/ai.service"
 import { aiIndexerService } from "./services/ai-indexer.service"
 import { SearchEngineService } from "./services/search-engine.service"
@@ -119,6 +120,22 @@ export function registerIpcHandlers(window: BrowserWindow): void {
     }
   )
 
+  ipcMain.handle(
+    IPC_CHANNELS.MEDIA_UPDATE_ORIENTATION,
+    (_, { idOrPath, orientation }: { idOrPath: string; orientation: number }) => {
+      try {
+        mediaRepository.updateOrientation(idOrPath, orientation)
+        return { success: true }
+      } catch (err: unknown) {
+        const error = err as Error
+        return {
+          success: false,
+          error: { message: error?.message || "Failed to update orientation" },
+        }
+      }
+    }
+  )
+
   // Review sessions checkpoints
   ipcMain.handle(
     IPC_CHANNELS.SESSION_GET_CHECKPOINT,
@@ -200,6 +217,7 @@ export function registerIpcHandlers(window: BrowserWindow): void {
       : (result.error as unknown as { data?: { successfulPaths?: string[] } }).data?.successfulPaths ?? []
     if (successful.length > 0) {
       await scannerService.notifyFilesDeleted(successful, window)
+      storageService.invalidateCache()
     }
     return result
   })
@@ -243,6 +261,16 @@ export function registerIpcHandlers(window: BrowserWindow): void {
           await fs.mkdir(cacheDir, { recursive: true })
         }
 
+        if (database || cache) {
+          try {
+            db.pragma("wal_checkpoint(TRUNCATE)")
+          } catch {
+            // ignore checkpoint error
+          }
+        }
+
+        storageService.invalidateCache()
+
         return ok(undefined)
       } catch (e: unknown) {
         const err = e as Error
@@ -253,6 +281,11 @@ export function registerIpcHandlers(window: BrowserWindow): void {
       }
     }
   )
+
+  // App Storage Usage Handler
+  ipcMain.handle(IPC_CHANNELS.APP_STORAGE_USAGE, async (_, force?: boolean) => {
+    return await storageService.getStorageUsage(force)
+  })
 
   // App Update Checker Handlers
   ipcMain.handle(IPC_CHANNELS.APP_CHECK_UPDATE, async (_, force?: boolean) => {

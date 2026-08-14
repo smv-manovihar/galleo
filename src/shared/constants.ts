@@ -31,6 +31,10 @@ export const ALL_SUPPORTED_EXTENSIONS = [
   ...SUPPORTED_VIDEO_EXTENSIONS,
 ] as const
 
+/** Canonical thumbnail version file suffixes */
+export const IMAGE_THUMB_SUFFIX = "_v3.webp"
+export const VIDEO_THUMB_SUFFIX = "_v2.webp"
+
 export const DEFAULT_EXCLUDE_PATTERNS = [
   "node_modules",
   "**/node_modules/**",

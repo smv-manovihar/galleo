@@ -51,23 +51,23 @@ export const FolderConfig: React.FC = () => {
 
   return (
     <div className="space-y-4 font-sans text-xs select-none">
-      <Card className="border-border/60 bg-card/50 shadow-xs">
+      <Card className="border-border/60 bg-card/50 shadow-xs py-0 gap-0">
         <CardHeader className="border-b border-border/40 px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-0.5">
-            <CardTitle className="flex items-center gap-2 text-xs font-bold text-foreground">
-              <FolderSync className="h-3.5 w-3.5 text-primary" />
+          <div className="space-y-1">
+            <CardTitle className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              <FolderSync className="size-4 text-primary" />
               Scanned Roots
             </CardTitle>
-            <CardDescription className="text-2xs text-muted-foreground">
+            <CardDescription className="text-xs text-muted-foreground">
               Manage scanned folders. Disabled folders are skipped during scans.
             </CardDescription>
           </div>
           <Button
             size="sm"
-            className="h-8 w-full shrink-0 cursor-pointer gap-1.5 rounded-lg text-xs font-medium sm:w-auto"
+            className="h-8 w-full shrink-0 cursor-pointer gap-2 rounded-lg text-xs font-medium sm:w-auto"
             onClick={handleAddFolder}
           >
-            <Plus className="h-3.5 w-3.5" />
+            <Plus className="size-4" />
             Add Root Folder
           </Button>
         </CardHeader>
@@ -97,7 +97,7 @@ export const FolderConfig: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex shrink-0 items-center justify-between gap-4 border-t border-border/50 pt-2.5 sm:justify-end sm:border-none sm:pt-0">
+                <div className="flex shrink-0 items-center justify-between gap-4 border-t border-border/50 pt-3 sm:justify-end sm:border-none sm:pt-0">
                   <div className="flex items-center gap-2">
                     <Switch
                       id={`toggle-${root.path}`}
@@ -151,7 +151,7 @@ export const FolderConfig: React.FC = () => {
             <AlertDialogTitle className="text-base font-bold text-foreground">
               Remove Folder from Galleo
             </AlertDialogTitle>
-            <AlertDialogDescription className="mt-1.5 text-xs leading-normal text-muted-foreground">
+            <AlertDialogDescription className="mt-1 text-xs leading-normal text-muted-foreground">
               This removes{" "}
               <span className="font-semibold break-all text-foreground">
                 {folderToDelete}

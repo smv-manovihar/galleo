@@ -40,6 +40,9 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
   const [animatingOutId, setAnimatingOutId] = useState<string | null>(null)
   const animationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  /** Undone items that should reappear at the front of the deck (most recent first) */
+  const [frontOfDeckIds, setFrontOfDeckIds] = useState<string[]>([])
+
   const [isProcessing, setIsProcessing] = useState(true)
   const [sortedItems, setSortedItems] = useState<MediaItem[]>([])
 
@@ -88,10 +91,24 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
     [undoStack]
   )
 
-  const unreviewedItems = useMemo(
-    () => filteredItems.filter((item) => !cullingDecisionIds.has(item.id)),
-    [filteredItems, cullingDecisionIds]
-  )
+  const unreviewedItems = useMemo(() => {
+    const pending = filteredItems.filter(
+      (item) => !cullingDecisionIds.has(item.id)
+    )
+    const byId = new Map(pending.map((item) => [item.id, item]))
+    const front = frontOfDeckIds
+      .map((id) => byId.get(id))
+      .filter((item): item is MediaItem => item !== undefined)
+    const frontIds = new Set(front.map((item) => item.id))
+    return [...front, ...pending.filter((item) => !frontIds.has(item.id))]
+  }, [filteredItems, cullingDecisionIds, frontOfDeckIds])
+
+  const bringToFront = (mediaId: string) => {
+    setFrontOfDeckIds((prev) => [
+      mediaId,
+      ...prev.filter((id) => id !== mediaId),
+    ])
+  }
 
   const currentItem = unreviewedItems.length > 0 ? unreviewedItems[0] : null
 
@@ -133,27 +150,32 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
   const handleUndo = async () => {
     setIsVideoPlaying(false)
 
+    const cullingActions = undoStack.filter(
+      (a) => a.newState.source === "culling"
+    )
+    const lastAction = cullingActions[cullingActions.length - 1]
+
     if (animationTimerRef.current) {
       // Decision was already committed — cancel animation and undo it
       clearTimeout(animationTimerRef.current)
       animationTimerRef.current = null
       setAnimatingOutId(null)
       setSwipeClass("")
-      await undo("culling")
+      const success = await undo("culling")
+      if (success && lastAction) {
+        bringToFront(lastAction.mediaId)
+      }
       return
     }
 
-    const cullingActions = undoStack.filter(
-      (a) => a.newState.source === "culling"
-    )
-    if (cullingActions.length === 0) return
+    if (!lastAction) return
 
-    const lastAction = cullingActions[cullingActions.length - 1]
     const direction = lastAction.type === "mark-keep" ? "right" : "left"
 
     const success = await undo("culling")
     if (success) {
       setRestoringItem({ id: lastAction.mediaId, direction })
+      bringToFront(lastAction.mediaId)
     }
   }
 
@@ -286,7 +308,7 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
             <div className="relative flex h-64 w-80 max-w-full items-center justify-center rounded-2xl border border-border/40 bg-card/30 backdrop-blur-md shadow-inner">
               <Loader2 className="h-7 w-7 animate-spin text-primary/70" />
             </div>
-            <span className="text-2xs font-medium tracking-wide text-muted-foreground/80">
+            <span className="text-xs font-medium tracking-wide text-muted-foreground/80">
               Preparing media deck...
             </span>
           </div>

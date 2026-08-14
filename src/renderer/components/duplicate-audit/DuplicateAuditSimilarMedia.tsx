@@ -19,7 +19,6 @@ import { MediaPreview } from "../media/MediaPreview"
 import { MediaInfoDialog } from "../media/MediaInfoDialog"
 import { Progress } from "@/components/ui/progress"
 import { useSessionStore } from "../../stores/session-store"
-import { useMediaStore } from "../../stores/media-store"
 import {
   DuplicateAuditHistoryDialog,
   type DuplicateAuditHistoryDialogItem,
@@ -30,7 +29,9 @@ interface DuplicateAuditSimilarMediaProps {
   items: MediaItem[]
   onComplete?: () => void
   activeGroupIndex: number
-  onGroupIndexChange: (index: number) => void
+  onGroupIndexChange: (
+    indexOrUpdater: number | ((prev: number) => number)
+  ) => void
 }
 
 export const DuplicateAuditSimilarMedia: React.FC<
@@ -69,16 +70,15 @@ export const DuplicateAuditSimilarMedia: React.FC<
   const [infoItem, setInfoItem] = useState<MediaItem | null>(null)
   const [autoPlay, setAutoPlay] = useState(false)
 
-  // Local undo stack — isolated from the swipe-review session store stack
-  interface LocalUndoEntry {
-    mediaId: string
-    name: string
-    previousState: "keep" | "delete" | "pending"
-    batchId?: string
-  }
-  const [localUndoStack, setLocalUndoStack] = useState<LocalUndoEntry[]>([])
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false)
+  const decisions = useSessionStore((state) => state.decisions)
+  const undoStack = useSessionStore((state) => state.undoStack)
 
+  const duplicateUndoStack = useMemo(
+    () => undoStack.filter((a) => a.newState.source === "duplicates"),
+    [undoStack]
+  )
+
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false)
   const [temporaryDecisions, setTemporaryDecisions] = useState<
     Record<string, "keep" | "delete">
   >({})
@@ -111,12 +111,11 @@ export const DuplicateAuditSimilarMedia: React.FC<
     return best
   }, [])
 
-  const decisions = useSessionStore((state) => state.decisions)
-  const checkpoint = useSessionStore((state) => state.checkpoint)
-
-  // Calculate default recommendations or load committed decisions for the current group
-  const currentGroupId = currentGroup ? currentGroup.map((i) => i.id).join(",") : null
-  const [prevGroupId, setPrevGroupId] = useState<string | null>(null)
+  // Stable id string — used as render-phase dep to detect group changes
+  const currentGroupId = useMemo(
+    () => (currentGroup ? currentGroup.map((i) => i.id).join(",") : null),
+    [currentGroup]
+  )
 
   const isAllReviewed = useMemo(() => {
     if (duplicateGroups.length === 0) return false
@@ -128,6 +127,11 @@ export const DuplicateAuditSimilarMedia: React.FC<
     )
   }, [duplicateGroups, decisions])
 
+  // Render-phase derived state: when the active group changes, re-initialise
+  // the local decision scratch-pad. React immediately discards the current
+  // render and re-runs with the new state — no DOM frame is painted in between.
+  // (useEffect with setState is blocked by react-hooks/set-state-in-effect.)
+  const [prevGroupId, setPrevGroupId] = useState<string | null>(null)
   if (currentGroupId !== prevGroupId) {
     setPrevGroupId(currentGroupId)
     if (!currentGroup) {
@@ -169,238 +173,47 @@ export const DuplicateAuditSimilarMedia: React.FC<
     [currentGroup, temporaryDecisions]
   )
 
-  const [lastFolderPath, setLastFolderPath] = useState<string | null>(null)
-  const [isInitialized, setIsInitialized] = useState(false)
-
-  if (checkpoint && checkpoint.folderPath !== lastFolderPath) {
-    setLastFolderPath(checkpoint.folderPath)
-    setIsInitialized(false)
-    if (localUndoStack.length > 0) setLocalUndoStack([])
-  }
-
-  if (checkpoint && !isInitialized && items.length > 0) {
-    setIsInitialized(true)
-    // Seed from the persisted undoStack, scoped to duplicate-source actions only.
-    // Using checkpoint.decisions would include culling/browse decisions (no source tag)
-    // and cause cross-source entries to appear in the duplicate history dialog.
-    const duplicateActions = checkpoint.undoStack.filter(
-      (a) => a.newState.source === "duplicates"
-    )
-    if (duplicateActions.length > 0) {
-      const initialStack: LocalUndoEntry[] = []
-      for (const action of duplicateActions) {
-        const item = items.find((i) => i.id === action.mediaId)
-        if (item) {
-          initialStack.push({
-            mediaId: action.mediaId,
-            name: item.name,
-            previousState: "pending",
-          })
-        }
-      }
-      if (initialStack.length > 0) setLocalUndoStack(initialStack)
-    }
-  }
-
-  // Map localUndoStack to standard HistoryDialogItem format
+  // Map duplicateUndoStack directly to HistoryDialog format
   const historyItems = useMemo<DuplicateAuditHistoryDialogItem[]>(() => {
-    return localUndoStack.map((entry, idx) => {
-      const item = items.find((i) => i.id === entry.mediaId)
-      const currentDecision = useSessionStore.getState().decisions[
-        entry.mediaId
-      ] as "keep" | "delete" | "pending"
+    return duplicateUndoStack.map((action, idx) => {
+      const item = items.find((i) => i.id === action.mediaId)
+      const currentDecision = (decisions[action.mediaId] ?? "pending") as
+        | "keep"
+        | "delete"
+        | "pending"
       return {
-        id: `${entry.mediaId}-${idx}`,
-        mediaId: entry.mediaId,
-        name: entry.name,
+        id: `${action.id}-${idx}`,
+        mediaId: action.mediaId,
+        name: item?.name ?? action.mediaId,
         thumbnailPath: item?.thumbnailPath,
         path: item?.path ?? "",
-        currentDecision: (currentDecision === "pending"
-          ? "pending"
-          : currentDecision) as "keep" | "delete" | "pending",
+        currentDecision,
       }
     })
-  }, [localUndoStack, items])
+  }, [duplicateUndoStack, items, decisions])
 
   const handleUndo = useCallback(async () => {
-    if (localUndoStack.length === 0) return
-
-    let currentStack = [...localUndoStack]
-    const entriesToRevert: LocalUndoEntry[] = []
-    let targetIndex = -1
-
-    // Loop to discard auto-recommendations of the current group if they are at the top of the stack
-    while (currentStack.length > 0) {
-      const lastEntry = currentStack[currentStack.length - 1]
-      const batchId = lastEntry.batchId
-
-      let currentBatch: LocalUndoEntry[] = []
-      if (batchId) {
-        let idx = currentStack.length - 1
-        while (idx >= 0 && currentStack[idx].batchId === batchId) {
-          currentBatch.push(currentStack[idx])
-          idx--
-        }
-      } else {
-        currentBatch = [lastEntry]
-      }
-
-      // Check if this batch belongs to the current active group and is an auto-recommendation
-      const firstId = currentBatch[0].mediaId
-      const groupIndex = duplicateGroups.findIndex((group) =>
-        group.some((item) => item.id === firstId)
-      )
-
-      const isCurrentGroupAutoRecommend =
-        groupIndex === activeGroupIndex &&
-        batchId?.startsWith("auto_recommend_")
-
-      if (isCurrentGroupAutoRecommend) {
-        // Yes, it is the current group's auto-recommendation.
-        // We revert it to pending, pop it from stack, and continue to find the previous user decision.
-        entriesToRevert.push(...currentBatch)
-        currentStack = currentStack.slice(0, -currentBatch.length)
-      } else {
-        // This is the actual decision we want to undo!
-        entriesToRevert.push(...currentBatch)
-        currentStack = currentStack.slice(0, -currentBatch.length)
-        targetIndex = groupIndex
-        break // Stop loop, we found the user action to undo
-      }
-    }
-
-    if (entriesToRevert.length === 0) return
-
-    // Revert the decisions in session store and DB
     const store = useSessionStore.getState()
-    const checkpoint = store.checkpoint
-    if (!checkpoint) return
+    const dupActions = store.undoStack.filter(
+      (a) => a.newState.source === "duplicates"
+    )
+    if (dupActions.length === 0) return
 
-    const updatedDecisions = { ...store.decisions }
-    const reviewsToUpdate: { mediaId: string; state: "keep" | "delete" | "pending" }[] = []
-
-    for (const entry of entriesToRevert) {
-      if (entry.previousState === "pending") {
-        delete updatedDecisions[entry.mediaId]
-      } else {
-        updatedDecisions[entry.mediaId] = entry.previousState
-      }
-      reviewsToUpdate.push({
-        mediaId: entry.mediaId,
-        state: entry.previousState as "keep" | "delete" | "pending",
-      })
-    }
-
-    const updatedCheckpoint = {
-      ...checkpoint,
-      decisions: updatedDecisions,
-      savedAt: new Date().toISOString(),
-    }
-    useSessionStore.setState({
-      decisions: updatedDecisions,
-      checkpoint: updatedCheckpoint,
-    })
-    await window.api.saveSessionCheckpoint(updatedCheckpoint)
-    await window.api.updateReviews(checkpoint.sessionId, reviewsToUpdate)
-
-    // Update media store so cards re-render
-    const mediaStore = useMediaStore.getState()
-    useMediaStore.getState().setItems(
-      mediaStore.items.map((i) => {
-        const entry = entriesToRevert.find((e) => e.mediaId === i.id)
-        if (entry) {
-          return {
-            ...i,
-            reviewState: (entry.previousState === "pending"
-              ? "pending"
-              : entry.previousState) as "keep" | "delete" | "pending",
-          }
-        }
-        return i
-      })
+    // Find the target group index associated with the most recent duplicate action
+    const lastAction = dupActions[dupActions.length - 1]
+    const targetGroupIndex = duplicateGroups.findIndex((group) =>
+      group.some((item) => item.id === lastAction.mediaId)
     )
 
-    // Navigate to the target group
-    if (targetIndex !== -1) {
-      // Navigate to the target group
-      if (targetIndex !== activeGroupIndex) {
-        onGroupIndexChange(targetIndex)
-      }
+    const success = await store.undo("duplicates")
+    if (
+      success &&
+      targetGroupIndex !== -1 &&
+      targetGroupIndex !== activeGroupIndex
+    ) {
+      onGroupIndexChange(targetGroupIndex)
     }
-
-    setLocalUndoStack(currentStack)
-  }, [
-    localUndoStack,
-    duplicateGroups,
-    activeGroupIndex,
-    onGroupIndexChange,
-  ])
-
-  const handleBulkChangeDecisions = useCallback(
-    async (mediaIds: string[], newDecision: "keep" | "delete") => {
-      const store = useSessionStore.getState()
-      const checkpoint = store.checkpoint
-      if (!checkpoint) return
-
-      const updatedDecisions = { ...store.decisions }
-      const newUndoEntries: LocalUndoEntry[] = []
-      const batchId = `batch_${Date.now()}`
-      const updatedGroups = new Set<string>()
-
-      for (const mediaId of mediaIds) {
-        const item = items.find((i) => i.id === mediaId)
-        if (item) {
-          const currentDecision = (store.decisions[mediaId] ?? "pending") as
-            "keep" | "delete" | "pending"
-          newUndoEntries.push({
-            mediaId,
-            name: item.name,
-            previousState: currentDecision,
-            batchId,
-          })
-          updatedDecisions[mediaId] = newDecision
-          if (item.duplicateGroupId) {
-            updatedGroups.add(item.duplicateGroupId)
-          }
-        }
-      }
-
-      setLocalUndoStack((prev) => [...prev, ...newUndoEntries])
-
-      const updatedCheckpoint = {
-        ...checkpoint,
-        decisions: updatedDecisions,
-        savedAt: new Date().toISOString(),
-      }
-      useSessionStore.setState({
-        decisions: updatedDecisions,
-        checkpoint: updatedCheckpoint,
-      })
-      await window.api.saveSessionCheckpoint(updatedCheckpoint)
-
-      const reviewsToUpdate = mediaIds.map((mediaId) => ({
-        mediaId,
-        state: newDecision as "keep" | "delete" | "pending",
-      }))
-      await window.api.updateReviews(checkpoint.sessionId, reviewsToUpdate)
-
-      const mediaStore = useMediaStore.getState()
-      const mediaIdSet = new Set(mediaIds)
-      useMediaStore.setState({
-        items: mediaStore.items.map((i) =>
-          mediaIdSet.has(i.id) ? { ...i, reviewState: newDecision } : i
-        ),
-      })
-    },
-    [items]
-  )
-
-  const handleSingleAction = useCallback(
-    async (mediaId: string, newDecision: "keep" | "delete") => {
-      await handleBulkChangeDecisions([mediaId], newDecision)
-    },
-    [handleBulkChangeDecisions]
-  )
+  }, [duplicateGroups, activeGroupIndex, onGroupIndexChange])
 
   const commitGroupDecisions = useCallback(
     async (
@@ -408,59 +221,52 @@ export const DuplicateAuditSimilarMedia: React.FC<
       batchId: string
     ) => {
       const store = useSessionStore.getState()
-      const checkpoint = store.checkpoint
-      if (!checkpoint) return
-
-      const updatedDecisions = { ...store.decisions }
-      const newUndoEntries: LocalUndoEntry[] = []
-      const reviewsToUpdate: { mediaId: string; state: "keep" | "delete" }[] = []
-
-      for (const [mediaId, decision] of Object.entries(decisionsToCommit)) {
-        const item = items.find((i) => i.id === mediaId)
-        if (item) {
+      const updates = Object.entries(decisionsToCommit).map(
+        ([mediaId, decision]) => {
           const currentDecision = (store.decisions[mediaId] ?? "pending") as
-            "keep" | "delete" | "pending"
-          newUndoEntries.push({
+            | "keep"
+            | "delete"
+            | "pending"
+          return {
             mediaId,
-            name: item.name,
-            previousState: currentDecision,
-            batchId,
-          })
-          updatedDecisions[mediaId] = decision
-          reviewsToUpdate.push({ mediaId, state: decision })
-        }
-      }
-
-      setLocalUndoStack((prev) => [...prev, ...newUndoEntries])
-
-      const updatedCheckpoint = {
-        ...checkpoint,
-        decisions: updatedDecisions,
-        savedAt: new Date().toISOString(),
-      }
-      useSessionStore.setState({
-        decisions: updatedDecisions,
-        checkpoint: updatedCheckpoint,
-      })
-      await window.api.saveSessionCheckpoint(updatedCheckpoint)
-      await window.api.updateReviews(checkpoint.sessionId, reviewsToUpdate)
-
-      const mediaStore = useMediaStore.getState()
-      useMediaStore.setState({
-        items: mediaStore.items.map((i) => {
-          if (decisionsToCommit[i.id]) {
-            return {
-              ...i,
-              reviewState: decisionsToCommit[i.id],
-            }
+            state: decision,
+            prevState: currentDecision,
           }
-          return i
-        }),
-      })
+        }
+      )
 
+      await store.submitBatchDecisions(updates, "duplicates", batchId)
       setIsCurrentGroupCommitted(true)
     },
-    [items]
+    []
+  )
+
+  const handleBulkChangeDecisions = useCallback(
+    async (mediaIds: string[], newDecision: "keep" | "delete") => {
+      const store = useSessionStore.getState()
+      const batchId = `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      const updates = mediaIds.map((mediaId) => {
+        const currentDecision = (store.decisions[mediaId] ?? "pending") as
+          | "keep"
+          | "delete"
+          | "pending"
+        return {
+          mediaId,
+          state: newDecision,
+          prevState: currentDecision,
+        }
+      })
+
+      await store.submitBatchDecisions(updates, "duplicates", batchId)
+    },
+    []
+  )
+
+  const handleSingleAction = useCallback(
+    async (mediaId: string, newDecision: "keep" | "delete") => {
+      await handleBulkChangeDecisions([mediaId], newDecision)
+    },
+    [handleBulkChangeDecisions]
   )
 
   const handleKeepBest = useCallback(async () => {
@@ -475,14 +281,15 @@ export const DuplicateAuditSimilarMedia: React.FC<
     }
 
     await commitGroupDecisions(newDecisions, batchId)
-    onGroupIndexChange(Math.min(duplicateGroups.length, activeGroupIndex + 1))
+    onGroupIndexChange((prev) =>
+      Math.min(duplicateGroups.length, prev + 1)
+    )
   }, [
     currentGroup,
     determineBestItem,
     commitGroupDecisions,
     onGroupIndexChange,
     duplicateGroups.length,
-    activeGroupIndex,
   ])
 
   const handleKeepAll = useCallback(async () => {
@@ -496,13 +303,14 @@ export const DuplicateAuditSimilarMedia: React.FC<
     }
 
     await commitGroupDecisions(newDecisions, batchId)
-    onGroupIndexChange(Math.min(duplicateGroups.length, activeGroupIndex + 1))
+    onGroupIndexChange((prev) =>
+      Math.min(duplicateGroups.length, prev + 1)
+    )
   }, [
     currentGroup,
     commitGroupDecisions,
     onGroupIndexChange,
     duplicateGroups.length,
-    activeGroupIndex,
   ])
 
   const handleDeleteAll = useCallback(async () => {
@@ -516,13 +324,14 @@ export const DuplicateAuditSimilarMedia: React.FC<
     }
 
     await commitGroupDecisions(newDecisions, batchId)
-    onGroupIndexChange(Math.min(duplicateGroups.length, activeGroupIndex + 1))
+    onGroupIndexChange((prev) =>
+      Math.min(duplicateGroups.length, prev + 1)
+    )
   }, [
     currentGroup,
     commitGroupDecisions,
     onGroupIndexChange,
     duplicateGroups.length,
-    activeGroupIndex,
   ])
 
   const nextGroup = useCallback(async () => {
@@ -531,7 +340,9 @@ export const DuplicateAuditSimilarMedia: React.FC<
       const batchId = `auto_recommend_${Date.now()}`
       await commitGroupDecisions(temporaryDecisions, batchId)
     }
-    onGroupIndexChange(Math.min(duplicateGroups.length, activeGroupIndex + 1))
+    onGroupIndexChange((prev) =>
+      Math.min(duplicateGroups.length, prev + 1)
+    )
   }, [
     currentGroup,
     isCurrentGroupCommitted,
@@ -539,7 +350,6 @@ export const DuplicateAuditSimilarMedia: React.FC<
     commitGroupDecisions,
     onGroupIndexChange,
     duplicateGroups.length,
-    activeGroupIndex,
   ])
 
   const prevGroup = useCallback(async () => {
@@ -548,14 +358,13 @@ export const DuplicateAuditSimilarMedia: React.FC<
       const batchId = `auto_recommend_${Date.now()}`
       await commitGroupDecisions(temporaryDecisions, batchId)
     }
-    onGroupIndexChange(Math.max(0, activeGroupIndex - 1))
+    onGroupIndexChange((prev) => Math.max(0, prev - 1))
   }, [
     currentGroup,
     isCurrentGroupCommitted,
     temporaryDecisions,
     commitGroupDecisions,
     onGroupIndexChange,
-    activeGroupIndex,
   ])
 
   const handleToggleKeep = useCallback(
@@ -805,7 +614,7 @@ export const DuplicateAuditSimilarMedia: React.FC<
             variant="outline"
             size="sm"
             onClick={onComplete}
-            className="h-5 cursor-pointer px-2 text-3xs font-semibold hover:bg-accent"
+            className="h-5 cursor-pointer px-2 text-xs font-semibold hover:bg-accent"
           >
             View Summary
           </Button>
@@ -817,7 +626,7 @@ export const DuplicateAuditSimilarMedia: React.FC<
         <div
           key={activeGroupIndex}
           className={cn(
-            "grid min-h-0 flex-1 gap-3 p-1.5 overflow-y-auto duration-200 ease-out animate-in fade-in-0",
+            "grid min-h-0 flex-1 gap-3 p-2 overflow-y-auto duration-200 ease-out animate-in fade-in-0",
             slideDirection === "right"
               ? "slide-in-from-right-6"
               : "slide-in-from-left-6"
@@ -826,36 +635,40 @@ export const DuplicateAuditSimilarMedia: React.FC<
             gridTemplateColumns: `repeat(${Math.min(3, currentGroup.length)}, minmax(0, 1fr))`,
           }}
         >
-          {currentGroup.map((item, idx) => {
+          {(() => {
+            // Hoist outside .map() — determineBestItem is O(N) and calling
+            // it inside the loop makes the block O(N²) per render.
             const dynamicBest = determineBestItem(currentGroup)
-            const isBest = dynamicBest && item.id === dynamicBest.id
-            const reviewState = getItemReviewState(item)
-            return (
-              <DuplicateAuditCard
-                key={item.id}
-                item={item}
-                isBest={!!isBest}
-                reviewState={reviewState}
-                isFocused={focusedCardIndex === idx}
-                onClick={() => handleToggleKeep(item.id)}
-                onPreview={(withAutoPlay) => openPreview(item, withAutoPlay)}
-                onInfoOpen={(item) => setInfoItem(item)}
-                onReviewAction={(id, state) => {
-                  const currentState = getItemReviewState(item)
-                  if (currentState !== state) {
-                    handleToggleKeep(id)
-                  }
-                }}
-              />
-            )
-          })}
+            return currentGroup.map((item, idx) => {
+              const isBest = dynamicBest && item.id === dynamicBest.id
+              const reviewState = getItemReviewState(item)
+              return (
+                <DuplicateAuditCard
+                  key={item.id}
+                  item={item}
+                  isBest={!!isBest}
+                  reviewState={reviewState}
+                  isFocused={focusedCardIndex === idx}
+                  onClick={() => handleToggleKeep(item.id)}
+                  onPreview={(withAutoPlay) => openPreview(item, withAutoPlay)}
+                  onInfoOpen={(item) => setInfoItem(item)}
+                  onReviewAction={(id, state) => {
+                    const currentState = getItemReviewState(item)
+                    if (currentState !== state) {
+                      handleToggleKeep(id)
+                    }
+                  }}
+                />
+              )
+            })
+          })()}
         </div>
       </div>
 
       {/* Control Toolbar */}
       <div className="flex h-12 shrink-0 items-center justify-between gap-4 rounded-lg border border-border bg-card/60 px-3 backdrop-blur-sm">
         {/* Left: Undo Controls */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -863,7 +676,7 @@ export const DuplicateAuditSimilarMedia: React.FC<
                 size="icon-lg"
                 className="text-muted-foreground hover:text-foreground"
                 onClick={handleUndo}
-                disabled={localUndoStack.length === 0}
+                disabled={duplicateUndoStack.length === 0}
               >
                 <Undo2 />
               </Button>
@@ -877,7 +690,7 @@ export const DuplicateAuditSimilarMedia: React.FC<
                 size="icon-lg"
                 className="text-muted-foreground hover:text-foreground"
                 onClick={() => setIsHistoryOpen(true)}
-                disabled={localUndoStack.length === 0}
+                disabled={duplicateUndoStack.length === 0}
               >
                 <History />
               </Button>
@@ -921,10 +734,10 @@ export const DuplicateAuditSimilarMedia: React.FC<
               <Button
                 variant="default"
                 size="lg"
-                className="gap-1.5"
+                className="gap-2"
                 onClick={handleKeepBest}
               >
-                <Sparkles className="h-3.5 w-3.5" />
+                <Sparkles className="size-4" />
                 Auto-Keep Best
               </Button>
             </TooltipTrigger>
@@ -936,7 +749,7 @@ export const DuplicateAuditSimilarMedia: React.FC<
         <div className="h-5 w-px bg-border" />
 
         {/* Right: Navigation */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button

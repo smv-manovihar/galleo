@@ -25,7 +25,7 @@ export const MediaCullingProgress: React.FC<MediaCullingProgressProps> = ({
     <div className="mx-auto w-full max-w-xl shrink-0 px-4 pb-6">
       {/* Progress & Toggle header */}
       <div className="min-w-0 flex-1 space-y-2">
-        <div className="flex items-center justify-between text-2xs font-semibold tracking-wider text-muted-foreground uppercase">
+        <div className="flex items-center justify-between text-xs font-semibold tracking-wider text-muted-foreground uppercase">
           <div className="flex items-center gap-1.5">
             <span>Progress</span>
             <span className="font-medium text-muted-foreground/60 normal-case">
@@ -36,7 +36,7 @@ export const MediaCullingProgress: React.FC<MediaCullingProgressProps> = ({
                 variant="outline"
                 size="sm"
                 onClick={onViewSummary}
-                className="ml-1.5 h-5 cursor-pointer px-2 text-3xs font-semibold normal-case hover:bg-accent"
+                className="ml-1.5 h-5 cursor-pointer px-2 text-xs font-semibold normal-case hover:bg-accent"
               >
                 View Summary
               </Button>
@@ -46,7 +46,7 @@ export const MediaCullingProgress: React.FC<MediaCullingProgressProps> = ({
           <div className="flex items-center gap-2 tracking-normal normal-case">
             <Label
               htmlFor="progress-cull-mode"
-              className="cursor-pointer text-3xs font-medium text-muted-foreground transition-colors select-none hover:text-foreground"
+              className="cursor-pointer text-xs font-medium text-muted-foreground transition-colors select-none hover:text-foreground"
             >
               Focus Low-Quality & Duplicates
             </Label>

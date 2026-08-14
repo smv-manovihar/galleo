@@ -5,6 +5,10 @@ import type {
 } from "../../shared/types/session"
 import { initDatabase } from "../infrastructure/database"
 
+function normalizeFolderPath(folderPath: string): string {
+  return folderPath.replace(/\\/g, "/").toLowerCase().replace(/\/+$/, "")
+}
+
 export class SessionRepository {
   private getDb(): Database {
     return initDatabase()
@@ -15,6 +19,11 @@ export class SessionRepository {
    */
   public saveCheckpoint(checkpoint: SessionCheckpoint): void {
     const db = this.getDb()
+    const folderNorm = normalizeFolderPath(checkpoint.folderPath)
+
+    const findOldSession = db.prepare(
+      "SELECT session_id FROM sessions WHERE LOWER(folder_path) = ?"
+    )
 
     const insertSession = db.prepare(`
       INSERT INTO sessions (session_id, folder_path, total_files, current_index, saved_at)
@@ -45,10 +54,19 @@ export class SessionRepository {
     `)
 
     const transaction = db.transaction((cp: SessionCheckpoint) => {
+      const oldRow = findOldSession.get(folderNorm) as
+        | { session_id: string }
+        | undefined
+
+      if (oldRow && oldRow.session_id !== cp.sessionId) {
+        clearDecisions.run(oldRow.session_id)
+        clearUndo.run(oldRow.session_id)
+      }
+
       // 1. Upsert core session record
       insertSession.run({
         sessionId: cp.sessionId,
-        folderPath: cp.folderPath,
+        folderPath: folderNorm,
         totalFiles: cp.totalFiles,
         currentIndex: cp.currentIndex,
         savedAt: cp.savedAt,
@@ -87,12 +105,12 @@ export class SessionRepository {
    */
   public getCheckpoint(folderPath: string): SessionCheckpoint | null {
     const db = this.getDb()
-    const folderLower = folderPath.toLowerCase()
+    const folderNorm = normalizeFolderPath(folderPath)
 
     const sessionStmt = db.prepare(
       "SELECT * FROM sessions WHERE LOWER(folder_path) = ?"
     )
-    const sessionRow = sessionStmt.get(folderLower) as
+    const sessionRow = sessionStmt.get(folderNorm) as
       | {
           session_id: string
           folder_path: string
@@ -158,14 +176,15 @@ export class SessionRepository {
    */
   public clearCheckpoint(folderPath: string): void {
     const db = this.getDb()
-    const folderLower = folderPath.toLowerCase()
+    const folderNorm = normalizeFolderPath(folderPath)
 
     // Find session_id first to let foreign keys cascade delete decisions & undo actions
     const sessionStmt = db.prepare(
       "SELECT session_id FROM sessions WHERE LOWER(folder_path) = ?"
     )
-    const sessionRow = sessionStmt.get(folderLower) as
-      { session_id: string } | undefined
+    const sessionRow = sessionStmt.get(folderNorm) as
+      | { session_id: string }
+      | undefined
 
     if (sessionRow) {
       const deleteSession = db.prepare(

@@ -37,7 +37,11 @@ export const MediaInfoDialog: React.FC<MediaInfoDialogProps> = ({
     filesystem: "File System",
   }
   const resolvedSourceLabel = sourceLabels[item.dateTargetSource] || "Resolved"
-  const exifDate = item.dateOriginal ? formatDate(item.dateOriginal) : "None"
+  const exifDate = item.dateOriginal
+    ? formatDate(item.dateOriginal)
+    : item.dateTargetSource === "exif"
+      ? formatDate(item.dateTarget)
+      : "None"
   const inferredDate = item.dateInferred
     ? formatDate(item.dateInferred)
     : item.dateTargetSource === "filename"
@@ -66,7 +70,7 @@ export const MediaInfoDialog: React.FC<MediaInfoDialogProps> = ({
             <FileImage className="h-4 w-4 shrink-0 text-primary" />
             {item.name}
           </DialogTitle>
-          <DialogDescription className="mt-0.5 truncate text-2xs text-muted-foreground">
+          <DialogDescription className="mt-1 truncate text-xs text-muted-foreground">
             {item.path}
           </DialogDescription>
         </DialogHeader>
@@ -79,7 +83,7 @@ export const MediaInfoDialog: React.FC<MediaInfoDialogProps> = ({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div
-                    className="max-w-44 cursor-pointer overflow-hidden text-right text-xs font-medium text-foreground"
+                    className="max-w-44 cursor-pointer overflow-hidden text-left text-xs font-medium text-foreground"
                     onClick={handleOpenFolder}
                   >
                     <div className="inline-block whitespace-nowrap animate-marquee-pingpong">
@@ -116,12 +120,12 @@ export const MediaInfoDialog: React.FC<MediaInfoDialogProps> = ({
 
           {/* Dates */}
           <div className="space-y-2 border-t border-border pt-3">
-            <h5 className="text-[0.6875rem] font-semibold tracking-wider text-muted-foreground uppercase">
+            <h5 className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
               Dates
             </h5>
             <div className="flex justify-between gap-2">
               <span className="flex items-center gap-1 font-semibold text-primary">
-                <Calendar className="h-3.5 w-3.5 text-primary" /> Resolved Date ({resolvedSourceLabel})
+                <Calendar className="size-4 text-primary" /> Resolved Date ({resolvedSourceLabel})
               </span>
               <span className="max-w-36 truncate font-bold text-primary">
                 {targetDate}
@@ -129,7 +133,7 @@ export const MediaInfoDialog: React.FC<MediaInfoDialogProps> = ({
             </div>
             <div className="flex justify-between gap-2">
               <span className="flex items-center gap-1 text-muted-foreground">
-                <Calendar className="h-3.5 w-3.5" /> EXIF Date
+                <Calendar className="size-4" /> EXIF Date
               </span>
               <span className="max-w-36 truncate font-medium text-foreground">
                 {exifDate}
@@ -137,7 +141,7 @@ export const MediaInfoDialog: React.FC<MediaInfoDialogProps> = ({
             </div>
             <div className="flex justify-between gap-2">
               <span className="flex items-center gap-1 text-muted-foreground">
-                <Calendar className="h-3.5 w-3.5" /> Filename Inferred Date
+                <Calendar className="size-4" /> Filename Inferred Date
               </span>
               <span className="max-w-36 truncate font-medium text-foreground">
                 {inferredDate}
@@ -145,7 +149,7 @@ export const MediaInfoDialog: React.FC<MediaInfoDialogProps> = ({
             </div>
             <div className="flex justify-between gap-2">
               <span className="flex items-center gap-1 text-muted-foreground">
-                <Calendar className="h-3.5 w-3.5" /> File System Created
+                <Calendar className="size-4" /> File System Created
               </span>
               <span className="max-w-36 truncate font-medium text-foreground">
                 {fsDate}
@@ -153,7 +157,7 @@ export const MediaInfoDialog: React.FC<MediaInfoDialogProps> = ({
             </div>
             <div className="flex justify-between gap-2">
               <span className="flex items-center gap-1 text-muted-foreground">
-                <Calendar className="h-3.5 w-3.5" /> File System Updated
+                <Calendar className="size-4" /> File System Updated
               </span>
               <span className="max-w-36 truncate font-medium text-foreground">
                 {item.dateModified ? formatDate(item.dateModified) : "None"}
@@ -164,7 +168,7 @@ export const MediaInfoDialog: React.FC<MediaInfoDialogProps> = ({
           {/* Quality details */}
           {hasQuality && (
             <div className="space-y-2 border-t border-border pt-3">
-              <h5 className="text-[0.6875rem] font-semibold tracking-wider text-muted-foreground uppercase">
+              <h5 className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                 Quality Indicators
               </h5>
               <div className="flex items-center justify-between">
@@ -175,7 +179,7 @@ export const MediaInfoDialog: React.FC<MediaInfoDialogProps> = ({
                       ? "destructive"
                       : "secondary"
                   }
-                  className="text-2xs font-bold"
+                  className="text-xs font-bold"
                 >
                   {item.quality!.compositeScore} / 100
                 </Badge>

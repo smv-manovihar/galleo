@@ -40,16 +40,16 @@ const MediaGridComponent: React.FC<MediaGridProps> = ({
   const [containerWidth, setContainerWidth] = useState(1000)
 
   const activeRootPath = useMediaStore((s) => s.activeRootPath)
-  const { settings } = useSettingsStore()
+  const folderRoots = useSettingsStore((s) => s.settings.folders.roots)
 
   const isScanned = useMemo(() => {
     if (!activeRootPath || activeRootPath === "all") {
-      return settings.folders.roots.some((r) => r.enabled && r.scanned)
+      return folderRoots.some((r) => r.enabled && r.scanned)
     }
-    return !!settings.folders.roots.find(
+    return !!folderRoots.find(
       (r) => r.path.toLowerCase() === activeRootPath.toLowerCase()
     )?.scanned
-  }, [activeRootPath, settings.folders.roots])
+  }, [activeRootPath, folderRoots])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -101,12 +101,12 @@ const MediaGridComponent: React.FC<MediaGridProps> = ({
           <>
             <FolderSearch className="h-8 w-8 text-amber-500/80 mb-1" />
             <span className="text-sm font-medium text-foreground">Folder not scanned</span>
-            <span className="mt-1 text-2xs text-muted-foreground">Use the Scan Folders button above to index media files.</span>
+            <span className="mt-1 text-xs text-muted-foreground">Use the Scan Folders button above to index media files.</span>
           </>
         ) : (
           <>
             <span className="text-sm font-medium text-foreground">No items match current filters</span>
-            <span className="mt-1 text-2xs text-muted-foreground">Try clearing filters or search terms.</span>
+            <span className="mt-1 text-xs text-muted-foreground">Try clearing filters or search terms.</span>
           </>
         )}
       </div>

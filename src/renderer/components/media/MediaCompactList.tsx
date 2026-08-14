@@ -106,7 +106,7 @@ export const MediaCompactList: React.FC<MediaCompactListProps> = ({
                 return (
                   <div
                     key={item.id}
-                    className={`group flex cursor-pointer items-center justify-between rounded-lg border p-1.5 text-[0.6875rem] transition-all duration-150 ${getBgColor()}`}
+                    className={`group flex cursor-pointer items-center justify-between rounded-lg border p-1.5 text-xs transition-all duration-150 ${getBgColor()}`}
                     onClick={(e) => onSelectToggle(item.id, e)}
                     onDoubleClick={() => onPreviewOpen(item)}
                   >
@@ -121,7 +121,7 @@ export const MediaCompactList: React.FC<MediaCompactListProps> = ({
                           onCheckedChange={() =>
                             onSelectToggle(item.id, { shiftKey: false } as unknown as React.MouseEvent)
                           }
-                          className="h-3.5 w-3.5 cursor-pointer border-border focus-visible:ring-1"
+                          className="size-4 cursor-pointer border-border focus-visible:ring-1"
                         />
                       </div>
 
@@ -131,19 +131,24 @@ export const MediaCompactList: React.FC<MediaCompactListProps> = ({
                           <img
                             src={`media:///${item.thumbnailPath.replace(/\\/g, "/")}`}
                             alt=""
+                            style={
+                              item.orientation
+                                ? { transform: `rotate(${item.orientation}deg)` }
+                                : undefined
+                            }
                             className="h-full w-full object-cover"
                             decoding="async"
                           />
                         ) : isVideo ? (
-                          <Play className="h-3.5 w-3.5 fill-current text-primary" />
+                          <Play className="size-4 fill-current text-primary" />
                         ) : (
-                          <FileImage className="h-3.5 w-3.5 text-muted-foreground" />
+                          <FileImage className="size-4 text-muted-foreground" />
                         )}
 
                         {/* Small play overlay on thumbnail */}
                         {isVideo && item.thumbnailPath && (
                           <div className="absolute inset-0 flex items-center justify-center bg-black/35">
-                            <Play className="h-2.5 w-2.5 fill-current text-white" />
+                            <Play className="size-3 fill-current text-white" />
                           </div>
                         )}
                       </div>
@@ -151,12 +156,12 @@ export const MediaCompactList: React.FC<MediaCompactListProps> = ({
                       {/* Filename & size info */}
                       <div className="flex min-w-0 flex-col leading-tight">
                         <span
-                          className="truncate text-2xs font-semibold text-foreground"
+                          className="truncate text-xs font-semibold text-foreground"
                           title={item.name}
                         >
                           {item.name}
                         </span>
-                        <span className="font-mono text-2xs text-muted-foreground">
+                        <span className="font-mono text-xs text-muted-foreground">
                           {formatBytes(item.size)}
                         </span>
                       </div>
@@ -170,13 +175,13 @@ export const MediaCompactList: React.FC<MediaCompactListProps> = ({
                       {/* Review status indicator dot */}
                       {item.reviewState === "keep" && (
                         <span
-                          className="h-1.5 w-1.5 rounded-full bg-green-500"
+                          className="size-2 rounded-full bg-green-500"
                           title="Marked to keep"
                         />
                       )}
                       {item.reviewState === "delete" && (
                         <span
-                          className="h-1.5 w-1.5 rounded-full bg-destructive"
+                          className="size-2 rounded-full bg-destructive"
                           title="Marked to delete"
                         />
                       )}
@@ -198,39 +203,39 @@ export const MediaCompactList: React.FC<MediaCompactListProps> = ({
                         >
                           <DropdownMenuItem
                             onClick={() => onPreviewOpen(item)}
-                            className="cursor-pointer gap-2.5"
+                            className="cursor-pointer gap-3"
                           >
-                            <Eye className="h-3.5 w-3.5" />
+                            <Eye className="size-4" />
                             Preview File
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             onClick={() => onReviewAction(item.id, "keep")}
-                            className="cursor-pointer gap-2.5 text-green-500 focus:text-green-500"
+                            className="cursor-pointer gap-3 text-green-500 focus:text-green-500"
                           >
-                            <Check className="h-3.5 w-3.5" />
+                            <Check className="size-4" />
                             Mark to Keep
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => onReviewAction(item.id, "delete")}
-                            className="cursor-pointer gap-2.5 text-destructive focus:text-destructive"
+                            className="cursor-pointer gap-3 text-destructive focus:text-destructive"
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            <Trash2 className="size-4" />
                             Mark to Delete
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             onClick={() => handleOpenFile(item.path)}
-                            className="cursor-pointer gap-2.5"
+                            className="cursor-pointer gap-3"
                           >
-                            <ExternalLink className="h-3.5 w-3.5" />
+                            <ExternalLink className="size-4" />
                             Open in default app
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => handleOpenFolder(item.path)}
-                            className="cursor-pointer gap-2.5"
+                            className="cursor-pointer gap-3"
                           >
-                            <FolderOpen className="h-3.5 w-3.5" />
+                            <FolderOpen className="size-4" />
                             Show in {getFileManagerName()}
                           </DropdownMenuItem>
                         </DropdownMenuContent>

@@ -1,7 +1,7 @@
 import { readExifMetadata } from "../infrastructure/exif-reader"
 import { readVideoMetadata } from "../infrastructure/video-processor"
 import { getFileSyncStats } from "../infrastructure/file-system"
-import { resolveTargetDate } from "../core/date-inference"
+import { parseExifDate, resolveTargetDate } from "../core/date-inference"
 import { extractDateFromFilename } from "../core/filename-parser"
 import { type Result, fail, ok } from "../../shared/types/results"
 import type { MediaItem, MediaType } from "../../shared/types/media"
@@ -60,11 +60,13 @@ export class MetadataService {
         fsMTime: stats.mtime,
       })
 
+      const parsedExif = dateOriginal ? parseExifDate(dateOriginal) : null
+
       return ok({
         width: width ?? undefined,
         height: height ?? undefined,
         duration: duration ?? undefined,
-        dateOriginal: dateOriginal ?? undefined,
+        dateOriginal: parsedExif ? parsedExif.toISOString() : undefined,
         dateInferred: inferredDateObj ? inferredDateObj.toISOString() : undefined,
         dateFileSystem: stats.birthtime, // birthtime represents creation
         dateTarget: dateRes.targetDate,

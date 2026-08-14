@@ -138,10 +138,10 @@ const DuplicateAuditGroupCard = React.memo<DuplicateAuditGroupCardProps>(
                         e.stopPropagation()
                         onResetOverride(group.groupIdx)
                       }}
-                      className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-600 transition-colors hover:bg-amber-500/20 dark:text-amber-400"
+                      className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-600 transition-colors hover:bg-amber-500/20 dark:text-amber-400"
                     >
                       <span>Manual selection</span>
-                      <X className="h-2.5 w-2.5" />
+                      <X className="size-3" />
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="top">
@@ -150,7 +150,7 @@ const DuplicateAuditGroupCard = React.memo<DuplicateAuditGroupCardProps>(
                 </Tooltip>
               )}
             </span>
-            <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-2xs font-semibold text-amber-600 select-text dark:bg-amber-500/20 dark:text-amber-400">
+            <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-600 select-text dark:bg-amber-500/20 dark:text-amber-400">
               Reclaiming {formatBytes(groupReclaimSize)}
             </span>
           </div>
@@ -158,8 +158,8 @@ const DuplicateAuditGroupCard = React.memo<DuplicateAuditGroupCardProps>(
           {/* Flat List */}
           <div className="flex flex-col divide-y divide-border/40">
             {/* Keep Row */}
-            <div className="relative flex items-center gap-2.5 bg-green-500/5 px-3 py-2">
-              <div className="absolute inset-y-0 left-0 w-[3px] bg-green-500/70" />
+            <div className="relative flex items-center gap-3 bg-green-500/5 px-3 py-2">
+              <div className="absolute inset-y-0 left-0 w-1 bg-green-500/70" />
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-green-500/20 text-green-700 dark:text-green-400">
@@ -174,11 +174,11 @@ const DuplicateAuditGroupCard = React.memo<DuplicateAuditGroupCardProps>(
                 <span className="truncate font-medium text-foreground">
                   {group.keep.name}
                 </span>
-                <span className="truncate text-2xs text-muted-foreground">
+                <span className="truncate text-xs text-muted-foreground">
                   {getDirPath(group.keep.path)}
                 </span>
               </div>
-              <div className="flex shrink-0 items-center gap-1.5">
+              <div className="flex shrink-0 items-center gap-2">
                 <span className="text-xs text-muted-foreground tabular-nums">
                   {formatBytes(group.keep.size)}
                 </span>
@@ -193,7 +193,7 @@ const DuplicateAuditGroupCard = React.memo<DuplicateAuditGroupCardProps>(
                         onPreviewItem(group.keep, allGroupItems)
                       }}
                     >
-                      <Eye className="h-3.5 w-3.5" />
+                      <Eye className="size-4" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="top">Preview file</TooltipContent>
@@ -206,18 +206,18 @@ const DuplicateAuditGroupCard = React.memo<DuplicateAuditGroupCardProps>(
               <div
                 key={item.id}
                 onClick={() => onSwapKeep(group.groupIdx, item.id)}
-                className="group/deleterow relative flex cursor-pointer items-center gap-2.5 bg-destructive/5 px-3 py-2 transition-all select-none hover:bg-amber-500/5"
+                className="group/deleterow relative flex cursor-pointer items-center gap-3 bg-destructive/5 px-3 py-2 transition-all select-none hover:bg-amber-500/5"
               >
-                <div className="absolute inset-y-0 left-0 w-[3px] bg-destructive/60 transition-colors group-hover/deleterow:bg-amber-500/60" />
+                <div className="absolute inset-y-0 left-0 w-1 bg-destructive/60 transition-colors group-hover/deleterow:bg-amber-500/60" />
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-destructive/15 text-destructive transition-colors group-hover/deleterow:bg-amber-500/20 group-hover/deleterow:text-amber-600">
                       <Trash2
-                        className="block h-2.5 w-2.5 group-hover/deleterow:hidden"
+                        className="block size-3 group-hover/deleterow:hidden"
                         strokeWidth={2.5}
                       />
                       <ArrowLeftRight
-                        className="hidden h-2.5 w-2.5 group-hover/deleterow:block"
+                        className="hidden size-3 group-hover/deleterow:block"
                         strokeWidth={2.5}
                       />
                     </div>
@@ -230,20 +230,20 @@ const DuplicateAuditGroupCard = React.memo<DuplicateAuditGroupCardProps>(
                   <span className="truncate text-foreground opacity-90 transition-colors group-hover/deleterow:text-amber-700 dark:group-hover/deleterow:text-amber-400">
                     {item.name}
                   </span>
-                  <span className="truncate text-2xs text-muted-foreground">
+                  <span className="truncate text-xs text-muted-foreground">
                     {getDirPath(item.path)}
                   </span>
                 </div>
 
                 {/* Centered Keep Indicator */}
                 <div className="pointer-events-none absolute top-1/2 left-1/2 z-10 -translate-x-1/2 -translate-y-1/2 opacity-0 transition-opacity group-hover/deleterow:opacity-100">
-                  <span className="flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-0.5 text-2xs font-semibold text-amber-600 shadow-sm backdrop-blur-xs dark:bg-amber-500/20 dark:text-amber-400">
+                  <span className="flex items-center gap-2 rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-0.5 text-xs font-semibold text-amber-600 shadow-sm backdrop-blur-xs dark:bg-amber-500/20 dark:text-amber-400">
                     <ArrowLeftRight className="h-3 w-3" />
                     Keep this copy instead
                   </span>
                 </div>
 
-                <div className="flex shrink-0 items-center gap-1.5">
+                <div className="flex shrink-0 items-center gap-2">
                   <span className="text-xs text-muted-foreground tabular-nums">
                     {formatBytes(item.size)}
                   </span>
@@ -258,7 +258,7 @@ const DuplicateAuditGroupCard = React.memo<DuplicateAuditGroupCardProps>(
                           onPreviewItem(item, allGroupItems)
                         }}
                       >
-                        <Eye className="h-3.5 w-3.5" />
+                        <Eye className="size-4" />
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="top">Preview file</TooltipContent>
@@ -299,7 +299,9 @@ export const DuplicateAuditExactDuplicates: React.FC<
   preferredDeleteFolderPaths,
   onStrategyChange,
 }) => {
-  const { startTrashingInBackground } = useSessionStore()
+  const startTrashingInBackground = useSessionStore(
+    (s) => s.startTrashingInBackground
+  )
   const [isCleaning, setIsCleaning] = useState(false)
   const [cleanSuccess, setCleanSuccess] = useState<string | null>(null)
 
@@ -543,17 +545,17 @@ export const DuplicateAuditExactDuplicates: React.FC<
               <h3 className="font-heading text-sm font-bold tracking-tight text-foreground">
                 Exact Duplicates Cleaned
               </h3>
-              <p className="text-2xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 No exact file matches remaining in this folder.
               </p>
             </div>
 
             {cleanSuccess ? (
-              <div className="w-full rounded-lg border border-green-500/30 bg-green-500/10 px-3.5 py-2.5 text-2xs font-medium text-green-700 dark:text-green-400">
+              <div className="w-full rounded-lg border border-green-500/30 bg-green-500/10 px-3.5 py-2.5 text-xs font-medium text-green-700 dark:text-green-400">
                 {cleanSuccess}
               </div>
             ) : (
-              <div className="w-full rounded-lg border border-border bg-muted/20 px-3.5 py-2.5 text-2xs text-muted-foreground">
+              <div className="w-full rounded-lg border border-border bg-muted/20 px-3.5 py-2.5 text-xs text-muted-foreground">
                 All exact file copies have been processed or resolved. You can switch to the <strong className="font-semibold text-foreground">Similar Media</strong> tab to review photos with visual differences.
               </div>
             )}
@@ -573,7 +575,7 @@ export const DuplicateAuditExactDuplicates: React.FC<
     <div className="relative flex h-full min-h-0 flex-col select-none">
       {/* Strategy pill selector */}
       <div className="-mt-3 mb-3 flex shrink-0 flex-wrap items-center gap-2 border-b border-border pb-3">
-        <span className="text-2xs font-medium text-muted-foreground">
+        <span className="text-xs font-medium text-muted-foreground">
           Auto-keep:
         </span>
         {STRATEGY_OPTIONS.map((opt) => (
@@ -581,7 +583,7 @@ export const DuplicateAuditExactDuplicates: React.FC<
             <TooltipTrigger asChild>
               <button
                 onClick={() => onStrategyChange(opt.value)}
-                className={`cursor-pointer rounded-full border px-2.5 py-0.5 text-2xs font-medium transition-colors ${
+                className={`cursor-pointer rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${
                   strategy === opt.value
                     ? "border-primary bg-primary text-primary-foreground"
                     : "border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -607,13 +609,13 @@ export const DuplicateAuditExactDuplicates: React.FC<
 
             return (
               <>
-                <div className="mx-1 h-3.5 w-px bg-border" />
+                <div className="mx-1 h-4 w-px bg-border" />
 
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
                       onClick={handleOpenDialog}
-                      className={`group flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-0.5 text-2xs font-medium transition-all duration-200 select-none ${
+                      className={`group flex cursor-pointer items-center gap-2 rounded-full border px-3 py-0.5 text-xs font-medium transition-all duration-200 select-none ${
                         hasActiveFolderRules
                           ? "border-primary/40 bg-primary/10 text-foreground shadow-2xs hover:border-primary/50 hover:bg-primary/15"
                           : "border-border/80 bg-muted/40 text-muted-foreground hover:border-border hover:bg-muted hover:text-foreground"
@@ -629,14 +631,14 @@ export const DuplicateAuditExactDuplicates: React.FC<
                       <span>Folder Rules</span>
 
                       {totalRuleCount > 0 && (
-                        <div className="ml-0.5 flex items-center gap-1">
+                        <div className="ml-1 flex items-center gap-1">
                           {keepCount > 0 && (
-                            <span className="inline-flex items-center rounded-full bg-emerald-500/15 px-1.5 py-0.2 text-[9px] font-bold text-emerald-600 dark:text-emerald-400">
+                            <span className="inline-flex items-center rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
                               {keepCount}
                             </span>
                           )}
                           {deleteCount > 0 && (
-                            <span className="inline-flex items-center rounded-full bg-destructive/15 px-1.5 py-0.2 text-[9px] font-bold text-destructive">
+                            <span className="inline-flex items-center rounded-full bg-destructive/15 px-2 py-0.5 text-xs font-bold text-destructive">
                               {deleteCount}
                             </span>
                           )}
@@ -673,38 +675,38 @@ export const DuplicateAuditExactDuplicates: React.FC<
                     type="button"
                     className="cursor-pointer text-muted-foreground hover:text-foreground"
                   >
-                    <Info className="h-3.5 w-3.5" />
+                    <Info className="size-4" />
                     <span className="sr-only">Folder rules info</span>
                   </button>
                 </PopoverTrigger>
                 <PopoverContent
                   side="bottom"
                   align="start"
-                  className="w-80 space-y-2 p-3.5 select-none"
+                  className="w-80 space-y-2 p-4 select-none"
                 >
                   <PopoverHeader>
-                    <PopoverTitle className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                      <Info className="h-3.5 w-3.5 text-sky-500" />
+                    <PopoverTitle className="flex items-center gap-2 text-xs font-semibold text-foreground">
+                      <Info className="size-4 text-sky-500" />
                       <span>How Folder Rules Work</span>
                     </PopoverTitle>
-                    <PopoverDescription className="text-2xs text-muted-foreground">
+                    <PopoverDescription className="text-xs text-muted-foreground">
                       Assign rules to folders to control automated duplicate
                       cleanup.
                     </PopoverDescription>
                   </PopoverHeader>
 
-                  <div className="space-y-1.5 border-t border-border/50 pt-1.5 text-2xs">
-                    <div className="flex items-start gap-1.5">
-                      <span className="mt-0.5 inline-block h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
+                  <div className="space-y-2 border-t border-border/50 pt-2 text-xs">
+                    <div className="flex items-start gap-2">
+                      <span className="mt-1 inline-block h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
                       <div>
                         <strong className="font-semibold text-foreground">
-                          Keep:
+                           Keep:
                         </strong>{" "}
                         Always preserves photos in this folder.
                       </div>
                     </div>
-                    <div className="flex items-start gap-1.5">
-                      <span className="mt-0.5 inline-block h-2 w-2 shrink-0 rounded-full bg-destructive" />
+                    <div className="flex items-start gap-2">
+                      <span className="mt-1 inline-block h-2 w-2 shrink-0 rounded-full bg-destructive" />
                       <div>
                         <strong className="font-semibold text-foreground">
                           Delete:
@@ -712,8 +714,8 @@ export const DuplicateAuditExactDuplicates: React.FC<
                         Always trashes photos in this folder.
                       </div>
                     </div>
-                    <div className="flex items-start gap-1.5">
-                      <span className="mt-0.5 inline-block h-2 w-2 shrink-0 rounded-full bg-muted-foreground/50" />
+                    <div className="flex items-start gap-2">
+                      <span className="mt-1 inline-block h-2 w-2 shrink-0 rounded-full bg-muted-foreground/50" />
                       <div>
                         <strong className="font-semibold text-foreground">
                           Default:
@@ -724,7 +726,7 @@ export const DuplicateAuditExactDuplicates: React.FC<
                     </div>
                   </div>
 
-                  <div className="border-t border-border/40 pt-1.5 text-2xs font-medium text-muted-foreground">
+                  <div className="border-t border-border/40 pt-2 text-xs font-medium text-muted-foreground">
                     Priority:{" "}
                     <span className="font-semibold text-emerald-600 dark:text-emerald-400">
                       Keep
@@ -741,7 +743,7 @@ export const DuplicateAuditExactDuplicates: React.FC<
                 </PopoverContent>
               </Popover>
             </div>
-            <DialogDescription className="text-2xs text-muted-foreground">
+            <DialogDescription className="text-xs text-muted-foreground">
               Set automatic Keep or Delete rules per folder. Folders set to
               Default will follow the baseline strategy.
             </DialogDescription>
@@ -750,12 +752,12 @@ export const DuplicateAuditExactDuplicates: React.FC<
 
 
           {/* Quick Filter Bar & Search */}
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/20 px-5 py-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/20 px-5 py-2">
             <div className="flex items-center gap-1 rounded-lg border border-border/80 bg-muted/50 p-0.5">
               <button
                 type="button"
                 onClick={() => setActiveFilter("all")}
-                className={`cursor-pointer rounded-md px-2.5 py-1 text-2xs font-semibold transition-colors ${
+                className={`cursor-pointer rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
                   activeFilter === "all"
                     ? "border border-border bg-background text-foreground shadow-2xs"
                     : "text-muted-foreground hover:text-foreground"
@@ -766,7 +768,7 @@ export const DuplicateAuditExactDuplicates: React.FC<
               <button
                 type="button"
                 onClick={() => setActiveFilter("keep")}
-                className={`flex cursor-pointer items-center gap-1 rounded-md px-2.5 py-1 text-2xs font-semibold transition-colors ${
+                className={`flex cursor-pointer items-center gap-1 rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
                   activeFilter === "keep"
                     ? "border border-emerald-500/30 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 shadow-2xs"
                     : "text-muted-foreground hover:text-foreground"
@@ -778,7 +780,7 @@ export const DuplicateAuditExactDuplicates: React.FC<
               <button
                 type="button"
                 onClick={() => setActiveFilter("delete")}
-                className={`flex cursor-pointer items-center gap-1 rounded-md px-2.5 py-1 text-2xs font-semibold transition-colors ${
+                className={`flex cursor-pointer items-center gap-1 rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
                   activeFilter === "delete"
                     ? "border border-destructive/30 bg-destructive/15 text-destructive shadow-2xs"
                     : "text-muted-foreground hover:text-foreground"
@@ -795,7 +797,7 @@ export const DuplicateAuditExactDuplicates: React.FC<
                 placeholder="Search folders..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-7 pl-7 text-2xs"
+                className="h-7 pl-7 text-xs"
               />
             </div>
           </div>
@@ -814,7 +816,7 @@ export const DuplicateAuditExactDuplicates: React.FC<
                 return (
                   <div
                     key={folder}
-                    className={`flex items-center justify-between gap-3 rounded-lg border p-2.5 text-xs transition-colors select-none ${
+                    className={`flex items-center justify-between gap-3 rounded-lg border p-3 text-xs transition-colors select-none ${
                       rule === "keep"
                         ? "border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10"
                         : rule === "delete"
@@ -822,7 +824,7 @@ export const DuplicateAuditExactDuplicates: React.FC<
                           : "border-border/60 bg-card hover:bg-muted/40"
                     }`}
                   >
-                    <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
                       <Folder
                         className={`h-4 w-4 shrink-0 ${
                           rule === "keep"
@@ -836,7 +838,7 @@ export const DuplicateAuditExactDuplicates: React.FC<
                         <span className="truncate font-medium text-foreground">
                           {folder}
                         </span>
-                        <span className="text-2xs text-muted-foreground">
+                        <span className="text-xs text-muted-foreground">
                           {count}{" "}
                           {count === 1 ? "duplicate file" : "duplicate files"}
                         </span>
@@ -848,33 +850,33 @@ export const DuplicateAuditExactDuplicates: React.FC<
                       <button
                         type="button"
                         onClick={() => setSingleFolderRule(folder, "keep")}
-                        className={`flex cursor-pointer items-center gap-1 rounded-md px-2.5 py-1 text-2xs font-semibold transition-all ${
+                        className={`flex cursor-pointer items-center gap-1 rounded-md px-3 py-1 text-xs font-semibold transition-all ${
                           rule === "keep"
                             ? "border border-emerald-500/40 bg-emerald-500/15 text-emerald-700 shadow-2xs dark:text-emerald-300"
                             : "text-muted-foreground hover:text-foreground"
                         }`}
                       >
-                        <Bookmark className="h-2.5 w-2.5 text-emerald-600 dark:text-emerald-400" />
+                        <Bookmark className="size-3 text-emerald-600 dark:text-emerald-400" />
                         <span>Keep</span>
                       </button>
 
                       <button
                         type="button"
                         onClick={() => setSingleFolderRule(folder, "delete")}
-                        className={`flex cursor-pointer items-center gap-1 rounded-md px-2.5 py-1 text-2xs font-semibold transition-all ${
+                        className={`flex cursor-pointer items-center gap-1 rounded-md px-3 py-1 text-xs font-semibold transition-all ${
                           rule === "delete"
                             ? "border border-destructive/40 bg-destructive/15 text-destructive shadow-2xs"
                             : "text-muted-foreground hover:text-foreground"
                         }`}
                       >
-                        <Trash2 className="h-2.5 w-2.5 text-destructive" />
+                        <Trash2 className="size-3 text-destructive" />
                         <span>Delete</span>
                       </button>
 
                       <button
                         type="button"
                         onClick={() => setSingleFolderRule(folder, "off")}
-                        className={`cursor-pointer rounded-md px-2 py-1 text-2xs font-medium transition-all ${
+                        className={`cursor-pointer rounded-md px-2 py-1 text-xs font-medium transition-all ${
                           rule === "off"
                             ? "border border-border bg-background text-foreground shadow-2xs"
                             : "text-muted-foreground/70 hover:text-foreground"
@@ -894,7 +896,7 @@ export const DuplicateAuditExactDuplicates: React.FC<
             <button
               type="button"
               onClick={() => setFolderRules({})}
-              className="cursor-pointer text-2xs text-muted-foreground underline hover:text-foreground"
+              className="cursor-pointer text-xs text-muted-foreground underline hover:text-foreground"
             >
               Clear all folder rules
             </button>
@@ -971,10 +973,10 @@ export const DuplicateAuditExactDuplicates: React.FC<
       <div className="absolute bottom-4 left-1/2 z-50 -translate-x-1/2">
         <div className="flex items-center gap-3 rounded-full border border-border bg-background/95 px-4 py-2 shadow-lg backdrop-blur-md">
           <div className="flex flex-col text-center leading-tight">
-            <span className="text-[13px] font-semibold text-foreground">
+            <span className="text-sm font-semibold text-foreground">
               {totalDeleteCount} files
             </span>
-            <span className="text-[10px] tracking-wide text-muted-foreground uppercase">
+            <span className="text-xs tracking-wide text-muted-foreground uppercase">
               {formatBytes(totalReclaimSize)} total
             </span>
           </div>
@@ -989,12 +991,12 @@ export const DuplicateAuditExactDuplicates: React.FC<
           >
             {isCleaning ? (
               <>
-                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                <Loader2 className="mr-2 size-4 animate-spin" />
                 Trashing...
               </>
             ) : (
               <>
-                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                <Trash2 className="mr-2 size-4" />
                 Trash All
               </>
             )}

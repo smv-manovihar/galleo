@@ -6,6 +6,11 @@ import { app } from "electron"
 import { type Result, fail, ok } from "../../shared/types/results"
 import { bmvbhash } from "blockhash-core"
 
+import {
+  IMAGE_THUMB_SUFFIX,
+  VIDEO_THUMB_SUFFIX,
+} from "../../shared/constants"
+
 // Bound Sharp native Libvips C++ memory pool to prevent excessive RAM accumulation while preserving file handle & buffer caching
 sharp.cache({ memory: 64, items: 100, files: 10 })
 
@@ -41,6 +46,48 @@ export function getThumbnailCacheDir(): string {
 }
 
 /**
+ * Purges old/stale version thumbnails for a given mediaId to prevent disk bloat.
+ */
+export async function purgeOldThumbnailVersions(
+  cacheDir: string,
+  mediaId: string,
+  currentFilename: string
+): Promise<void> {
+  try {
+    const files = await fs.readdir(cacheDir)
+    for (const file of files) {
+      if (
+        (file.startsWith(`${mediaId}_`) || file === `${mediaId}.webp`) &&
+        file.endsWith(".webp") &&
+        file !== currentFilename &&
+        !file.includes("_frame_")
+      ) {
+        try {
+          await fs.unlink(path.join(cacheDir, file))
+        } catch {
+          // ignore unlink error
+        }
+      }
+    }
+  } catch {
+    // ignore readdir error
+  }
+}
+
+/**
+ * Checks whether a cached thumbnail matches the current canonical format for its media type.
+ */
+export function isThumbnailCurrent(
+  thumbnailPath: string | null | undefined,
+  mediaType: "photo" | "video"
+): boolean {
+  if (!thumbnailPath) return false
+  const expectedSuffix =
+    mediaType === "video" ? VIDEO_THUMB_SUFFIX : IMAGE_THUMB_SUFFIX
+  return thumbnailPath.endsWith(expectedSuffix)
+}
+
+/**
  * Generates a thumbnail for the image using sharp and returns the cached path.
  */
 export async function generateImageThumbnail(
@@ -49,7 +96,8 @@ export async function generateImageThumbnail(
 ): Promise<Result<string>> {
   try {
     const cacheDir = getThumbnailCacheDir()
-    const thumbnailPath = path.join(cacheDir, `${mediaId}_v2.webp`)
+    const filename = `${mediaId}${IMAGE_THUMB_SUFFIX}`
+    const thumbnailPath = path.join(cacheDir, filename)
 
     // Check if thumbnail is already cached
     try {
@@ -59,8 +107,13 @@ export async function generateImageThumbnail(
       // ignore
     }
 
+    // Invalidate/purge any previous thumbnail versions for this mediaId
+    await purgeOldThumbnailVersions(cacheDir, mediaId, filename)
+
     // Resize image to 800x800 (high quality retina preview), keep aspect ratio, output as compressed webp
+    // .rotate() automatically auto-rotates the image based on EXIF orientation tag
     await sharp(imagePath)
+      .rotate()
       .resize({
         width: 800,
         height: 800,
@@ -264,7 +317,7 @@ export async function analyzeImage(
   imagePath: string
 ): Promise<Result<ImageAnalysisResult>> {
   try {
-    const img = sharp(imagePath)
+    const img = sharp(imagePath).rotate()
 
     const brightnessMetricsPromise = computeBrightnessMetrics(img)
     const blurScorePromise = computeBlurScore(img)

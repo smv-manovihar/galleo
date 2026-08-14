@@ -72,7 +72,7 @@ const MetricRow = ({
         </span>
       )}
       {isWarning ? (
-        <span className="flex items-center gap-1 rounded bg-rose-500/10 px-1.5 py-0.5 font-medium text-rose-500">
+        <span className="flex items-center gap-1 rounded bg-rose-500/10 px-2 py-0.5 font-medium text-rose-500">
           <AlertTriangle className="h-3 w-3" />
           {warningText}
         </span>
@@ -90,14 +90,17 @@ export const QualityScoreHoverCard: React.FC<QualityScoreHoverCardProps> = ({
   openDelay = 200,
   closeDelay = 150,
 }) => {
-  const { settings } = useSettingsStore()
+  const blurThreshold = useSettingsStore(
+    (s) => s.settings.quality?.blurThreshold ?? 30
+  )
+  const darknessThreshold = useSettingsStore(
+    (s) => s.settings.quality?.darknessThreshold ?? 50
+  )
 
   if (!item.quality) {
     return <>{children}</>
   }
 
-  const blurThreshold = settings?.quality?.blurThreshold ?? 30
-  const darknessThreshold = settings?.quality?.darknessThreshold ?? 50
   const grade = getQualityGrade(item.quality.compositeScore)
 
   return (

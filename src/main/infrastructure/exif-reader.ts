@@ -44,6 +44,14 @@ export async function readExifMetadata(
       dateOriginal = tags.image.DateTime.description
     }
 
+    // Extract EXIF Orientation
+    let orientation: number | undefined = undefined
+    if (tags.exif?.Orientation?.value) {
+      orientation = Number(tags.exif.Orientation.value)
+    } else if (tags.image?.Orientation?.value) {
+      orientation = Number(tags.image.Orientation.value)
+    }
+
     // Tier 1: EXIF pixel dimensions (JPEG/TIFF with full EXIF)
     if (tags.exif?.PixelXDimension)
       width = Number(tags.exif.PixelXDimension.value)
@@ -57,14 +65,22 @@ export async function readExifMetadata(
       height = Number(tags.file["Image Height"].value)
 
     // Tier 3: sharp reads the raw image header — covers PNG, WebP, GIF, BMP, AVIF, HEIC, etc.
-    if (!width || !height) {
+    if (!width || !height || !orientation) {
       try {
         const meta = await sharp(filePath).metadata()
         if (!width && meta.width && meta.width > 0) width = meta.width
         if (!height && meta.height && meta.height > 0) height = meta.height
+        if (!orientation && meta.orientation) orientation = meta.orientation
       } catch {
         // sharp failed too — leave as null
       }
+    }
+
+    // Account for EXIF rotation (orientations 5, 6, 7, 8 rotate 90 or 270 degrees)
+    if (orientation && orientation >= 5 && orientation <= 8 && width && height) {
+      const temp = width
+      width = height
+      height = temp
     }
 
     return ok({ dateOriginal, width, height })

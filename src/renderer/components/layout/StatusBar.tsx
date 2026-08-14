@@ -107,7 +107,7 @@ export const StatusBar: React.FC = () => {
         {/* Left: Library stats + review progress */}
         <div className="flex min-w-0 flex-1 items-center gap-4">
           <div className="flex items-center gap-2 truncate">
-            <HardDrive className="h-3.5 w-3.5 shrink-0" />
+            <HardDrive className="size-4 shrink-0" />
             <span>
               Library Size: {items.length} items ({formatBytes(totalBytes)})
             </span>
@@ -122,8 +122,8 @@ export const StatusBar: React.FC = () => {
             {aiIndexingProgress?.isIndexing && (
               <>
                 <span className="mx-2 text-muted-foreground/30">|</span>
-                <span className="flex items-center gap-1.5 font-medium text-amber-500">
-                  <Sparkles className="h-3.5 w-3.5 animate-pulse shrink-0" />
+                <span className="flex items-center gap-2 font-medium text-amber-500">
+                  <Sparkles className="size-4 animate-pulse shrink-0" />
                   AI Indexing: {aiIndexingProgress.processedCount}/{aiIndexingProgress.totalCount}
                 </span>
               </>
@@ -138,13 +138,13 @@ export const StatusBar: React.FC = () => {
               <Button
                 variant="destructive"
                 size="sm"
-                className="h-7 animate-in cursor-pointer gap-1.5 px-2.5 text-xs font-medium duration-200 fade-in"
+                className="h-7 animate-in cursor-pointer gap-2 px-3 text-xs font-medium duration-200 fade-in"
                 onClick={() => setShowConfirm(true)}
                 disabled={isCommitting}
               >
-                <ListX className="h-3.5 w-3.5" />
+                <ListX className="size-4" />
                 {isCommitting ? "Committing…" : "Commit"}
-                <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-white/20 px-1 text-2xs font-semibold tabular-nums">
+                <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-white/20 px-1 text-xs font-semibold tabular-nums">
                   {deleteDetails.count}
                 </span>
               </Button>
@@ -164,13 +164,13 @@ export const StatusBar: React.FC = () => {
           <AlertDialogHeader className="border-b border-border/60 pb-3">
             <div className="flex items-center gap-3 text-left">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-destructive/20 bg-destructive/10 text-destructive">
-                <ListX className="h-4.5 w-4.5 text-destructive" />
+                <ListX className="size-5 text-destructive" />
               </div>
               <div className="min-w-0 flex-1">
                 <AlertDialogTitle className="text-sm font-bold text-foreground">
                   Commit Marked Deletions
                 </AlertDialogTitle>
-                <AlertDialogDescription className="mt-0.5 text-2xs text-muted-foreground">
+                <AlertDialogDescription className="mt-1 text-xs text-muted-foreground">
                   Confirm moving marked files to system trash.
                 </AlertDialogDescription>
               </div>
@@ -179,8 +179,8 @@ export const StatusBar: React.FC = () => {
 
           {/* Metric Summary Tiles */}
           <div className="my-1 grid grid-cols-2 gap-3">
-            <div className="space-y-0.5 rounded-xl border border-destructive/15 bg-destructive/5 p-3">
-              <div className="flex items-center gap-1.5 text-2xs font-semibold tracking-wider text-destructive/80 uppercase">
+            <div className="space-y-1 rounded-xl border border-destructive/15 bg-destructive/5 p-3">
+              <div className="flex items-center gap-2 text-xs font-semibold tracking-wider text-destructive/80 uppercase">
                 <Trash2 className="h-3 w-3 shrink-0 text-destructive" />
                 <span>Files to Delete</span>
               </div>
@@ -192,8 +192,8 @@ export const StatusBar: React.FC = () => {
               </div>
             </div>
 
-            <div className="space-y-0.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
-              <div className="flex items-center gap-1.5 text-2xs font-semibold tracking-wider text-emerald-700 uppercase dark:text-emerald-300">
+            <div className="space-y-1 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
+              <div className="flex items-center gap-2 text-xs font-semibold tracking-wider text-emerald-700 uppercase dark:text-emerald-300">
                 <HardDrive className="h-3 w-3 shrink-0 text-emerald-500" />
                 <span>To be Freed</span>
               </div>
@@ -205,30 +205,30 @@ export const StatusBar: React.FC = () => {
 
           {/* Folder Breakdown List */}
           {deleteDetails.folderBreakdown.length > 0 && (
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <div className="flex items-center justify-between px-0.5">
-                <span className="text-2xs font-semibold tracking-wider text-muted-foreground uppercase">
+                <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                   Affected Directories
                 </span>
-                <span className="text-2xs text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   {deleteDetails.folderBreakdown.length} folder
                   {deleteDetails.folderBreakdown.length !== 1 ? "s" : ""}
                 </span>
               </div>
 
-              <div className="max-h-44 scrollbar-thin space-y-1.5 overflow-y-auto rounded-lg pr-1">
+              <div className="max-h-44 scrollbar-thin space-y-2 overflow-y-auto rounded-lg pr-1">
                 {deleteDetails.folderBreakdown.map((folder) => (
                   <div
                     key={folder.path}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/10 p-2.5 transition-colors hover:bg-muted/20"
+                    className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/10 p-3 transition-colors hover:bg-muted/20"
                   >
-                    <div className="min-w-0 flex-1 space-y-0.5">
-                      <div className="flex items-center gap-1.5 truncate text-xs font-semibold text-foreground">
-                        <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex items-center gap-2 truncate text-xs font-semibold text-foreground">
+                        <Folder className="size-4 shrink-0 text-muted-foreground" />
                         <span className="truncate">{folder.folderName}</span>
                       </div>
                       <span
-                        className="block truncate text-2xs text-muted-foreground"
+                        className="block truncate text-xs text-muted-foreground"
                         title={folder.path}
                       >
                         {folder.path}
@@ -239,7 +239,7 @@ export const StatusBar: React.FC = () => {
                       <span className="block text-xs font-semibold text-destructive tabular-nums">
                         {folder.count} {folder.count === 1 ? "file" : "files"}
                       </span>
-                      <span className="block text-2xs text-muted-foreground tabular-nums">
+                      <span className="block text-xs text-muted-foreground tabular-nums">
                         {formatBytes(folder.size)}
                       </span>
                     </div>
@@ -250,7 +250,7 @@ export const StatusBar: React.FC = () => {
           )}
 
           {/* Safety Notice */}
-          <div className="flex items-center gap-2 rounded-lg border border-border/40 bg-muted/20 p-2.5 text-2xs text-muted-foreground">
+          <div className="flex items-center gap-2 rounded-lg border border-border/40 bg-muted/20 p-3 text-xs text-muted-foreground">
             <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-500" />
             <span>Files move to system trash (recoverable).</span>
           </div>
@@ -267,16 +267,16 @@ export const StatusBar: React.FC = () => {
               variant="destructive"
               disabled={isCommitting}
               onClick={handleCommit}
-              className="h-8 cursor-pointer gap-1.5 rounded-lg text-xs font-semibold"
+              className="h-8 cursor-pointer gap-2 rounded-lg text-xs font-semibold"
             >
               {isCommitting ? (
                 <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <Loader2 className="size-4 animate-spin" />
                   Moving to Trash…
                 </>
               ) : (
                 <>
-                  <ListX className="h-3.5 w-3.5" />
+                  <ListX className="size-4" />
                   Move {deleteDetails.count} Files to Trash
                 </>
               )}

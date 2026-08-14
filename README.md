@@ -1,6 +1,6 @@
 # Galleo
 
-A desktop app for cleaning up and organizing local photo and video libraries. Scan folders on your machine, surface low-quality and duplicate files, review them in a focused workflow, and sort media into date-based folder structures — all offline, with no cloud upload.
+A desktop app for cleaning up and organizing local photo and video libraries. Scan folders on your machine, surface low-quality and duplicate files, review them in a focused workflow, and sort media into date-based folder structures, all offline with no cloud upload.
 
 ## Features
 ### Smart library scanning & cache sync
@@ -17,12 +17,12 @@ A desktop app for cleaning up and organizing local photo and video libraries. Sc
 
 Automatically flags low-value or clutter media:
 
-- **Blurry** — perceptual sharpness scoring via image analysis.
-- **Dark** — average brightness below a configurable threshold.
-- **Low resolution** — below minimum pixel bounds or very small files.
-- **Screenshots** — filename heuristics (e.g. `screenshot`, `capture`, `ss_`).
-- **Duplicates (Perceptual & Exact)** — groups media using blockhash and Hamming distance. Differentiates between *pure exact duplicates* (same name and size) and *similar media* (perceptual variations).
-- **Quality scoring:** Files receive a composite quality score (0–100) for sorting and prioritization.
+- **Blurry:** Perceptual sharpness scoring via image analysis.
+- **Dark:** Average brightness below a configurable threshold.
+- **Low resolution:** Below minimum pixel bounds or very small files.
+- **Screenshots:** Filename heuristics (e.g. `screenshot`, `capture`, `ss_`).
+- **Duplicates (Perceptual & Exact):** Groups media using blockhash and Hamming distance. Differentiates between *pure exact duplicates* (same name and size) and *similar media* (perceptual variations).
+- **Quality scoring:** Files receive a composite quality score (0-100) for sorting and prioritization.
 
 ### Browse and filter
 
@@ -57,7 +57,7 @@ Automatically flags low-value or clutter media:
 
 ### Safety and privacy
 
-- All processing runs locally — no cloud or network calls for media files.
+- All processing runs locally with no cloud or network calls for media files.
 - Deletions are sent to the system Recycle Bin/Trash, an app-managed trash directory, or deleted permanently (configurable).
 - Optional confirmation dialogs for all destructive changes.
 
@@ -83,7 +83,7 @@ Automatically flags low-value or clutter media:
 
 ## Prerequisites
 
-- **Node.js** 20 or later (Node 24 recommended — matches `@types/node` in the project)
+- **Node.js** 20 or later (Node 24 recommended, matching `@types/node` in the project)
 - **pnpm** 9+
 - **Windows** is the primary packaging target (NSIS installer via electron-builder). Development on macOS/Linux should work for the Electron app, but installers are currently configured for Windows only.
 
@@ -103,7 +103,7 @@ pnpm install
 pnpm dev
 ```
 
-`pnpm dev` runs the Vite dev server and launches the Electron window. File-system access, folder pickers, and scanning require Electron — a browser-only preview shows a warning banner and cannot select folders.
+`pnpm dev` runs the Vite dev server and launches the Electron window. File-system access, folder pickers, and scanning require Electron; a browser-only preview shows a warning banner and cannot select folders.
 
 ## Scripts
 
@@ -152,10 +152,10 @@ src/
 
 The app follows a layered Electron architecture:
 
-1. **Renderer** — React pages and stores; communicates only through `window.api` (preload).
-2. **Preload** — Exposes a typed, sandboxed IPC API to the renderer.
-3. **Main process** — IPC handlers route to services; services call repositories and core logic.
-4. **Core** — Framework-agnostic algorithms (quality, duplicates, organization) covered by unit tests.
+1. **Renderer:** React pages and stores; communicates only through `window.api` (preload).
+2. **Preload:** Exposes a typed, sandboxed IPC API to the renderer.
+3. **Main process:** IPC handlers route to services; services call repositories and core logic.
+4. **Core:** Framework-agnostic algorithms (quality, duplicates, organization) covered by unit tests.
 
 Local media files are served to the renderer via a custom `media://` protocol registered in the main process.
 
@@ -163,12 +163,12 @@ Local media files are served to the renderer via a custom `media://` protocol re
 
 Settings are stored in SQLite and mirror the defaults in `src/shared/constants.ts`. Key areas:
 
-- **Folders** — root paths, destination, trash behavior
-- **Scanning** — depth, excludes, extension whitelist, size bounds
-- **Quality** — blur/darkness thresholds, duplicate hash distance, screenshot detection, minimum resolution
-- **Organization** — folder pattern tokens (`YYYY`, `MM`, `MMMM`, `DD`), conflict policy
-- **UI** — theme, font size, grid density, default view, review order
-- **Performance** — thumbnail cache size, batch size, concurrency limit
+- **Folders:** Root paths, destination, trash behavior
+- **Scanning:** Depth, excludes, extension whitelist, size bounds
+- **Quality:** Blur/darkness thresholds, duplicate hash distance, screenshot detection, minimum resolution
+- **Organization:** Folder pattern tokens (`YYYY`, `MM`, `MMMM`, `DD`), conflict policy
+- **UI:** Theme, font size, grid density, default view, review order
+- **Performance:** Thumbnail cache size, batch size, concurrency limit
 
 ## Testing
 
@@ -184,13 +184,18 @@ pnpm test
 - **Native rebuilds:** If native modules (such as `better-sqlite3`) fail after a Node or Electron version change, run `pnpm postinstall` to rebuild native dependencies matching Electron, or use `pnpm rebuild better-sqlite3 sharp ffmpeg-static` if rebuilding from source is specifically needed.
 - **UI components:** Add shadcn primitives with `npx shadcn@latest add <component>`. Components land in `src/components/ui/`.
 
-## Roadmap ideas
+## Roadmap
 
-This is early-stage software (`v0.2.0`). Planned direction:
+Galleo follows semantic versioning, with `v1.0.0` serving as the stable baseline for offline media scanning, duplicate auditing, culling, and date-based organization.
 
-- **AI assistant integration** — An embedded automation agent with tools to execute complex media library operations from natural language requests.
-- **Semantic search** — Local vector embedding index to search photos and videos using natural text descriptions.
-- **Object detection** — Object tag extraction to categorize media contents (e.g. food, beaches, documents).
-- **Local face grouping** — Face detection and clustering to identify and filter media by specific people.
-- **Geo-location map** — Interactive map interface grouping media by location using GPS metadata coordinates.
-- **Dedicated video quality scoring** — Frame-by-frame analysis to detect video corruption, audio static, or compression defects.
+### v1.x (Enhancements & Polish)
+
+- **Extended RAW/Camera format support:** Previews and metadata extraction for popular camera RAW files (CR2, NEF, ARW, DNG).
+- **Dedicated video quality scoring:** Frame-by-frame analysis to detect video corruption, audio issues, or compression artifacts.
+
+### v2.0 (Visual Intelligence Release)
+
+- **Local Semantic Indexing & Search:** Natural language search across photos and video keyframes powered by lightweight local SigLIP ONNX vector embeddings (100% offline).
+- **Visual Concept & Scene Tagging:** Automatic offline scene and object classification (e.g. receipts, beaches, documents, pets).
+- **Local Face Grouping:** Private, on-device facial clustering to organize media by people without cloud processing.
+- **Geo-Location Map:** Interactive map view grouping media by GPS metadata coordinates.

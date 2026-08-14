@@ -7,36 +7,24 @@ import React, {
   forwardRef,
   useMemo,
 } from "react"
-import {
-  Play,
-  Pause,
-  Volume2,
-  VolumeX,
-  Maximize,
-  Minimize,
-  RotateCcw,
-  RotateCw,
-  RefreshCw,
-  RefreshCcw,
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Slider } from "@/components/ui/slider"
-import {
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-} from "@/components/ui/tooltip"
-import {
-  HoverCard,
-  HoverCardTrigger,
-  HoverCardContent,
-} from "@/components/ui/hover-card"
 import { storage } from "../../lib/storage"
+import { useMediaStore } from "../../stores/media-store"
+import { VideoCenterPlayButton } from "./video/VideoCenterPlayButton"
+import { VideoControlsBar } from "./video/VideoControlsBar"
+import { PLAYBACK_SPEEDS, type TimeUpdateSubscriber } from "./video/video-constants"
 
-interface VideoPlayerProps {
+export interface VideoPlayerProps {
   src: string
   poster?: string
   className?: string
+  /** Media item id for database updates */
+  mediaId?: string
+  /** Controlled rotation in degrees (0, 90, 180, 270) */
+  rotation?: number
+  /** Initial orientation in degrees (0, 90, 180, 270) */
+  initialRotation?: number
+  /** Callback fired when orientation is rotated */
+  onRotationChange?: (rotation: number) => void
   /** Hide the fullscreen button entirely (e.g. when parent provides its own) */
   hideFullscreen?: boolean
   /** When provided, the fullscreen button delegates to this callback instead of managing its own fullscreen */
@@ -49,6 +37,8 @@ interface VideoPlayerProps {
   autoPlay?: boolean
   /** Force the player container to fill its parent instead of sizing to the video's aspect ratio */
   fillContainer?: boolean
+  /** Ref to the transform wrapper element for zoom/pan */
+  transformRef?: React.Ref<HTMLDivElement>
 }
 
 export interface VideoPlayerRef {
@@ -56,12 +46,7 @@ export interface VideoPlayerRef {
   pause?: () => void
 }
 
-function formatTime(seconds: number): string {
-  if (!isFinite(seconds) || isNaN(seconds)) return "0:00"
-  const m = Math.floor(seconds / 60)
-  const s = Math.floor(seconds % 60)
-  return `${m}:${s.toString().padStart(2, "0")}`
-}
+const CONTAINER_STYLE: React.CSSProperties = { width: "100%", height: "100%" }
 
 export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
   (
@@ -69,57 +54,22 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       src,
       poster,
       className = "",
+      mediaId,
+      rotation: rotationProp,
+      initialRotation = 0,
+      onRotationChange,
       hideFullscreen = false,
       onFullscreenToggle,
       externalFullscreen,
       onPlayStateChange,
       autoPlay = false,
-      fillContainer = false,
+      transformRef,
     },
     ref
   ) => {
-    const videoRef = useRef<HTMLVideoElement>(null)
-    const containerRef = useRef<HTMLDivElement>(null)
-
-    useImperativeHandle(
-      ref,
-      () => ({
-        requestFullscreen: async () => {
-          if (containerRef.current?.requestFullscreen) {
-            await containerRef.current.requestFullscreen()
-          }
-        },
-        pause: () => {
-          if (videoRef.current) {
-            videoRef.current.pause()
-          }
-        },
-      }),
-      []
-    )
-    const [containerElement, setContainerElement] =
-      useState<HTMLDivElement | null>(null)
-    const [isNarrow, setIsNarrow] = useState(false)
-
-    useEffect(() => {
-      if (containerRef.current) {
-        setContainerElement(containerRef.current)
-
-        const observer = new ResizeObserver((entries) => {
-          for (const entry of entries) {
-            setIsNarrow(entry.contentRect.width < 450)
-          }
-        })
-        observer.observe(containerRef.current)
-        return () => observer.disconnect()
-      }
-    }, [])
-
+    // 1. State Hooks
     const [isPlaying, setIsPlaying] = useState(false)
-    const [isMuted, setIsMuted] = useState(() => {
-      const saved = storage.get("video_player_muted")
-      return saved === "true"
-    })
+    const [isMuted, setIsMuted] = useState(() => storage.get("video_player_muted") === "true")
     const [volume, setVolume] = useState(() => {
       const saved = storage.get("video_player_volume")
       if (saved !== null) {
@@ -130,48 +80,102 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       }
       return 1
     })
-
-    // Synchronize native video element volume & mute attributes with state
-    useEffect(() => {
-      if (videoRef.current) {
-        videoRef.current.volume = volume
-        videoRef.current.muted = isMuted
-      }
-    }, [volume, isMuted, src])
-
-    const [currentTime, setCurrentTime] = useState(0)
+    const [playbackRate, setPlaybackRate] = useState(1)
     const [duration, setDuration] = useState(0)
     const [internalFullscreen, setInternalFullscreen] = useState(false)
     const [showControls, setShowControls] = useState(true)
-    const [rotation, setRotation] = useState<number>(0)
+    const [isNarrow, setIsNarrow] = useState(false)
+    const [internalRotation, setInternalRotation] = useState<number>(
+      rotationProp !== undefined ? rotationProp : (initialRotation ?? 0)
+    )
     const [scale, setScale] = useState(1)
-    const [aspectRatio, setAspectRatio] = useState<number | null>(null)
 
-    // Use external fullscreen state if provided, otherwise fall back to internal
-    const isFullscreen =
-      externalFullscreen !== undefined ? externalFullscreen : internalFullscreen
+    // 2. Refs
+    const videoRef = useRef<HTMLVideoElement>(null)
+    const containerRef = useRef<HTMLDivElement>(null)
+    const timeSubscribersRef = useRef<Set<(cur: number, dur: number) => void>>(new Set())
+    const hideTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const clickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const lastClickTimeRef = useRef<number>(0)
+    const onPlayStateChangeRef = useRef(onPlayStateChange)
+    const onRotationChangeRef = useRef(onRotationChange)
+    const onFullscreenToggleRef = useRef(onFullscreenToggle)
 
+    // Latest state ref for stable event listeners
+    const stateRef = useRef({
+      volume,
+      isMuted,
+      duration,
+      playbackRate,
+      rotation: rotationProp !== undefined ? rotationProp : internalRotation,
+      isPlaying,
+      isFullscreen: externalFullscreen !== undefined ? externalFullscreen : internalFullscreen,
+    })
+
+    // Keep ref in sync
+    const rotation = rotationProp !== undefined ? rotationProp : internalRotation
+    const isFullscreen = externalFullscreen !== undefined ? externalFullscreen : internalFullscreen
+
+    useEffect(() => {
+      stateRef.current = {
+        volume,
+        isMuted,
+        duration,
+        playbackRate,
+        rotation,
+        isPlaying,
+        isFullscreen,
+      }
+    }, [volume, isMuted, duration, playbackRate, rotation, isPlaying, isFullscreen])
+
+    useEffect(() => {
+      onPlayStateChangeRef.current = onPlayStateChange
+      onRotationChangeRef.current = onRotationChange
+      onFullscreenToggleRef.current = onFullscreenToggle
+    }, [onPlayStateChange, onRotationChange, onFullscreenToggle])
+
+    useEffect(() => {
+      if (rotationProp !== undefined) {
+        setInternalRotation(rotationProp)
+      }
+    }, [rotationProp])
+
+    // 3. Time Subscription Hook
+    const subscribeTimeUpdate = useCallback<TimeUpdateSubscriber>((listener) => {
+      timeSubscribersRef.current.add(listener)
+      if (videoRef.current) {
+        listener(videoRef.current.currentTime, videoRef.current.duration || 0)
+      }
+      return () => {
+        timeSubscribersRef.current.delete(listener)
+      }
+    }, [])
+
+    const notifyTimeSubscribers = useCallback((cur: number, dur: number) => {
+      timeSubscribersRef.current.forEach((fn) => fn(cur, dur))
+    }, [])
+
+    // 4. Memoized Logic
     const isRotated90 = Math.abs((rotation / 90) % 2) === 1
 
-    const effectiveAspect = useMemo(() => {
-      if (!aspectRatio) return null
-      return isRotated90 ? 1 / aspectRatio : aspectRatio
-    }, [aspectRatio, isRotated90])
+    const safeSrc = useMemo(() => {
+      return src.startsWith("media:///") ? src : `media:///${src.replace(/\\/g, "/")}`
+    }, [src])
 
-    const containerStyle = useMemo<React.CSSProperties>(() => {
-      if (isFullscreen || fillContainer)
-        return { width: "100%", height: "100%" }
-      if (!effectiveAspect) return { width: "100%", height: "100%" }
+    const safePoster = useMemo(() => {
+      if (!poster) return undefined
+      return poster.startsWith("media:///") ? poster : `media:///${poster.replace(/\\/g, "/")}`
+    }, [poster])
 
+    const videoStyle = useMemo<React.CSSProperties>(() => {
       return {
-        width: "auto",
-        height: "100%",
-        maxWidth: "100%",
-        maxHeight: "100%",
-        aspectRatio: `${effectiveAspect}`,
+        transform: `rotate(${rotation}deg) scale(${scale})`,
+        transition: "transform 300ms cubic-bezier(0.4, 0, 0.2, 1)",
+        touchAction: "manipulation",
       }
-    }, [effectiveAspect, isFullscreen, fillContainer])
+    }, [rotation, scale])
 
+    // 5. Scale calculation
     const calculateScale = useCallback(() => {
       if (!videoRef.current || !containerRef.current || !isRotated90) {
         setScale(1)
@@ -191,7 +195,6 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       }
     }, [isRotated90])
 
-    // Recalculate scale on rotation, mount, or window resize
     useEffect(() => {
       calculateScale()
     }, [rotation, calculateScale])
@@ -202,20 +205,21 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       return () => window.removeEventListener("resize", handleResize)
     }, [calculateScale])
 
-    const hideTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const clickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const lastClickTimeRef = useRef<number>(0)
+    // 6. ResizeObserver for Narrow breakpoint
+    useEffect(() => {
+      const el = containerRef.current
+      if (!el) return
 
-    // Accept pre-formatted media:/// URLs or raw OS paths
-    const safeSrc = src.startsWith("media:///")
-      ? src
-      : `media:///${src.replace(/\\/g, "/")}`
-    const safePoster = !poster
-      ? undefined
-      : poster.startsWith("media:///")
-        ? poster
-        : `media:///${poster.replace(/\\/g, "/")}`
+      const observer = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          setIsNarrow(entry.contentRect.width < 450)
+        }
+      })
+      observer.observe(el)
+      return () => observer.disconnect()
+    }, [])
 
+    // 7. Auto-hide timer for controls
     const resetHideTimer = useCallback(() => {
       setShowControls(true)
       if (hideTimeout.current) clearTimeout(hideTimeout.current)
@@ -224,19 +228,205 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       }, 2500)
     }, [])
 
-    const onPlayStateChangeRef = useRef(onPlayStateChange)
-    useEffect(() => {
-      onPlayStateChangeRef.current = onPlayStateChange
-    })
+    // 8. Callbacks
+    const toggleFullscreen = useCallback(async () => {
+      if (onFullscreenToggleRef.current) {
+        onFullscreenToggleRef.current()
+        return
+      }
+      if (!containerRef.current) return
+      try {
+        if (!document.fullscreenElement) {
+          await containerRef.current.requestFullscreen()
+          setInternalFullscreen(true)
+        } else {
+          await document.exitFullscreen()
+          setInternalFullscreen(false)
+        }
+      } catch (err) {
+        console.error("Failed to toggle fullscreen:", err)
+      }
+    }, [])
 
-    // Reset player state when source changes to prevent state desync across files
+    useImperativeHandle(
+      ref,
+      () => ({
+        requestFullscreen: async () => {
+          await toggleFullscreen()
+        },
+        pause: () => {
+          if (videoRef.current) {
+            videoRef.current.pause()
+          }
+        },
+      }),
+      [toggleFullscreen]
+    )
+
+    const handleVolumeUpdate = useCallback((newVol: number, nextMuted: boolean) => {
+      if (videoRef.current) {
+        videoRef.current.volume = newVol
+        videoRef.current.muted = nextMuted
+      }
+      setVolume(newVol)
+      setIsMuted(nextMuted)
+      storage.set("video_player_volume", newVol.toString())
+      storage.set("video_player_muted", nextMuted ? "true" : "false")
+    }, [])
+
+    const toggleMute = useCallback(() => {
+      const { isMuted: currentlyMuted, volume: currentVol } = stateRef.current
+      if (currentlyMuted || currentVol === 0) {
+        const restoredVol = currentVol > 0 ? currentVol : 0.5
+        handleVolumeUpdate(restoredVol, false)
+      } else {
+        handleVolumeUpdate(currentVol, true)
+      }
+      resetHideTimer()
+    }, [handleVolumeUpdate, resetHideTimer])
+
+    const changePlaybackRate = useCallback(
+      (newRate: number) => {
+        setPlaybackRate(newRate)
+        if (videoRef.current) {
+          videoRef.current.playbackRate = newRate
+        }
+        resetHideTimer()
+      },
+      [resetHideTimer]
+    )
+
+    const increaseSpeed = useCallback(() => {
+      const currentRate = stateRef.current.playbackRate
+      const currIdx = PLAYBACK_SPEEDS.indexOf(currentRate as (typeof PLAYBACK_SPEEDS)[number])
+      if (currIdx !== -1 && currIdx < PLAYBACK_SPEEDS.length - 1) {
+        changePlaybackRate(PLAYBACK_SPEEDS[currIdx + 1])
+      } else if (currIdx === -1) {
+        const next = PLAYBACK_SPEEDS.find((r) => r > currentRate) || 2
+        changePlaybackRate(next)
+      }
+    }, [changePlaybackRate])
+
+    const decreaseSpeed = useCallback(() => {
+      const currentRate = stateRef.current.playbackRate
+      const currIdx = PLAYBACK_SPEEDS.indexOf(currentRate as (typeof PLAYBACK_SPEEDS)[number])
+      if (currIdx > 0) {
+        changePlaybackRate(PLAYBACK_SPEEDS[currIdx - 1])
+      } else if (currIdx === -1) {
+        const prev = [...PLAYBACK_SPEEDS].reverse().find((r) => r < currentRate) || 0.25
+        changePlaybackRate(prev)
+      }
+    }, [changePlaybackRate])
+
+    const handleRotationUpdate = useCallback(
+      (newRot: number) => {
+        const norm = ((newRot % 360) + 360) % 360
+        setInternalRotation(newRot)
+        onRotationChangeRef.current?.(norm)
+        const target = mediaId || src.replace(/^media:\/\/\//, "").replace(/\\/g, "/")
+        useMediaStore.getState().updateItemOrientation(target, norm)
+      },
+      [mediaId, src]
+    )
+
+    const rotateLeft = useCallback(() => {
+      handleRotationUpdate(stateRef.current.rotation - 90)
+      resetHideTimer()
+    }, [handleRotationUpdate, resetHideTimer])
+
+    const rotateRight = useCallback(() => {
+      handleRotationUpdate(stateRef.current.rotation + 90)
+      resetHideTimer()
+    }, [handleRotationUpdate, resetHideTimer])
+
+    const togglePlay = useCallback(() => {
+      if (!videoRef.current) return
+      if (videoRef.current.paused) {
+        videoRef.current.play().catch((err) => {
+          console.error("Playback failed:", err)
+        })
+      } else {
+        videoRef.current.pause()
+      }
+      resetHideTimer()
+    }, [resetHideTimer])
+
+    const handleVideoClick = useCallback(
+      (e: React.MouseEvent) => {
+        e.stopPropagation()
+        containerRef.current?.focus()
+
+        const now = Date.now()
+        const DOUBLE_CLICK_THRESHOLD = 300
+
+        if (now - lastClickTimeRef.current < DOUBLE_CLICK_THRESHOLD) {
+          if (clickTimeoutRef.current) {
+            clearTimeout(clickTimeoutRef.current)
+            clickTimeoutRef.current = null
+          }
+          lastClickTimeRef.current = 0
+          void toggleFullscreen()
+        } else {
+          lastClickTimeRef.current = now
+          if (clickTimeoutRef.current) {
+            clearTimeout(clickTimeoutRef.current)
+          }
+          clickTimeoutRef.current = setTimeout(() => {
+            clickTimeoutRef.current = null
+            togglePlay()
+          }, DOUBLE_CLICK_THRESHOLD)
+        }
+      },
+      [toggleFullscreen, togglePlay]
+    )
+
+    const handleSeek = useCallback(
+      (newTime: number) => {
+        if (!videoRef.current) return
+        videoRef.current.currentTime = newTime
+        notifyTimeSubscribers(newTime, videoRef.current.duration || 0)
+      },
+      [notifyTimeSubscribers]
+    )
+
+    const seekBackward = useCallback(
+      (e?: React.MouseEvent) => {
+        e?.stopPropagation()
+        if (!videoRef.current) return
+        const newTime = Math.max(0, videoRef.current.currentTime - 10)
+        videoRef.current.currentTime = newTime
+        notifyTimeSubscribers(newTime, videoRef.current.duration || 0)
+      },
+      [notifyTimeSubscribers]
+    )
+
+    const seekForward = useCallback(
+      (e?: React.MouseEvent) => {
+        e?.stopPropagation()
+        if (!videoRef.current) return
+        const maxDur = videoRef.current.duration || stateRef.current.duration
+        const newTime = Math.min(maxDur, videoRef.current.currentTime + 10)
+        videoRef.current.currentTime = newTime
+        notifyTimeSubscribers(newTime, maxDur)
+      },
+      [notifyTimeSubscribers]
+    )
+
+    // Synchronize native video element volume & mute attributes with state
+    useEffect(() => {
+      if (videoRef.current) {
+        videoRef.current.volume = volume
+        videoRef.current.muted = isMuted
+      }
+    }, [volume, isMuted, src])
+
+    // Reset player state when source or rotation changes
     useEffect(() => {
       setIsPlaying(false)
-      setCurrentTime(0)
       setDuration(0)
-      setRotation(0)
+      setInternalRotation(rotationProp !== undefined ? rotationProp : (initialRotation ?? 0))
       setScale(1)
-      setAspectRatio(null)
+      setPlaybackRate(1)
       if (clickTimeoutRef.current) {
         clearTimeout(clickTimeoutRef.current)
         clickTimeoutRef.current = null
@@ -244,9 +434,22 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       lastClickTimeRef.current = 0
       if (videoRef.current) {
         videoRef.current.currentTime = 0
+        videoRef.current.playbackRate = 1
         videoRef.current.pause()
       }
+      notifyTimeSubscribers(0, 0)
       onPlayStateChangeRef.current?.(false)
+    }, [src, initialRotation, rotationProp, notifyTimeSubscribers])
+
+    // Synchronize playbackRate if video element changes rate externally
+    useEffect(() => {
+      const video = videoRef.current
+      if (!video) return
+      const handleRateChange = () => {
+        setPlaybackRate(video.playbackRate)
+      }
+      video.addEventListener("ratechange", handleRateChange)
+      return () => video.removeEventListener("ratechange", handleRateChange)
     }, [src])
 
     // Auto-play when requested
@@ -278,43 +481,23 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       }
     }, [src, autoPlay])
 
-    const toggleFullscreen = useCallback(async () => {
-      if (onFullscreenToggle) {
-        onFullscreenToggle()
-        return
+    // Sync native fullscreen state changes
+    useEffect(() => {
+      const handleFullscreenChange = () => {
+        const isCurrentlyFullscreen = document.fullscreenElement === containerRef.current
+        setInternalFullscreen(isCurrentlyFullscreen)
       }
-      if (!containerRef.current) return
-      try {
-        if (!document.fullscreenElement) {
-          await containerRef.current.requestFullscreen()
-          setInternalFullscreen(true)
-        } else {
-          await document.exitFullscreen()
-          setInternalFullscreen(false)
-        }
-      } catch (err) {
-        console.error("Failed to toggle fullscreen:", err)
+
+      document.addEventListener("fullscreenchange", handleFullscreenChange)
+      return () => {
+        document.removeEventListener("fullscreenchange", handleFullscreenChange)
       }
-    }, [onFullscreenToggle])
+    }, [])
 
-    // Expose methods to parent ref
-    useImperativeHandle(ref, () => ({
-      requestFullscreen: async () => {
-        await toggleFullscreen()
-      },
-    }))
-
+    // Stable global keydown listener (attached once)
     useEffect(() => {
       const handleKeyDown = (e: KeyboardEvent) => {
-        // Only capture keypresses if the video player container contains the focused element
-        if (
-          !containerRef.current ||
-          !containerRef.current.contains(document.activeElement)
-        ) {
-          return
-        }
-
-        const target = e.target as HTMLElement
+        const target = e.target as HTMLElement | null
         if (
           target &&
           (target.tagName === "INPUT" ||
@@ -326,88 +509,102 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
 
         const key = e.key.toLowerCase()
 
+        // Fullscreen: F
         if (key === "f") {
           e.preventDefault()
-          toggleFullscreen()
-        } else if (key === "m") {
+          void toggleFullscreen()
+          return
+        }
+
+        // Playback Speed: Shift + ArrowRight / Shift + ArrowLeft
+        if (e.shiftKey && e.key === "ArrowRight") {
           e.preventDefault()
-          if (videoRef.current) {
-            const next = !videoRef.current.muted
-            videoRef.current.muted = next
-            setIsMuted(next)
-            storage.set("video_player_muted", next ? "true" : "false")
-            resetHideTimer()
-          }
-        } else if (e.key === " " || key === "spacebar") {
+          increaseSpeed()
+          return
+        }
+        if (e.shiftKey && e.key === "ArrowLeft") {
           e.preventDefault()
-          if (videoRef.current) {
-            if (videoRef.current.paused) {
-              videoRef.current.play().catch((err) => console.error(err))
-            } else {
-              videoRef.current.pause()
+          decreaseSpeed()
+          return
+        }
+
+        // Orientation / Rotate: Ctrl + ArrowLeft / Ctrl + ArrowRight
+        if ((e.ctrlKey || e.metaKey) && e.key === "ArrowLeft") {
+          e.preventDefault()
+          rotateLeft()
+          return
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key === "ArrowRight") {
+          e.preventDefault()
+          rotateRight()
+          return
+        }
+
+        // Mute / Unmute toggle: M
+        if (key === "m") {
+          e.preventDefault()
+          toggleMute()
+          return
+        }
+
+        // Play / Pause: Space
+        if (e.key === " " || key === "spacebar") {
+          e.preventDefault()
+          togglePlay()
+          return
+        }
+
+        // Seek ±5s & Volume
+        if (!e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
+          if (e.key === "ArrowLeft") {
+            e.preventDefault()
+            if (videoRef.current) {
+              const newTime = Math.max(0, videoRef.current.currentTime - 5)
+              videoRef.current.currentTime = newTime
+              notifyTimeSubscribers(newTime, videoRef.current.duration || 0)
+              resetHideTimer()
             }
-            resetHideTimer()
-          }
-        } else if (e.key === "ArrowLeft") {
-          e.preventDefault()
-          if (videoRef.current) {
-            const newTime = Math.max(0, videoRef.current.currentTime - 5)
-            videoRef.current.currentTime = newTime
-            setCurrentTime(newTime)
-            resetHideTimer()
-          }
-        } else if (e.key === "ArrowRight") {
-          e.preventDefault()
-          if (videoRef.current) {
-            const newTime = Math.min(duration, videoRef.current.currentTime + 5)
-            videoRef.current.currentTime = newTime
-            setCurrentTime(newTime)
-            resetHideTimer()
-          }
-        } else if (e.key === "ArrowUp") {
-          e.preventDefault()
-          if (videoRef.current) {
-            const newVolume = Math.min(1, videoRef.current.volume + 0.1)
-            videoRef.current.volume = newVolume
-            videoRef.current.muted = false
-            setVolume(newVolume)
-            setIsMuted(false)
-            storage.set("video_player_volume", newVolume.toString())
-            storage.set("video_player_muted", "false")
-            resetHideTimer()
-          }
-        } else if (e.key === "ArrowDown") {
-          e.preventDefault()
-          if (videoRef.current) {
-            const newVolume = Math.max(0, videoRef.current.volume - 0.1)
-            const isNowMuted = newVolume === 0
-            videoRef.current.volume = newVolume
-            videoRef.current.muted = isNowMuted
-            setVolume(newVolume)
-            setIsMuted(isNowMuted)
-            storage.set("video_player_volume", newVolume.toString())
-            storage.set("video_player_muted", isNowMuted ? "true" : "false")
-            resetHideTimer()
+          } else if (e.key === "ArrowRight") {
+            e.preventDefault()
+            if (videoRef.current) {
+              const maxDur = videoRef.current.duration || stateRef.current.duration
+              const newTime = Math.min(maxDur, videoRef.current.currentTime + 5)
+              videoRef.current.currentTime = newTime
+              notifyTimeSubscribers(newTime, maxDur)
+              resetHideTimer()
+            }
+          } else if (e.key === "ArrowUp") {
+            e.preventDefault()
+            if (videoRef.current) {
+              const newVolume = Math.min(1, Math.round((videoRef.current.volume + 0.1) * 10) / 10)
+              handleVolumeUpdate(newVolume, false)
+              resetHideTimer()
+            }
+          } else if (e.key === "ArrowDown") {
+            e.preventDefault()
+            if (videoRef.current) {
+              const newVolume = Math.max(0, Math.round((videoRef.current.volume - 0.1) * 10) / 10)
+              handleVolumeUpdate(newVolume, newVolume === 0)
+              resetHideTimer()
+            }
           }
         }
       }
 
       window.addEventListener("keydown", handleKeyDown)
       return () => window.removeEventListener("keydown", handleKeyDown)
-    }, [toggleFullscreen, duration, resetHideTimer])
-
-    useEffect(() => {
-      const handleFullscreenChange = () => {
-        const isCurrentlyFullscreen =
-          document.fullscreenElement === containerRef.current
-        setInternalFullscreen(isCurrentlyFullscreen)
-      }
-
-      document.addEventListener("fullscreenchange", handleFullscreenChange)
-      return () => {
-        document.removeEventListener("fullscreenchange", handleFullscreenChange)
-      }
-    }, [])
+    }, [
+      toggleFullscreen,
+      increaseSpeed,
+      decreaseSpeed,
+      rotateLeft,
+      rotateRight,
+      toggleMute,
+      togglePlay,
+      handleVolumeUpdate,
+      notifyTimeSubscribers,
+      resetHideTimer,
+    ])
 
     useEffect(() => {
       return () => {
@@ -416,415 +613,93 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       }
     }, [])
 
-    const togglePlay = useCallback(
-      (e?: React.MouseEvent) => {
-        e?.stopPropagation()
-        if (!videoRef.current) return
-        if (videoRef.current.paused) {
-          videoRef.current.play().catch((err) => {
-            console.error("Playback failed:", err)
-          })
-        } else {
-          videoRef.current.pause()
-        }
-        resetHideTimer()
-      },
-      [resetHideTimer]
-    )
-
-    const handleVideoClick = useCallback(
-      (e: React.MouseEvent) => {
-        e.stopPropagation()
-        containerRef.current?.focus()
-
-        const now = Date.now()
-        const DOUBLE_CLICK_THRESHOLD = 300
-
-        if (now - lastClickTimeRef.current < DOUBLE_CLICK_THRESHOLD) {
-          if (clickTimeoutRef.current) {
-            clearTimeout(clickTimeoutRef.current)
-            clickTimeoutRef.current = null
-          }
-          lastClickTimeRef.current = 0
-          toggleFullscreen()
-        } else {
-          lastClickTimeRef.current = now
-          if (clickTimeoutRef.current) {
-            clearTimeout(clickTimeoutRef.current)
-          }
-          clickTimeoutRef.current = setTimeout(() => {
-            clickTimeoutRef.current = null
-            togglePlay()
-          }, DOUBLE_CLICK_THRESHOLD)
-        }
-      },
-      [toggleFullscreen, togglePlay]
-    )
-
-    const toggleMute = (e: React.MouseEvent) => {
-      e.stopPropagation()
-      if (!videoRef.current) return
-      const next = !isMuted
-      videoRef.current.muted = next
-      setIsMuted(next)
-      storage.set("video_player_muted", next ? "true" : "false")
-    }
-
-    const handleVolumeChange = (val: number[]) => {
-      if (!videoRef.current) return
-      const v = val[0]
-      const nextMuted = v === 0
-      videoRef.current.volume = v
-      videoRef.current.muted = nextMuted
-      setVolume(v)
-      setIsMuted(nextMuted)
-      storage.set("video_player_volume", v.toString())
-      storage.set("video_player_muted", nextMuted ? "true" : "false")
-    }
-
-    const handleSeek = (val: number[]) => {
-      if (!videoRef.current) return
-      videoRef.current.currentTime = val[0]
-      setCurrentTime(val[0])
-    }
-
-    const handleFullscreenClick = async (e: React.MouseEvent) => {
-      e.stopPropagation()
-      await toggleFullscreen()
-    }
-
-    const rotateLeft = (e: React.MouseEvent) => {
-      e.stopPropagation()
-      setRotation((prev) => prev - 90)
-    }
-
-    const rotateRight = (e: React.MouseEvent) => {
-      e.stopPropagation()
-      setRotation((prev) => prev + 90)
-    }
-
-    const seekBackward = (e: React.MouseEvent) => {
-      e.stopPropagation()
-      if (!videoRef.current) return
-      const newTime = Math.max(0, videoRef.current.currentTime - 10)
-      videoRef.current.currentTime = newTime
-      setCurrentTime(newTime)
-    }
-
-    const seekForward = (e: React.MouseEvent) => {
-      e.stopPropagation()
-      if (!videoRef.current) return
-      const newTime = Math.min(duration, videoRef.current.currentTime + 10)
-      videoRef.current.currentTime = newTime
-      setCurrentTime(newTime)
-    }
-
-    const btnClass = isNarrow
-      ? "w-7 h-7 rounded-full text-white hover:bg-white/10 cursor-pointer shrink-0"
-      : "w-8 h-8 rounded-full text-white hover:bg-white/20 cursor-pointer shrink-0"
-
-    const iconClass = isNarrow ? "w-3.5 h-3.5" : "w-4 h-4"
-    const playIconClass = isNarrow
-      ? "w-3.5 h-3.5 fill-current"
-      : "w-4 h-4 fill-current"
-    const playIconMargin = isNarrow ? "ml-0.5" : "ml-0.5"
-    const rowGapClass = isNarrow ? "gap-1" : "gap-2"
-    const rightGapClass = isNarrow ? "gap-1" : "gap-1.5"
-    const paddingClass = isNarrow
-      ? "px-2.5 pb-2 pt-6 gap-1"
-      : "px-4 pb-3 pt-8 gap-2"
-
-    const videoStyle: React.CSSProperties = {
-      transform: `rotate(${rotation}deg) scale(${scale})`,
-      transition: "transform 300ms cubic-bezier(0.4, 0, 0.2, 1)",
-      touchAction: "manipulation",
-    }
-
     return (
       <div
         ref={containerRef}
-        style={containerStyle}
-        className={`group/video relative flex items-center justify-center overflow-hidden bg-black outline-hidden touch-manipulation ${
+        style={CONTAINER_STYLE}
+        className={`group/video relative flex h-full w-full items-center justify-center overflow-hidden bg-black outline-hidden touch-manipulation ${
           showControls ? "" : "cursor-none"
         } ${className}`}
         onMouseMove={resetHideTimer}
         onMouseLeave={() => isPlaying && setShowControls(false)}
         tabIndex={0}
       >
-        <video
-          ref={videoRef}
-          src={safeSrc}
-          poster={safePoster}
-          style={videoStyle}
-          className="h-full w-full cursor-pointer object-contain"
-          onClick={handleVideoClick}
-          playsInline
-          onTimeUpdate={() =>
-            setCurrentTime(videoRef.current?.currentTime ?? 0)
-          }
-          onLoadedMetadata={() => {
-            setDuration(videoRef.current?.duration ?? 0)
-            const vW = videoRef.current?.videoWidth
-            const vH = videoRef.current?.videoHeight
-            if (vW && vH) {
-              setAspectRatio(vW / vH)
-            }
-            calculateScale()
-          }}
-          onPlay={() => {
-            setIsPlaying(true)
-            resetHideTimer()
-            onPlayStateChange?.(true)
-          }}
-          onPause={() => {
-            setIsPlaying(false)
-            setShowControls(true)
-            onPlayStateChange?.(false)
-          }}
-          onEnded={() => {
-            setIsPlaying(false)
-            setShowControls(true)
-            setCurrentTime(0)
-            onPlayStateChange?.(false)
-          }}
-        />
-
-        {/* Large center play button when paused */}
-        {!isPlaying && (
-          <div
-            className={`absolute inset-0 z-10 flex cursor-pointer items-center justify-center transition-opacity duration-300 ${
-              showControls ? "opacity-100" : "pointer-events-none opacity-0"
-            }`}
-            style={{ touchAction: "manipulation" }}
-            onClick={handleVideoClick}
-          >
-            <div className="flex h-16 w-16 items-center justify-center rounded-full border border-white/20 bg-black/50 backdrop-blur-sm transition-transform hover:scale-110">
-              <Play className="ml-1 h-7 w-7 fill-white text-white" />
-            </div>
-          </div>
-        )}
-
-        {/* Controls bar */}
         <div
-          className={`absolute right-0 bottom-0 left-0 z-20 transition-opacity duration-300 ${showControls ? "opacity-100" : "pointer-events-none opacity-0"}`}
-          onClick={(e) => e.stopPropagation()}
+          ref={transformRef}
+          className="pointer-events-none flex h-full w-full items-center justify-center transition-transform ease-out"
         >
-          {/* Gradient fade */}
-          <div className="pointer-events-none absolute inset-0 bg-linear-to-t from-black/80 via-black/30 to-transparent" />
-
-          <div className={`relative flex flex-col ${paddingClass}`}>
-            {/* Scrubber */}
-            <Slider
-              min={0}
-              max={duration || 1}
-              step={0.1}
-              value={[currentTime]}
-              onValueChange={handleSeek}
-              className="w-full cursor-pointer [&_.slider-range]:bg-white [&_.slider-thumb]:bg-white [&_.slider-track]:bg-white/20"
+          <div className="pointer-events-auto flex h-full w-full max-h-full max-w-full items-center justify-center">
+            <video
+              ref={videoRef}
+              src={safeSrc}
+              poster={safePoster}
+              style={videoStyle}
+              className="max-h-full max-w-full cursor-pointer object-contain shadow-lg select-none transition-transform duration-200"
+              onClick={handleVideoClick}
+              playsInline
+              onTimeUpdate={() => {
+                if (videoRef.current) {
+                  notifyTimeSubscribers(videoRef.current.currentTime, videoRef.current.duration || 0)
+                }
+              }}
+              onLoadedMetadata={() => {
+                const dur = videoRef.current?.duration ?? 0
+                setDuration(dur)
+                calculateScale()
+                notifyTimeSubscribers(0, dur)
+              }}
+              onPlay={() => {
+                setIsPlaying(true)
+                resetHideTimer()
+                onPlayStateChangeRef.current?.(true)
+              }}
+              onPause={() => {
+                setIsPlaying(false)
+                setShowControls(true)
+                onPlayStateChangeRef.current?.(false)
+              }}
+              onEnded={() => {
+                setIsPlaying(false)
+                setShowControls(true)
+                notifyTimeSubscribers(0, videoRef.current?.duration || 0)
+                onPlayStateChangeRef.current?.(false)
+              }}
             />
-
-            {/* Bottom controls row */}
-            <div className="flex items-center justify-between">
-              <div className={`flex items-center ${rowGapClass}`}>
-                {/* Seek Backward 10s */}
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className={btnClass}
-                      onClick={seekBackward}
-                    >
-                      <RotateCcw className={iconClass} />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" container={containerElement}>
-                    Seek Back 10s
-                  </TooltipContent>
-                </Tooltip>
-
-                {/* Play/Pause */}
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className={btnClass}
-                      onClick={togglePlay}
-                    >
-                      {isPlaying ? (
-                        <Pause className={playIconClass} />
-                      ) : (
-                        <Play
-                          className={`${playIconClass} ${playIconMargin}`}
-                        />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" container={containerElement}>
-                    {isPlaying ? "Pause" : "Play"}
-                  </TooltipContent>
-                </Tooltip>
-
-                {/* Seek Forward 10s */}
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className={btnClass}
-                      onClick={seekForward}
-                    >
-                      <RotateCw className={iconClass} />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" container={containerElement}>
-                    Seek Forward 10s
-                  </TooltipContent>
-                </Tooltip>
-
-                {/* Mute & Volume Slider Container */}
-                <div className="relative flex items-center">
-                  {/* Volume Slider (Pops up vertically on narrow hover, or stays inline on standard viewports) */}
-                  {isNarrow ? (
-                    <HoverCard openDelay={50} closeDelay={150}>
-                      <HoverCardTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className={btnClass}
-                          onClick={toggleMute}
-                        >
-                          {isMuted || volume === 0 ? (
-                            <VolumeX className={iconClass} />
-                          ) : (
-                            <Volume2 className={iconClass} />
-                          )}
-                        </Button>
-                      </HoverCardTrigger>
-                      <HoverCardContent
-                        side="top"
-                        align="center"
-                        sideOffset={8}
-                        className="flex h-28 w-10 items-center justify-center rounded-lg border border-white/10 bg-black/90 p-2 text-white shadow-lg ring-0"
-                      >
-                        <Slider
-                          min={0}
-                          max={1}
-                          step={0.05}
-                          value={[isMuted ? 0 : volume]}
-                          onValueChange={handleVolumeChange}
-                          orientation="vertical"
-                          className="h-24 w-4 cursor-pointer data-vertical:min-h-0 [&_.slider-range]:bg-white [&_.slider-thumb]:bg-white [&_.slider-track]:bg-white/20"
-                        />
-                      </HoverCardContent>
-                    </HoverCard>
-                  ) : (
-                    <>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className={btnClass}
-                            onClick={toggleMute}
-                          >
-                            {isMuted || volume === 0 ? (
-                              <VolumeX className={iconClass} />
-                            ) : (
-                              <Volume2 className={iconClass} />
-                            )}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" container={containerElement}>
-                          {isMuted || volume === 0 ? "Unmute" : "Mute"}
-                        </TooltipContent>
-                      </Tooltip>
-                      <div className="ml-1 hidden w-20 sm:block">
-                        <Slider
-                          min={0}
-                          max={1}
-                          step={0.05}
-                          value={[isMuted ? 0 : volume]}
-                          onValueChange={handleVolumeChange}
-                          className="cursor-pointer [&_.slider-range]:bg-white [&_.slider-thumb]:bg-white [&_.slider-track]:bg-white/20"
-                        />
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                {/* Time */}
-                <span
-                  className={`font-mono text-white/80 tabular-nums select-none ${isNarrow ? "text-3xs" : "text-xs"}`}
-                >
-                  {formatTime(currentTime)} / {formatTime(duration)}
-                </span>
-              </div>
-
-              {/* Right side controls: Rotation + Fullscreen */}
-              <div className={`flex items-center ${rightGapClass}`}>
-                {/* Rotate Left (90 deg Counter-Clockwise) */}
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className={btnClass}
-                      onClick={rotateLeft}
-                    >
-                      <RefreshCcw className={iconClass} />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" container={containerElement}>
-                    Rotate Left 90°
-                  </TooltipContent>
-                </Tooltip>
-
-                {/* Rotate Right (90 deg Clockwise) */}
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className={btnClass}
-                      onClick={rotateRight}
-                    >
-                      <RefreshCw className={iconClass} />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" container={containerElement}>
-                    Rotate Right 90°
-                  </TooltipContent>
-                </Tooltip>
-
-                {/* Fullscreen */}
-                {!hideFullscreen && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className={btnClass}
-                        onClick={handleFullscreenClick}
-                      >
-                        {isFullscreen ? (
-                          <Minimize className={iconClass} />
-                        ) : (
-                          <Maximize className={iconClass} />
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" container={containerElement}>
-                      {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-                    </TooltipContent>
-                  </Tooltip>
-                )}
-              </div>
-            </div>
           </div>
         </div>
+
+        {/* Large center play button */}
+        <VideoCenterPlayButton
+          isPlaying={isPlaying}
+          showControls={showControls}
+          onClick={handleVideoClick}
+        />
+
+        {/* Controls bar */}
+        <VideoControlsBar
+          showControls={showControls}
+          isPlaying={isPlaying}
+          isNarrow={isNarrow}
+          volume={volume}
+          isMuted={isMuted}
+          playbackRate={playbackRate}
+          isFullscreen={isFullscreen}
+          hideFullscreen={hideFullscreen}
+          initialDuration={duration}
+          subscribeTimeUpdate={subscribeTimeUpdate}
+          containerElement={containerRef.current}
+          onSeek={handleSeek}
+          onTogglePlay={togglePlay}
+          onSeekBackward={seekBackward}
+          onSeekForward={seekForward}
+          onVolumeChange={handleVolumeUpdate}
+          onToggleMute={toggleMute}
+          onChangePlaybackRate={changePlaybackRate}
+          onToggleFullscreen={toggleFullscreen}
+        />
       </div>
     )
   }
 )
+
+VideoPlayer.displayName = "VideoPlayer"

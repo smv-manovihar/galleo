@@ -54,12 +54,12 @@ export const QualityScoreBadge: React.FC<QualityScoreBadgeProps> = ({
   return (
     <QualityScoreHoverCard item={item} side={side}>
       <div
-        className={`flex cursor-help items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-semibold shadow-xs backdrop-blur-md transition-colors ${colorStyles} ${className}`}
+        className={`flex cursor-help items-center gap-2 rounded-md border px-2 py-0.5 text-xs font-semibold shadow-xs backdrop-blur-md transition-colors ${colorStyles} ${className}`}
       >
         {isFlagged ? (
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+          <AlertTriangle className="size-4 shrink-0 text-amber-400" />
         ) : score < 50 ? (
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-red-400" />
+          <AlertTriangle className="size-4 shrink-0 text-red-400" />
         ) : null}
         <span className="tabular-nums">{score}</span>
       </div>

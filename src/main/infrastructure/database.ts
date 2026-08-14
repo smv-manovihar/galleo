@@ -85,7 +85,8 @@ export function initDatabase(): Database.Database {
       is_best_in_duplicate_group INTEGER DEFAULT 0,
       similarity_index INTEGER,
       review_state TEXT DEFAULT 'pending',
-      reviewed_at TEXT
+      reviewed_at TEXT,
+      orientation INTEGER DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS sessions (
@@ -197,6 +198,15 @@ export function initDatabase(): Database.Database {
       // Index may already exist
     }
     db.pragma("user_version = 3")
+  }
+
+  if (currentVersion < 4) {
+    try {
+      db.exec(`ALTER TABLE media_items ADD COLUMN orientation INTEGER DEFAULT 0;`)
+    } catch {
+      // Column may already exist
+    }
+    db.pragma("user_version = 4")
   }
 
   dbInstance = db

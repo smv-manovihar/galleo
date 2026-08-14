@@ -52,32 +52,32 @@ export const ScanAIConsentDialog: React.FC = () => {
         </AlertDialogHeader>
 
         <div className="grid gap-2 text-xs">
-          <div className="flex items-center gap-2.5 rounded-lg bg-card/60 p-2.5 border border-border">
-            <Search className="h-4 w-4 text-primary shrink-0" />
+          <div className="flex items-center gap-3 rounded-lg bg-card/60 p-3 border border-border">
+            <Search className="size-4 text-primary shrink-0" />
             <div className="min-w-0">
               <span className="font-medium text-foreground text-xs block">Concept Search</span>
               <span className="text-muted-foreground text-xs block">Find photos by query like &quot;sunset&quot; or &quot;documents&quot;.</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 rounded-lg bg-card/60 p-2.5 border border-border">
-            <ShieldCheck className="h-4 w-4 text-emerald-500 shrink-0" />
+          <div className="flex items-center gap-3 rounded-lg bg-card/60 p-3 border border-border">
+            <ShieldCheck className="size-4 text-emerald-500 shrink-0" />
             <div className="min-w-0">
               <span className="font-medium text-foreground text-xs block">100% Private &amp; Offline</span>
               <span className="text-muted-foreground text-xs block">Runs locally on device with zero data uploads.</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 rounded-lg bg-destructive/10 p-2.5 text-destructive">
-            <XCircle className="h-4 w-4 text-destructive shrink-0" />
+          <div className="flex items-center gap-3 rounded-lg bg-destructive/10 p-3 text-destructive">
+            <XCircle className="size-4 text-destructive shrink-0" />
             <div className="min-w-0">
               <span className="font-semibold text-xs block">No File Organizing or Deduplication</span>
               <span className="text-xs opacity-90 block">Visual AI only powers search; not cleanup, culling, or sorting.</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 rounded-lg bg-amber-500/10 p-2.5 text-amber-900 dark:text-amber-200">
-            <ZapOff className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+          <div className="flex items-center gap-3 rounded-lg bg-amber-500/10 p-3 text-amber-900 dark:text-amber-200">
+            <ZapOff className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
             <div className="min-w-0">
               <span className="font-semibold text-xs block">Slower Scanning</span>
               <span className="text-amber-800/80 dark:text-amber-300/80 text-xs block">Indexing takes more CPU/GPU time per folder.</span>
@@ -86,7 +86,7 @@ export const ScanAIConsentDialog: React.FC = () => {
         </div>
 
         {isDownloadingAI && (
-          <div className="space-y-1 rounded-lg bg-muted/40 p-2.5 text-xs">
+          <div className="space-y-1 rounded-lg bg-muted/40 p-3 text-xs">
             <div className="flex justify-between font-medium">
               <span>Downloading AI model...</span>
               <span className="font-mono">{aiDownloadProgress}%</span>
@@ -95,7 +95,7 @@ export const ScanAIConsentDialog: React.FC = () => {
           </div>
         )}
 
-        <AlertDialogFooter className="gap-1.5 sm:gap-2">
+        <AlertDialogFooter className="gap-2">
           <AlertDialogCancel
             onClick={dismissAIConsentDialog}
             disabled={isDownloadingAI}

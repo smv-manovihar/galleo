@@ -22,35 +22,37 @@ export const DuplicateAuditPage: React.FC = () => {
   const isScanning = useScanStore((s) => s.isScanning)
   const isPostProcessing = useScanStore((s) => s.isPostProcessing)
   const isBusyScanning = isScanning || isPostProcessing
-  const { settings, saveSettings } = useSettingsStore()
-  const { initSession } = useSessionStore()
+  const organization = useSettingsStore((s) => s.settings.organization)
+  const folderRoots = useSettingsStore((s) => s.settings.folders.roots)
+  const saveSettings = useSettingsStore((s) => s.saveSettings)
+  const initSession = useSessionStore((s) => s.initSession)
 
   const { activeDuplicatesTab: activeTab, setActiveDuplicatesTab: setActiveTab } = useUIStore()
   const decisions = useSessionStore((s) => s.decisions)
   const [manualGroupIndex, setManualGroupIndex] = useState(0)
 
   const strategy: DuplicateStrategy =
-    settings.organization.duplicateStrategy ?? "keep_most_grouped"
+    organization.duplicateStrategy ?? "keep_most_grouped"
 
   const preferredKeepFolderPaths = React.useMemo(() => {
-    if (settings.organization.preferredKeepFolderPaths !== undefined) {
-      return settings.organization.preferredKeepFolderPaths
+    if (organization.preferredKeepFolderPaths !== undefined) {
+      return organization.preferredKeepFolderPaths
     }
-    if (settings.organization.duplicateStrategy === "keep_preferred_folder") {
-      return settings.organization.preferredFolderPaths ?? (settings.organization.preferredFolderPath ? [settings.organization.preferredFolderPath] : [])
+    if (organization.duplicateStrategy === "keep_preferred_folder") {
+      return organization.preferredFolderPaths ?? (organization.preferredFolderPath ? [organization.preferredFolderPath] : [])
     }
     return []
-  }, [settings.organization.preferredKeepFolderPaths, settings.organization.duplicateStrategy, settings.organization.preferredFolderPaths, settings.organization.preferredFolderPath])
+  }, [organization.preferredKeepFolderPaths, organization.duplicateStrategy, organization.preferredFolderPaths, organization.preferredFolderPath])
 
   const preferredDeleteFolderPaths = React.useMemo(() => {
-    if (settings.organization.preferredDeleteFolderPaths !== undefined) {
-      return settings.organization.preferredDeleteFolderPaths
+    if (organization.preferredDeleteFolderPaths !== undefined) {
+      return organization.preferredDeleteFolderPaths
     }
-    if (settings.organization.duplicateStrategy === "delete_preferred_folder") {
-      return settings.organization.preferredFolderPaths ?? (settings.organization.preferredFolderPath ? [settings.organization.preferredFolderPath] : [])
+    if (organization.duplicateStrategy === "delete_preferred_folder") {
+      return organization.preferredFolderPaths ?? (organization.preferredFolderPath ? [organization.preferredFolderPath] : [])
     }
     return []
-  }, [settings.organization.preferredDeleteFolderPaths, settings.organization.duplicateStrategy, settings.organization.preferredFolderPaths, settings.organization.preferredFolderPath])
+  }, [organization.preferredDeleteFolderPaths, organization.duplicateStrategy, organization.preferredFolderPaths, organization.preferredFolderPath])
 
   const handleStrategyChange = (
     s: DuplicateStrategy,
@@ -60,9 +62,9 @@ export const DuplicateAuditPage: React.FC = () => {
     const updatedKeep = keepPaths !== undefined ? keepPaths : preferredKeepFolderPaths
     const updatedDelete = deletePaths !== undefined ? deletePaths : preferredDeleteFolderPaths
     saveSettings({
-      ...settings,
+      ...useSettingsStore.getState().settings,
       organization: {
-        ...settings.organization,
+        ...useSettingsStore.getState().settings.organization,
         duplicateStrategy: s,
         preferredKeepFolderPaths: updatedKeep,
         preferredDeleteFolderPaths: updatedDelete,
@@ -258,12 +260,6 @@ export const DuplicateAuditPage: React.FC = () => {
   }, [manualReviewGroups, decisions])
 
   const [showManualSummary, setShowManualSummary] = useState<boolean>(() => isAllManualReviewed)
-  const [prevRootPath, setPrevRootPath] = useState<string | null>(activeRootPath)
-
-  if (activeRootPath !== prevRootPath) {
-    setPrevRootPath(activeRootPath)
-    setShowManualSummary(isAllManualReviewed)
-  }
 
   const lastLoadedFolderRef = React.useRef<string | null>(null)
 
@@ -336,24 +332,30 @@ export const DuplicateAuditPage: React.FC = () => {
     }
   }
 
-  const handleGroupIndexChange = (index: number) => {
-    setManualGroupIndex(index)
-    if (activeRootPath) {
-      localStorage.setItem(
-        `duplicates_manual_group_index_${activeRootPath}`,
-        index.toString()
-      )
-    }
+  const handleGroupIndexChange = (
+    indexOrUpdater: number | ((prev: number) => number)
+  ) => {
+    setManualGroupIndex((prev) => {
+      const next =
+        typeof indexOrUpdater === "function" ? indexOrUpdater(prev) : indexOrUpdater
+      if (activeRootPath) {
+        localStorage.setItem(
+          `duplicates_manual_group_index_${activeRootPath}`,
+          next.toString()
+        )
+      }
+      return next
+    })
   }
 
   const isScanned = React.useMemo(() => {
     if (!activeRootPath || activeRootPath === "all") {
-      return settings.folders.roots.some((r) => r.enabled && r.scanned)
+      return folderRoots.some((r) => r.enabled && r.scanned)
     }
-    return !!settings.folders.roots.find(
+    return !!folderRoots.find(
       (r) => r.path.toLowerCase() === activeRootPath.toLowerCase()
     )?.scanned
-  }, [activeRootPath, settings.folders.roots])
+  }, [activeRootPath, folderRoots])
 
   if (!activeRootPath) {
     return (
@@ -369,10 +371,10 @@ export const DuplicateAuditPage: React.FC = () => {
     return (
       <PageContainer className="h-full p-0 select-none md:p-0" maxWidth="xl">
         <div className="relative flex min-h-0 flex-1 flex-col gap-4 px-6 pt-4">
-          <div className="flex flex-1 flex-col items-center justify-center gap-1.5 font-sans text-xs text-muted-foreground select-none text-center">
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 font-sans text-xs text-muted-foreground select-none text-center">
             <FolderSearch className="h-8 w-8 text-primary animate-pulse mb-1" />
             <span className="text-sm font-medium text-foreground">Duplicate Calculation Paused</span>
-            <span className="max-w-md text-2xs text-muted-foreground">
+            <span className="max-w-md text-xs text-muted-foreground">
               A library scan or background analysis is currently in progress. Duplicate media calculation is paused and will run automatically once scanning completes.
             </span>
           </div>
@@ -385,17 +387,17 @@ export const DuplicateAuditPage: React.FC = () => {
     return (
       <PageContainer className="h-full p-0 select-none md:p-0" maxWidth="xl">
         <div className="relative flex min-h-0 flex-1 flex-col gap-4 px-6 pt-4">
-          <div className="flex flex-1 flex-col items-center justify-center gap-1.5 font-sans text-xs text-muted-foreground select-none">
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 font-sans text-xs text-muted-foreground select-none">
             {!isScanned ? (
               <>
                 <FolderSearch className="h-8 w-8 text-amber-500/80 mb-1" />
                 <span className="text-sm font-medium text-foreground">Folder not scanned</span>
-                <span className="text-2xs text-muted-foreground">Use the Scan Folders button above to index media files.</span>
+                <span className="text-xs text-muted-foreground">Use the Scan Folders button above to index media files.</span>
               </>
             ) : (
               <>
                 <span className="text-sm font-medium text-foreground">No photos or videos found</span>
-                <span className="text-2xs text-muted-foreground">This folder contains no duplicate candidates.</span>
+                <span className="text-xs text-muted-foreground">This folder contains no duplicate candidates.</span>
               </>
             )}
           </div>
@@ -416,26 +418,26 @@ export const DuplicateAuditPage: React.FC = () => {
             <TabsList variant={"animated"}>
               <TabsTrigger
                 value="auto"
-                className="group gap-2 px-3.5 data-[state=active]:text-amber-600 dark:data-[state=active]:text-amber-400"
+                className="group gap-2 px-4 data-[state=active]:text-amber-600 dark:data-[state=active]:text-amber-400"
               >
-                <CopyMinus className="h-3.5 w-3.5 transition-colors group-data-[state=active]:text-amber-600 dark:group-data-[state=active]:text-amber-400" />
+                <CopyMinus className="size-4 transition-colors group-data-[state=active]:text-amber-600 dark:group-data-[state=active]:text-amber-400" />
                 <span>Exact Duplicates</span>
                 <Badge
                   variant="secondary"
-                  className="ml-0.5 rounded-full px-1.5 py-0 text-2xs transition-colors group-data-[state=active]:bg-amber-500/15 group-data-[state=active]:text-amber-700 dark:group-data-[state=active]:text-amber-300"
+                  className="ml-1 rounded-full px-2 py-0 text-xs transition-colors group-data-[state=active]:bg-amber-500/15 group-data-[state=active]:text-amber-700 dark:group-data-[state=active]:text-amber-300"
                 >
                   {exactDupsGroups?.length || 0}
                 </Badge>
               </TabsTrigger>
               <TabsTrigger
                 value="manual"
-                className="group gap-2 px-3.5 data-[state=active]:text-indigo-600 dark:data-[state=active]:text-indigo-400"
+                className="group gap-2 px-4 data-[state=active]:text-sky-600 dark:data-[state=active]:text-sky-400"
               >
-                <Images className="h-3.5 w-3.5 transition-colors group-data-[state=active]:text-indigo-600 dark:group-data-[state=active]:text-indigo-400" />
+                <Images className="size-4 transition-colors group-data-[state=active]:text-sky-600 dark:group-data-[state=active]:text-sky-400" />
                 <span>Similar Media</span>
                 <Badge
                   variant="secondary"
-                  className="ml-0.5 rounded-full px-1.5 py-0 text-2xs transition-colors group-data-[state=active]:bg-indigo-500/15 group-data-[state=active]:text-indigo-700 dark:group-data-[state=active]:text-indigo-300"
+                  className="ml-1 rounded-full px-2 py-0 text-xs transition-colors group-data-[state=active]:bg-sky-500/15 group-data-[state=active]:text-sky-700 dark:group-data-[state=active]:text-sky-300"
                 >
                   {manualReviewGroups.length}
                 </Badge>

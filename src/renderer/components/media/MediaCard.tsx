@@ -53,6 +53,44 @@ interface MediaCardProps {
   onPlayOpen?: (item: MediaItem) => void
 }
 
+const MediaCardThumb: React.FC<{ item: MediaItem; thumbUrl: string }> = ({
+  item,
+  thumbUrl,
+}) => {
+  const isVideo = item.mediaType === "video"
+  const [imgError, setImgError] = useState(false)
+
+  const fallback = (
+    <div
+      className={`absolute inset-0 flex items-center justify-center bg-muted/40 text-muted-foreground ${
+        item.reviewState === "delete" ? "opacity-40" : ""
+      }`}
+    >
+      <span className="text-xs font-bold uppercase">{item.extension}</span>
+    </div>
+  )
+
+  if (!thumbUrl || imgError || !(item.thumbnailPath || !isVideo)) {
+    return fallback
+  }
+
+  return (
+    <img
+      src={thumbUrl}
+      alt={item.name}
+      onError={() => setImgError(true)}
+      style={
+        item.orientation
+          ? { transform: `rotate(${item.orientation}deg)` }
+          : undefined
+      }
+      className={`pointer-events-none absolute inset-0 h-full w-full object-cover transition-transform duration-300 select-none group-hover:scale-105 ${
+        item.reviewState === "delete" ? "opacity-40" : ""
+      }`}
+    />
+  )
+}
+
 const MediaCardInner: React.FC<MediaCardProps> = ({
   item,
   isSelected,
@@ -68,19 +106,11 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
   const isVideo = item.mediaType === "video"
   const hasQuality = item.quality !== undefined
 
-  const [imgError, setImgError] = useState(false)
-  const [prevThumbUrl, setPrevThumbUrl] = useState("")
-
   const thumbUrl = useMemo(() => {
     const rawPath = item.thumbnailPath || item.path
     if (!rawPath) return ""
     return `media:///${rawPath.replace(/\\/g, "/")}`
   }, [item.thumbnailPath, item.path])
-
-  if (prevThumbUrl !== thumbUrl) {
-    setPrevThumbUrl(thumbUrl)
-    setImgError(false)
-  }
 
   const dateStr = useMemo(() => {
     if (!item.dateTarget) return ""
@@ -121,27 +151,7 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
           </CardHeader>
           <CardContent className="relative flex aspect-square flex-col justify-end bg-muted/20 p-0">
             {/* Thumbnail */}
-            {thumbUrl && !imgError && (item.thumbnailPath || !isVideo) ? (
-              <img
-                key={thumbUrl}
-                src={thumbUrl}
-                alt={item.name}
-                onError={() => setImgError(true)}
-                className={`pointer-events-none absolute inset-0 h-full w-full object-cover transition-transform duration-300 select-none group-hover:scale-105 ${
-                  item.reviewState === "delete" ? "opacity-40" : ""
-                }`}
-              />
-            ) : (
-              <div
-                className={`absolute inset-0 flex items-center justify-center bg-muted/40 text-muted-foreground ${
-                  item.reviewState === "delete" ? "opacity-40" : ""
-                }`}
-              >
-                <span className="text-2xs font-bold uppercase">
-                  {item.extension}
-                </span>
-              </div>
-            )}
+            <MediaCardThumb key={thumbUrl} item={item} thumbUrl={thumbUrl} />
 
             {/* Gradient overlay — grows on hover to make room for action bar */}
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-linear-to-t from-black/80 via-black/40 to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
@@ -155,7 +165,7 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
 
             {/* Matching Video Timestamp Badge */}
             {isVideo && matchingFrame && (
-              <div className="absolute top-2 left-2 z-20 flex items-center gap-1 rounded-md bg-purple-600/90 px-2 py-0.5 text-2xs font-semibold text-white shadow-md backdrop-blur-sm">
+              <div className="absolute top-2 left-2 z-20 flex items-center gap-1 rounded-md bg-purple-600/90 px-2 py-0.5 text-xs font-semibold text-white shadow-md backdrop-blur-sm">
                 <span>
                   ⏱{" "}
                   {`${Math.floor(matchingFrame.timestampSeconds / 60)}:${
@@ -169,7 +179,7 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
 
             {/* Search Match Confidence Score Badge */}
             {searchScore !== undefined && searchScore > 0 && (
-              <div className="absolute top-2 right-2 z-20 flex items-center gap-1 rounded-md bg-blue-600/90 px-2 py-0.5 text-2xs font-semibold text-white shadow-md backdrop-blur-sm">
+              <div className="absolute top-2 right-2 z-20 flex items-center gap-1 rounded-md bg-blue-600/90 px-2 py-0.5 text-xs font-semibold text-white shadow-md backdrop-blur-sm">
                 <span>{Math.round(searchScore * 100)}% match</span>
               </div>
             )}
@@ -220,7 +230,7 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
                 >
                   {item.name}
                 </span>
-                <div className="pointer-events-none mt-0.5 flex items-center justify-between text-2xs opacity-75 select-none">
+                <div className="pointer-events-none mt-0.5 flex items-center justify-between text-xs opacity-75 select-none">
                   <span>{dateStr}</span>
                   <span>{formatBytes(item.size)}</span>
                 </div>
@@ -251,7 +261,7 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
                       }
                     >
                       <Bookmark
-                        className={`h-3.5 w-3.5 ${
+                        className={`size-4 ${
                           item.reviewState === "keep"
                             ? "fill-current"
                             : "fill-current opacity-80"
@@ -283,7 +293,7 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
                           : () => onReviewAction(item.id, "delete")
                       }
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 className="size-4" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
@@ -301,7 +311,7 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
                           size="icon"
                           className="h-7 w-7 cursor-pointer rounded-md border border-white/15 bg-white/10 text-white/80 transition-colors hover:border-white/30! hover:bg-white/30! hover:text-white!"
                         >
-                          <MoreVertical className="h-3.5 w-3.5" />
+                          <MoreVertical className="size-4" />
                         </Button>
                       </DropdownMenuTrigger>
                     </TooltipTrigger>
@@ -313,33 +323,33 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
                   >
                     <DropdownMenuItem
                       onClick={() => onInfoOpen(item)}
-                      className="cursor-pointer gap-2.5"
+                      className="cursor-pointer gap-3"
                     >
-                      <Info className="h-3.5 w-3.5" />
+                      <Info className="size-4" />
                       File Info
                     </DropdownMenuItem>
                     {onFindSimilar && ENABLE_AI_FEATURES && (
                       <DropdownMenuItem
                         onClick={() => onFindSimilar(item.id)}
-                        className="cursor-pointer gap-2.5 text-primary"
+                        className="cursor-pointer gap-3 text-primary"
                       >
-                        <Sparkles className="h-3.5 w-3.5" />
+                        <Sparkles className="size-4" />
                         Find Similar
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       onClick={handleOpenFile}
-                      className="cursor-pointer gap-2.5"
+                      className="cursor-pointer gap-3"
                     >
-                      <ExternalLink className="h-3.5 w-3.5" />
+                      <ExternalLink className="size-4" />
                       Open in default app
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={handleOpenFolder}
-                      className="cursor-pointer gap-2.5"
+                      className="cursor-pointer gap-3"
                     >
-                      <FolderOpen className="h-3.5 w-3.5" />
+                      <FolderOpen className="size-4" />
                       Show in {getFileManagerName()}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -354,46 +364,46 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
       <ContextMenuContent className="w-44 border-border bg-card font-sans text-sm text-foreground">
         <ContextMenuItem
           onClick={() => onPreviewOpen(item)}
-          className="gap-2.5"
+          className="gap-3"
         >
-          <Eye className="h-3.5 w-3.5" />
+          <Eye className="size-4" />
           Preview File
         </ContextMenuItem>
-        <ContextMenuItem onClick={() => onInfoOpen(item)} className="gap-2.5">
-          <Info className="h-3.5 w-3.5" />
+        <ContextMenuItem onClick={() => onInfoOpen(item)} className="gap-3">
+          <Info className="size-4" />
           File Info
         </ContextMenuItem>
         {onFindSimilar && ENABLE_AI_FEATURES && (
           <ContextMenuItem
             onClick={() => onFindSimilar(item.id)}
-            className="gap-2.5 text-primary focus:text-primary"
+            className="gap-3 text-primary focus:text-primary"
           >
-            <Sparkles className="h-3.5 w-3.5" />
+            <Sparkles className="size-4" />
             Find Similar
           </ContextMenuItem>
         )}
         <ContextMenuSeparator />
         <ContextMenuItem
           onClick={() => onReviewAction(item.id, "keep")}
-          className="gap-2.5 text-green-500 focus:text-green-500"
+          className="gap-3 text-green-500 focus:text-green-500"
         >
-          <Bookmark className="h-3.5 w-3.5" />
+          <Bookmark className="size-4" />
           Mark to Keep
         </ContextMenuItem>
         <ContextMenuItem
           onClick={() => onReviewAction(item.id, "delete")}
-          className="gap-2.5 text-destructive focus:text-destructive"
+          className="gap-3 text-destructive focus:text-destructive"
         >
-          <Trash2 className="h-3.5 w-3.5" />
+          <Trash2 className="size-4" />
           Mark to Delete
         </ContextMenuItem>
         <ContextMenuSeparator />
-        <ContextMenuItem onClick={handleOpenFile} className="gap-2.5">
-          <ExternalLink className="h-3.5 w-3.5" />
+        <ContextMenuItem onClick={handleOpenFile} className="gap-3">
+          <ExternalLink className="size-4" />
           Open in default app
         </ContextMenuItem>
-        <ContextMenuItem onClick={handleOpenFolder} className="gap-2.5">
-          <FolderOpen className="h-3.5 w-3.5" />
+        <ContextMenuItem onClick={handleOpenFolder} className="gap-3">
+          <FolderOpen className="size-4" />
           Show in {getFileManagerName()}
         </ContextMenuItem>
       </ContextMenuContent>
@@ -409,12 +419,17 @@ export const MediaCard = React.memo(MediaCardInner, (prev, next) => {
     prev.item.size === next.item.size &&
     prev.item.reviewState === next.item.reviewState &&
     prev.item.thumbnailPath === next.item.thumbnailPath &&
+    prev.item.orientation === next.item.orientation &&
     prev.item.quality?.compositeScore === next.item.quality?.compositeScore &&
+    prev.searchScore === next.searchScore &&
+    prev.matchingFrame?.timestampSeconds === next.matchingFrame?.timestampSeconds &&
+    prev.matchingFrame?.thumbnailPath === next.matchingFrame?.thumbnailPath &&
     prev.isSelected === next.isSelected &&
     prev.onSelectToggle === next.onSelectToggle &&
     prev.onPreviewOpen === next.onPreviewOpen &&
     prev.onInfoOpen === next.onInfoOpen &&
     prev.onReviewAction === next.onReviewAction &&
+    prev.onFindSimilar === next.onFindSimilar &&
     prev.onPlayOpen === next.onPlayOpen
   )
 })

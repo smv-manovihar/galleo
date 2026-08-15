@@ -1,4 +1,4 @@
-import React, { useRef, useMemo, useState } from "react"
+import React, { useRef, useMemo, useState, useEffect, memo } from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import type { MediaItem } from "../../../shared/types/media"
 import { Badge } from "@/components/ui/badge"
@@ -19,7 +19,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useMediaStore } from "../../stores/media-store"
-import { useSettingsStore } from "../../stores/settings-store"
+import { useSettingsStore, selectIsScanned } from "../../stores/settings-store"
 import { getFileManagerName } from "../../lib/os"
 import { ENABLE_AI_FEATURES } from "../../../shared/constants"
 import {
@@ -63,7 +63,7 @@ interface MediaListRowProps {
   onPlayOpen?: (item: MediaItem) => void
 }
 
-const MediaListRow = React.memo<MediaListRowProps>(
+const MediaListRow = memo<MediaListRowProps>(
   ({
     item,
     isSelected,
@@ -343,7 +343,7 @@ const MediaListRow = React.memo<MediaListRowProps>(
   }
 )
 
-export const MediaList: React.FC<MediaListProps> = ({
+const MediaListComponent: React.FC<MediaListProps> = ({
   items,
   selectedIds,
   onSelectToggle,
@@ -368,9 +368,9 @@ export const MediaList: React.FC<MediaListProps> = ({
   }) // Sum = 100
 
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
-  const dragCleanupRef = React.useRef<(() => void) | null>(null)
+  const dragCleanupRef = useRef<(() => void) | null>(null)
 
-  React.useEffect(() => {
+  useEffect(() => {
     return () => {
       if (dragCleanupRef.current) {
         dragCleanupRef.current()
@@ -466,7 +466,7 @@ export const MediaList: React.FC<MediaListProps> = ({
     }
 
     return Object.keys(groups)
-      .sort((a, b) => b.localeCompare(a))
+      .sort((a, b) => (b < a ? -1 : b > a ? 1 : 0))
       .map((key) => ({
         dateKey: key,
         dateFormatted: formatDate(key),
@@ -552,16 +552,11 @@ estimateSize: (index) => {
   )
 
   const activeRootPath = useMediaStore((s) => s.activeRootPath)
-  const folderRoots = useSettingsStore((s) => s.settings.folders.roots)
+  const settings = useSettingsStore((s) => s.settings)
 
   const isScanned = useMemo(() => {
-    if (!activeRootPath || activeRootPath === "all") {
-      return folderRoots.some((r) => r.enabled && r.scanned)
-    }
-    return !!folderRoots.find(
-      (r) => r.path.toLowerCase() === activeRootPath.toLowerCase()
-    )?.scanned
-  }, [activeRootPath, folderRoots])
+    return selectIsScanned(settings, activeRootPath)
+  }, [settings, activeRootPath])
 
   if (items.length === 0) {
     return (
@@ -724,3 +719,5 @@ estimateSize: (index) => {
     </div>
   )
 }
+
+export const MediaList = memo(MediaListComponent)

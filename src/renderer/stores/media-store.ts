@@ -195,6 +195,11 @@ interface MediaState {
   setSelectedItemId: (id: string | null) => void
   setActiveRootPath: (path: string | null) => void
   updateItemOrientation: (idOrPath: string, orientation: number) => void
+  updateItemReviewStates: (
+    updates:
+      | Map<string, "keep" | "delete" | "skipped" | "pending">
+      | Record<string, "keep" | "delete" | "skipped" | "pending">
+  ) => void
   getFilteredItems: () => MediaItem[]
   getDashboardMetrics: () => CachedDashboardMetrics
 }
@@ -377,6 +382,38 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       computeCaches(updatedItems, activeRootPath)
     set({ items: updatedItems, cachedMetrics, cachedDuplicateGroups, cachedRootItemCounts })
     void window.api.updateMediaOrientation(idOrPath, orientation)
+  },
+
+  updateItemReviewStates: (updates) => {
+    const { items, activeRootPath } = get()
+    const isMap = updates instanceof Map
+    let hasChange = false
+
+    const updatedItems = items.map((item) => {
+      const newState = isMap
+        ? (updates as Map<string, "keep" | "delete" | "skipped" | "pending">).get(item.id)
+        : (updates as Record<string, "keep" | "delete" | "skipped" | "pending">)[item.id]
+
+      if (newState !== undefined && item.reviewState !== newState) {
+        hasChange = true
+        return { ...item, reviewState: newState }
+      }
+      return item
+    })
+
+    if (!hasChange) return
+
+    let targetItems = updatedItems
+    if (activeRootPath && activeRootPath !== "all") {
+      const normRoot = activeRootPath.replace(/\\/g, "/").toLowerCase().replace(/\/+$/, "")
+      targetItems = updatedItems.filter((item) => {
+        const itemNorm = item.path.replace(/\\/g, "/").toLowerCase()
+        return itemNorm === normRoot || itemNorm.startsWith(normRoot + "/")
+      })
+    }
+    const cachedMetrics = computeMetricsForItems(targetItems)
+
+    set({ items: updatedItems, cachedMetrics })
   },
 
   fetchMediaItems: async (folderPath: string) => {

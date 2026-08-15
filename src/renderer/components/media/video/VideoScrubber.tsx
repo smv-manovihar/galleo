@@ -16,19 +16,15 @@ export const VideoScrubber: React.FC<VideoScrubberProps> = React.memo(
     const isSeekingRef = useRef(false)
 
     useEffect(() => {
-      setDuration(initialDuration)
-    }, [initialDuration])
-
-    useEffect(() => {
       return subscribeTimeUpdate((cur, dur) => {
         if (!isSeekingRef.current) {
           setCurrentTime(cur)
         }
-        if (dur && dur !== duration) {
-          setDuration(dur)
+        if (dur) {
+          setDuration((prev) => (dur !== prev ? dur : prev))
         }
       })
-    }, [subscribeTimeUpdate, duration])
+    }, [subscribeTimeUpdate])
 
     const handleValueChange = useCallback(
       (val: number[]) => {

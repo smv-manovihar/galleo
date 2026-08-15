@@ -18,6 +18,8 @@ interface UIState {
     | "reset"
     | "about"
   activeDuplicatesTab: "auto" | "manual"
+  previewMetaPanelOpen: boolean
+  previewTransitionAnimation: boolean
   updateInfo: UpdateCheckResult | null
   isCheckingUpdate: boolean
   updateError: string | null
@@ -27,6 +29,10 @@ interface UIState {
   setCurrentView: (view: ViewMode) => void
   setSidebarOpen: (open: boolean) => void
   setKeyboardShortcutsOpen: (open: boolean) => void
+  setPreviewMetaPanelOpen: (open: boolean) => void
+  togglePreviewMetaPanel: () => void
+  setPreviewTransitionAnimation: (enabled: boolean) => void
+  togglePreviewTransitionAnimation: () => void
   setActiveSettingsTab: (
     tab:
       | "folders"
@@ -48,6 +54,14 @@ export const useUIStore = create<UIState>((set, get) => ({
   keyboardShortcutsOpen: false,
   activeSettingsTab: "folders",
   activeDuplicatesTab: "auto",
+  previewMetaPanelOpen:
+    typeof window !== "undefined"
+      ? localStorage.getItem("galleo_preview_meta_panel_open") === "true"
+      : false,
+  previewTransitionAnimation:
+    typeof window !== "undefined"
+      ? localStorage.getItem("galleo_preview_transition_animation") !== "false"
+      : true,
   updateInfo: null,
   isCheckingUpdate: false,
   updateError: null,
@@ -66,6 +80,41 @@ export const useUIStore = create<UIState>((set, get) => ({
   setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
   setKeyboardShortcutsOpen: (keyboardShortcutsOpen) =>
     set({ keyboardShortcutsOpen }),
+  setPreviewMetaPanelOpen: (previewMetaPanelOpen) => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(
+        "galleo_preview_meta_panel_open",
+        String(previewMetaPanelOpen)
+      )
+    }
+    set({ previewMetaPanelOpen })
+  },
+  togglePreviewMetaPanel: () => {
+    const next = !get().previewMetaPanelOpen
+    if (typeof window !== "undefined") {
+      localStorage.setItem("galleo_preview_meta_panel_open", String(next))
+    }
+    set({ previewMetaPanelOpen: next })
+  },
+  setPreviewTransitionAnimation: (previewTransitionAnimation) => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(
+        "galleo_preview_transition_animation",
+        String(previewTransitionAnimation)
+      )
+    }
+    set({ previewTransitionAnimation })
+  },
+  togglePreviewTransitionAnimation: () => {
+    const next = !get().previewTransitionAnimation
+    if (typeof window !== "undefined") {
+      localStorage.setItem(
+        "galleo_preview_transition_animation",
+        String(next)
+      )
+    }
+    set({ previewTransitionAnimation: next })
+  },
   setActiveSettingsTab: (activeSettingsTab) => set({ activeSettingsTab }),
   setActiveDuplicatesTab: (activeDuplicatesTab) => set({ activeDuplicatesTab }),
   checkForUpdates: async (force = false) => {

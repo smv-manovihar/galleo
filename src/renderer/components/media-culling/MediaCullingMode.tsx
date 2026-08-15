@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useRef, useMemo } from "react"
-import { Loader2 } from "lucide-react"
 import { useSessionStore } from "../../stores/session-store"
 import type { MediaItem } from "../../../shared/types/media"
 import { MediaCullingProgress } from "./MediaCullingProgress"
@@ -43,24 +42,7 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
   /** Undone items that should reappear at the front of the deck (most recent first) */
   const [frontOfDeckIds, setFrontOfDeckIds] = useState<string[]>([])
 
-  const [isProcessing, setIsProcessing] = useState(true)
-  const [sortedItems, setSortedItems] = useState<MediaItem[]>([])
-
-  useEffect(() => {
-    let active = true
-    const timer = setTimeout(() => {
-      if (!active) return
-      const sorted = getSimilaritySortedItems(items)
-      React.startTransition(() => {
-        setSortedItems(sorted)
-        setIsProcessing(false)
-      })
-    }, 0)
-    return () => {
-      active = false
-      clearTimeout(timer)
-    }
-  }, [items])
+  const sortedItems = useMemo(() => getSimilaritySortedItems(items), [items])
 
   const filteredItems = useMemo(() => {
     if (onlyShowFlagged) {
@@ -211,45 +193,45 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
   }, [unreviewedItems, animatingOutId, sortedItems])
 
   // Handle keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = async (e: KeyboardEvent) => {
-      const key = e.key.toLowerCase()
+  const handleKeyDown = async (e: KeyboardEvent) => {
+    const key = e.key.toLowerCase()
 
-      // Undo: ↓ / S / Ctrl+Z / Backspace
-      if (
-        e.key === "ArrowDown" ||
-        key === "s" ||
-        (e.ctrlKey && key === "z") ||
-        e.key === "Backspace"
-      ) {
-        e.preventDefault()
-        await handleUndo()
-        return
-      }
-
-      if (!currentItem) return
-
-      // Preview: ↑ / W
-      if (e.key === "ArrowUp" || key === "w") {
-        e.preventDefault()
-        setShowPreview(true)
-        return
-      }
-
-      if (e.key === "ArrowLeft" || key === "a" || e.key === "Delete") {
-        e.preventDefault()
-        handleAction("delete")
-        return
-      }
-
-      // Keep: → / D / Enter
-      if (e.key === "ArrowRight" || key === "d" || e.key === "Enter") {
-        e.preventDefault()
-        handleAction("keep")
-        return
-      }
+    // Undo: ↓ / S / Ctrl+Z / Backspace
+    if (
+      e.key === "ArrowDown" ||
+      key === "s" ||
+      (e.ctrlKey && key === "z") ||
+      e.key === "Backspace"
+    ) {
+      e.preventDefault()
+      await handleUndo()
+      return
     }
 
+    if (!currentItem) return
+
+    // Preview: ↑ / W
+    if (e.key === "ArrowUp" || key === "w") {
+      e.preventDefault()
+      setShowPreview(true)
+      return
+    }
+
+    if (e.key === "ArrowLeft" || key === "a" || e.key === "Delete") {
+      e.preventDefault()
+      handleAction("delete")
+      return
+    }
+
+    // Keep: → / D / Enter
+    if (e.key === "ArrowRight" || key === "d" || e.key === "Enter") {
+      e.preventDefault()
+      handleAction("keep")
+      return
+    }
+  }
+
+  useEffect(() => {
     handleKeyDownRef.current = handleKeyDown
   })
 
@@ -303,17 +285,7 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
         className="relative z-10 flex min-h-0 w-full flex-1 items-center justify-center py-2"
         style={{ overflow: "visible" }}
       >
-        {isProcessing ? (
-          <div className="flex flex-col items-center justify-center gap-3 py-12 text-center text-muted-foreground animate-pulse">
-            <div className="relative flex h-64 w-80 max-w-full items-center justify-center rounded-2xl border border-border/40 bg-card/30 backdrop-blur-md shadow-inner">
-              <Loader2 className="h-7 w-7 animate-spin text-primary/70" />
-            </div>
-            <span className="text-xs font-medium tracking-wide text-muted-foreground/80">
-              Preparing media deck...
-            </span>
-          </div>
-        ) : (
-          [...deckItems].reverse().map((item, reverseIdx) => {
+        {[...deckItems].reverse().map((item, reverseIdx) => {
             const deckIndex = deckItems.length - 1 - reverseIdx
             const isTopCard = deckIndex === 0
 
@@ -335,8 +307,7 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
                 onSwipeComplete={(action) => commitAction(item, action)}
               />
             )
-          })
-        )}
+          })}
       </div>
 
       <MediaCullingControls
@@ -351,6 +322,7 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
       <MediaPreview
         item={showPreview ? currentItem : null}
         onClose={() => setShowPreview(false)}
+        items={unreviewedItems}
       />
     </div>
   )

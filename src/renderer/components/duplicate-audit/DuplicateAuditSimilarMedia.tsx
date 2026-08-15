@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from "react"
+import React, { useMemo, useState, useCallback, useEffect } from "react"
 import type { MediaItem } from "../../../shared/types/media"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -400,7 +400,7 @@ export const DuplicateAuditSimilarMedia: React.FC<
     setPreviewItem(item)
   }, [])
 
-  React.useEffect(() => {
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (
         document.activeElement?.tagName === "INPUT" ||
@@ -575,7 +575,7 @@ export const DuplicateAuditSimilarMedia: React.FC<
     openPreview,
   ])
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!currentGroup && duplicateGroups.length > 0 && onComplete) {
       onComplete()
     }

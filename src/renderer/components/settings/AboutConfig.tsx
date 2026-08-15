@@ -43,7 +43,7 @@ export const AboutConfig: React.FC = () => {
               <div className="text-xs text-muted-foreground">
                 Current Version:{" "}
                 <span className="rounded-md border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-mono font-semibold text-primary">
-                  v{updateInfo?.currentVersion || "0.1.3"}
+                  v{updateInfo?.currentVersion || "1.0.0"}
                 </span>
               </div>
             </div>

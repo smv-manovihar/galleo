@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useEffect } from "react"
 import useEmblaCarousel, {
   type UseEmblaCarouselType,
 } from "embla-carousel-react"
@@ -86,12 +87,12 @@ function Carousel({
     [scrollPrev, scrollNext]
   )
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!api || !setApi) return
     setApi(api)
   }, [api, setApi])
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!api) return
     queueMicrotask(() => onSelect(api))
     api.on("reInit", onSelect)

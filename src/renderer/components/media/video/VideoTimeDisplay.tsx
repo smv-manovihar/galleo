@@ -12,17 +12,13 @@ export const VideoTimeDisplay: React.FC<VideoTimeDisplayProps> = React.memo(
     const [duration, setDuration] = useState(initialDuration)
 
     useEffect(() => {
-      setDuration(initialDuration)
-    }, [initialDuration])
-
-    useEffect(() => {
       return subscribeTimeUpdate((cur, dur) => {
         setCurrentTime(cur)
-        if (dur && dur !== duration) {
-          setDuration(dur)
+        if (dur) {
+          setDuration((prev) => (dur !== prev ? dur : prev))
         }
       })
-    }, [subscribeTimeUpdate, duration])
+    }, [subscribeTimeUpdate])
 
     return (
       <span className="font-mono text-white/80 tabular-nums select-none text-xs">

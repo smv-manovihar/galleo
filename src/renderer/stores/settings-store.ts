@@ -16,6 +16,19 @@ interface SettingsState {
   setDestinationFolder: (folderPath: string) => Promise<void>
 }
 
+export function selectIsScanned(
+  settings: AppSettings,
+  activeRootPath: string | null
+): boolean {
+  if (!activeRootPath || activeRootPath === "all") {
+    return settings.folders.roots.some((r) => r.enabled && r.scanned)
+  }
+  const normActive = activeRootPath.toLowerCase()
+  return !!settings.folders.roots.find(
+    (r) => r.path.toLowerCase() === normActive
+  )?.scanned
+}
+
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   settings: DEFAULT_SETTINGS,
   isLoading: false,

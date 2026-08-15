@@ -1,8 +1,8 @@
-import React, { useState } from "react"
+import React, { useState, useMemo, useEffect, useRef } from "react"
 import { useMediaStore } from "../stores/media-store"
 import { useSessionStore } from "../stores/session-store"
 import { useScanStore } from "../stores/scan-store"
-import { useSettingsStore } from "../stores/settings-store"
+import { useSettingsStore, selectIsScanned } from "../stores/settings-store"
 import { DuplicateAuditSimilarMedia } from "../components/duplicate-audit/DuplicateAuditSimilarMedia"
 import { DuplicateAuditSummary } from "../components/duplicate-audit/DuplicateAuditSummary"
 import { DuplicateAuditExactDuplicates } from "../components/duplicate-audit/DuplicateAuditExactDuplicates"
@@ -22,8 +22,8 @@ export const DuplicateAuditPage: React.FC = () => {
   const isScanning = useScanStore((s) => s.isScanning)
   const isPostProcessing = useScanStore((s) => s.isPostProcessing)
   const isBusyScanning = isScanning || isPostProcessing
-  const organization = useSettingsStore((s) => s.settings.organization)
-  const folderRoots = useSettingsStore((s) => s.settings.folders.roots)
+  const settings = useSettingsStore((s) => s.settings)
+  const organization = settings.organization
   const saveSettings = useSettingsStore((s) => s.saveSettings)
   const initSession = useSessionStore((s) => s.initSession)
 
@@ -34,7 +34,7 @@ export const DuplicateAuditPage: React.FC = () => {
   const strategy: DuplicateStrategy =
     organization.duplicateStrategy ?? "keep_most_grouped"
 
-  const preferredKeepFolderPaths = React.useMemo(() => {
+  const preferredKeepFolderPaths = useMemo(() => {
     if (organization.preferredKeepFolderPaths !== undefined) {
       return organization.preferredKeepFolderPaths
     }
@@ -44,7 +44,7 @@ export const DuplicateAuditPage: React.FC = () => {
     return []
   }, [organization.preferredKeepFolderPaths, organization.duplicateStrategy, organization.preferredFolderPaths, organization.preferredFolderPath])
 
-  const preferredDeleteFolderPaths = React.useMemo(() => {
+  const preferredDeleteFolderPaths = useMemo(() => {
     if (organization.preferredDeleteFolderPaths !== undefined) {
       return organization.preferredDeleteFolderPaths
     }
@@ -74,13 +74,29 @@ export const DuplicateAuditPage: React.FC = () => {
 
   const duplicateGroups = useMediaStore((s) => s.cachedDuplicateGroups)
 
+  // Pre-compute folder sibling counts for the most_grouped/keep_newest strategy
+  const folderSiblingCount = useMemo(() => {
+    const map = new Map<string, number>()
+    if (strategy === "keep_most_grouped" || strategy === "keep_newest") {
+      for (const item of items) {
+        const dir = item.path
+          .replace(/\\/g, "/")
+          .split("/")
+          .slice(0, -1)
+          .join("/")
+        map.set(dir, (map.get(dir) ?? 0) + 1)
+      }
+    }
+    return map
+  }, [items, strategy])
+
   // Partition duplicates into exact copies vs similar files
   const {
     exactDupsToDelete,
     exactDupsToKeep,
     exactDupsGroups,
     manualReviewGroups,
-  } = React.useMemo(() => {
+  } = useMemo(() => {
     const dupsToDelete: MediaItem[] = []
     const dupsToKeep: MediaItem[] = []
     const exactGroups: MediaItem[][] = []
@@ -103,19 +119,6 @@ export const DuplicateAuditPage: React.FC = () => {
       return normDeleteFolders.some(
         (pref) => dirPath === pref || dirPath.startsWith(pref + "/")
       )
-    }
-
-    // Pre-compute folder sibling counts for the most_grouped strategy
-    const folderSiblingCount = new Map<string, number>()
-    if (strategy === "keep_most_grouped") {
-      for (const item of items) {
-        const dir = item.path
-          .replace(/\\/g, "/")
-          .split("/")
-          .slice(0, -1)
-          .join("/")
-        folderSiblingCount.set(dir, (folderSiblingCount.get(dir) ?? 0) + 1)
-      }
     }
 
     /**
@@ -221,20 +224,20 @@ export const DuplicateAuditPage: React.FC = () => {
     }
   }, [
     duplicateGroups,
-    items,
     strategy,
     preferredKeepFolderPaths,
     preferredDeleteFolderPaths,
+    folderSiblingCount,
   ])
 
-  const manualReviewItems = React.useMemo(() => {
+  const manualReviewItems = useMemo(() => {
     return manualReviewGroups.flat()
   }, [manualReviewGroups])
 
   // Clamp manualGroupIndex when items are deleted mid-review and the groups array shrinks.
   // Without this, the index stays at its old value while duplicateGroups is shorter,
   // causing a stale "N of M" counter or a null currentGroup.
-  React.useEffect(() => {
+  useEffect(() => {
     if (manualReviewGroups.length === 0) return
     if (manualGroupIndex >= manualReviewGroups.length) {
       const clamped = manualReviewGroups.length - 1
@@ -249,7 +252,7 @@ export const DuplicateAuditPage: React.FC = () => {
     }
   }, [manualReviewGroups.length, manualGroupIndex, activeRootPath])
 
-  const isAllManualReviewed = React.useMemo(() => {
+  const isAllManualReviewed = useMemo(() => {
     if (manualReviewGroups.length === 0) return false
     return manualReviewGroups.every((group) =>
       group.every(
@@ -261,10 +264,10 @@ export const DuplicateAuditPage: React.FC = () => {
 
   const [showManualSummary, setShowManualSummary] = useState<boolean>(() => isAllManualReviewed)
 
-  const lastLoadedFolderRef = React.useRef<string | null>(null)
+  const lastLoadedFolderRef = useRef<string | null>(null)
 
   // Initialize review session when activeRootPath changes or is loaded
-  React.useEffect(() => {
+  useEffect(() => {
     if (isScanning) return
     if (activeRootPath && items.length > 0) {
       initSession(activeRootPath, items.length)
@@ -272,7 +275,7 @@ export const DuplicateAuditPage: React.FC = () => {
   }, [activeRootPath, items.length, isScanning, initSession])
 
   // Restore and initialize local tab/index states when activeRootPath changes or items load
-  React.useEffect(() => {
+  useEffect(() => {
     if (
       activeRootPath &&
       activeRootPath !== lastLoadedFolderRef.current &&
@@ -348,14 +351,9 @@ export const DuplicateAuditPage: React.FC = () => {
     })
   }
 
-  const isScanned = React.useMemo(() => {
-    if (!activeRootPath || activeRootPath === "all") {
-      return folderRoots.some((r) => r.enabled && r.scanned)
-    }
-    return !!folderRoots.find(
-      (r) => r.path.toLowerCase() === activeRootPath.toLowerCase()
-    )?.scanned
-  }, [activeRootPath, folderRoots])
+  const isScanned = useMemo(() => {
+    return selectIsScanned(settings, activeRootPath)
+  }, [settings, activeRootPath])
 
   if (!activeRootPath) {
     return (

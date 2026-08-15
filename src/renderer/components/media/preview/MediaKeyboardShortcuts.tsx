@@ -192,6 +192,12 @@ export const MediaKeyboardShortcuts: React.FC<MediaKeyboardShortcutsProps> = Rea
             )}
 
             <div className="flex items-center justify-between py-1.5">
+              <span className="text-muted-foreground">Toggle Animations / Compare</span>
+              <kbd className="rounded border border-border/80 bg-muted px-1.5 py-0.5 font-mono text-2xs font-bold text-foreground">
+                T
+              </kbd>
+            </div>
+            <div className="flex items-center justify-between py-1.5">
               <span className="text-muted-foreground">Properties Info</span>
               <kbd className="rounded border border-border/80 bg-muted px-1.5 py-0.5 font-mono text-2xs font-bold text-foreground">
                 I

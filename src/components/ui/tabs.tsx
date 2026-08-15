@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useEffect } from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { Tabs as TabsPrimitive } from "radix-ui"
 
@@ -49,7 +50,7 @@ function TabsList({
   const listRef = React.useRef<HTMLDivElement>(null)
   const indicatorRef = React.useRef<HTMLDivElement>(null)
 
-  React.useEffect(() => {
+  useEffect(() => {
     const list = listRef.current
     const indicator = indicatorRef.current
     if (!list || !indicator || variant !== "animated") return

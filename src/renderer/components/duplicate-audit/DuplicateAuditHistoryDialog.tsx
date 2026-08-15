@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react"
+import React, { useState, useCallback, useEffect, useMemo, memo } from "react"
 import {
   Dialog,
   DialogContent,
@@ -27,7 +27,7 @@ export interface DuplicateAuditHistoryDialogItem {
   currentDecision: "keep" | "delete" | "skipped" | "pending"
 }
 
-const HistoryRow = React.memo(
+const HistoryRow = memo(
   ({
     index,
     item,
@@ -52,7 +52,7 @@ const HistoryRow = React.memo(
     translateY: number
     measureRef: (el: HTMLElement | null) => void
   }) => {
-    const rowStyle = React.useMemo(
+    const rowStyle = useMemo(
       () => ({
         gridTemplateColumns: "40px 56px 1fr 96px 80px",
         height: "56px",
@@ -175,12 +175,12 @@ export const DuplicateAuditHistoryDialog: React.FC<
     overscan: 5,
   })
 
-  // Reset selection when modal closes or items change
-  React.useEffect(() => {
+  // Reset selection when modal closes
+  useEffect(() => {
     if (!isOpen) {
       setSelectedIds(new Set())
     }
-  }, [isOpen, items])
+  }, [isOpen])
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {

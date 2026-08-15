@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useMemo, useCallback, useDeferredValue } from "react"
 import { useMediaStore, filterAndSortItems } from "../stores/media-store"
 import { useSessionStore } from "../stores/session-store"
 import { useScanStore } from "../stores/scan-store"
@@ -23,11 +23,11 @@ import {
 import {
   Grid,
   List,
-  CheckCircle2,
-  Trash2,
   InboxIcon,
   Clock,
   Bookmark,
+  Trash2,
+  CheckCircle2,
   AlertCircle,
   ListX,
   Summary,
@@ -73,10 +73,14 @@ export const BrowseMediaPage: React.FC = () => {
   const [infoItem, setInfoItem] = useState<MediaItem | null>(null)
   const [showCommitConfirm, setShowCommitConfirm] = useState(false)
 
-  const deleteDetails = React.useMemo(() => {
+  const itemMap = useMemo(
+    () => new Map(items.map((i) => [i.id, i])),
+    [items]
+  )
+
+  const deleteDetails = useMemo(() => {
     let count = 0
     let size = 0
-    const itemMap = new Map(items.map((i) => [i.id, i]))
     for (const [mediaId, state] of Object.entries(decisions)) {
       if (state === "delete") {
         count++
@@ -87,7 +91,7 @@ export const BrowseMediaPage: React.FC = () => {
       }
     }
     return { count, size }
-  }, [decisions, items])
+  }, [decisions, itemMap])
 
   // Initialize review session when activeRootPath changes or is loaded
   useEffect(() => {
@@ -154,7 +158,7 @@ export const BrowseMediaPage: React.FC = () => {
     }
   }
 
-  const searchResultsMap = React.useMemo(() => {
+  const searchResultsMap = useMemo(() => {
     if (!searchResults) return undefined
     const map = new Map<string, SearchResultItem>()
     for (const res of searchResults) {
@@ -169,7 +173,7 @@ export const BrowseMediaPage: React.FC = () => {
 
   // Single-pass filter + sort re-run only when the inputs that drive it
   // change, not on every render of BrowseMediaPage.
-  const rawFilteredItems = React.useMemo(
+  const rawFilteredItems = useMemo(
     () =>
       filterAndSortItems(items, {
         activeRootPath,
@@ -191,7 +195,7 @@ export const BrowseMediaPage: React.FC = () => {
       decisions,
     ]
   )
-  const filteredItems = React.useMemo(() => {
+  const filteredItems = useMemo(() => {
     if (activeSearchResults) {
       const searchMap = new Set(activeSearchResults.map((r) => r.mediaId))
       return rawFilteredItems.filter((item) => searchMap.has(item.id))
@@ -199,10 +203,10 @@ export const BrowseMediaPage: React.FC = () => {
     return rawFilteredItems
   }, [rawFilteredItems, activeSearchResults])
 
-  const deferredFilteredItems = React.useDeferredValue(filteredItems)
+  const deferredFilteredItems = useDeferredValue(filteredItems)
   const isPending = isLoading || deferredFilteredItems !== filteredItems
 
-  const handleSelectToggle = React.useCallback((id: string) => {
+  const handleSelectToggle = useCallback((id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev)
       if (next.has(id)) {
@@ -214,7 +218,7 @@ export const BrowseMediaPage: React.FC = () => {
     })
   }, [])
 
-  const handleReviewAction = React.useCallback(
+  const handleReviewAction = useCallback(
     async (
       mediaId: string,
       state: "keep" | "delete" | "skipped",
@@ -229,7 +233,7 @@ export const BrowseMediaPage: React.FC = () => {
     [submitDecision]
   )
 
-  const handleSelectAll = React.useCallback(() => {
+  const handleSelectAll = useCallback(() => {
     if (selectedIds.size === filteredItems.length) {
       setSelectedIds(new Set())
     } else {
@@ -237,18 +241,20 @@ export const BrowseMediaPage: React.FC = () => {
     }
   }, [selectedIds.size, filteredItems])
 
-  const handleBatchReviewAction = React.useCallback(
+  const handleBatchReviewAction = useCallback(
     async (state: "keep" | "delete" | "skipped") => {
       const batchId = `batch_browse_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`
-      for (const id of selectedIds) {
-        await handleReviewAction(id, state, batchId)
-      }
+      const updates = [...selectedIds].map((id) => ({
+        mediaId: id,
+        state,
+      }))
+      await useSessionStore.getState().submitBatchDecisions(updates, "browse", batchId)
       setSelectedIds(new Set())
     },
-    [selectedIds, handleReviewAction]
+    [selectedIds]
   )
 
-  const handleUndo = React.useCallback(async () => {
+  const handleUndo = useCallback(async () => {
     const store = useSessionStore.getState()
     const browseActions = store.undoStack.filter(
       (a) => a.newState.source === "browse"
@@ -256,18 +262,18 @@ export const BrowseMediaPage: React.FC = () => {
     if (browseActions.length === 0) return
 
     const lastAction = browseActions[browseActions.length - 1]
-    const item = items.find((i) => i.id === lastAction.mediaId)
     const success = await undo("browse")
     if (success) {
+      const item = useMediaStore.getState().items.find((i) => i.id === lastAction.mediaId)
       toast.success("Reverted decision", {
         description: item
           ? `Reverted review state for ${item.name}`
           : undefined,
       })
     }
-  }, [undo, items])
+  }, [undo])
 
-  React.useEffect(() => {
+  useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (
         document.activeElement?.tagName === "INPUT" ||
@@ -289,25 +295,29 @@ export const BrowseMediaPage: React.FC = () => {
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [handleUndo, previewItem, infoItem])
 
-  const handleSetPreviewItem = React.useCallback(
+  const handleSetPreviewItem = useCallback(
     (item: MediaItem) => setPreviewItem(item),
     []
   )
-  const handlePlayOpen = React.useCallback((item: MediaItem) => {
+  const handlePlayOpen = useCallback((item: MediaItem) => {
     setPreviewItem(item)
     setPreviewAutoPlay(true)
   }, [])
-  const handleSetInfoItem = React.useCallback(
+  const handleSetInfoItem = useCallback(
     (item: MediaItem) => setInfoItem(item),
     []
   )
 
-  // Compute review-state badge counts once per items change instead of
-  // calling items.filter() four separate times inside JSX.
-  const reviewStateCounts = React.useMemo(() => ({
-    keep: items.filter((i) => i.reviewState === "keep").length,
-    delete: items.filter((i) => i.reviewState === "delete").length,
-  }), [items])
+  // Compute review-state badge counts in a single pass over items
+  const reviewStateCounts = useMemo(() => {
+    let keep = 0
+    let del = 0
+    for (const i of items) {
+      if (i.reviewState === "keep") keep++
+      else if (i.reviewState === "delete") del++
+    }
+    return { keep, delete: del }
+  }, [items])
 
   if (!activeRootPath) {
     return (
@@ -650,7 +660,7 @@ export const BrowseMediaPage: React.FC = () => {
           setPreviewItem(null)
           setPreviewAutoPlay(false)
         }}
-        items={filteredItems}
+        items={deferredFilteredItems}
         autoPlay={previewAutoPlay}
       />
       <MediaInfoDialog item={infoItem} onClose={() => setInfoItem(null)} />

@@ -285,12 +285,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     })
 
     // Update media store review state synchronously
-    const mediaStore = useMediaStore.getState()
-    useMediaStore.getState().setItems(
-      mediaStore.items.map((i) =>
-        i.id === mediaId ? { ...i, reviewState: state } : i
-      )
-    )
+    useMediaStore.getState().updateItemReviewStates({ [mediaId]: state })
+
     // Schedule debounced checkpoint save in background (non-blocking)
     scheduleCheckpointSave(updatedCheckpoint)
 
@@ -361,12 +357,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
     // Update media store review states synchronously
     const updateMap = new Map(updates.map((u) => [u.mediaId, u.state]))
-    useMediaStore.getState().setItems(
-      mediaStore.items.map((i) => {
-        const newState = updateMap.get(i.id)
-        return newState ? { ...i, reviewState: newState } : i
-      })
-    )
+    useMediaStore.getState().updateItemReviewStates(updateMap)
 
     // Schedule debounced checkpoint save in background (non-blocking)
     scheduleCheckpointSave(updatedCheckpoint)
@@ -446,7 +437,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }
 
     // Revert media store review states synchronously before setting state
-    const mediaStore = useMediaStore.getState()
     const actionMap = new Map<
       string,
       "keep" | "delete" | "skipped" | "pending"
@@ -461,15 +451,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       ])
     )
 
-    useMediaStore.getState().setItems(
-      mediaStore.items.map((i) => {
-        const prevState = actionMap.get(i.id)
-        if (prevState) {
-          return { ...i, reviewState: prevState }
-        }
-        return i
-      })
-    )
+    useMediaStore.getState().updateItemReviewStates(actionMap)
 
     set({
       checkpoint: updatedCheckpoint,
@@ -523,12 +505,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }
 
     // Sync media store review states
-    const mediaStore = useMediaStore.getState()
-    useMediaStore.getState().setItems(
-      mediaStore.items.map((i) =>
-        mediaIdSet.has(i.id) ? { ...i, reviewState: newDecision } : i
-      )
-    )
+    const updateMap = new Map<string, "keep" | "delete">()
+    for (const id of mediaIds) {
+      updateMap.set(id, newDecision)
+    }
+    useMediaStore.getState().updateItemReviewStates(updateMap)
 
     set({
       decisions: updatedDecisions,

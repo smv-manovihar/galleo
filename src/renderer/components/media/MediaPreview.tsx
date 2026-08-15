@@ -13,6 +13,7 @@ import { VideoPlayer, type VideoPlayerRef } from "./VideoPlayer"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { useMediaStore } from "../../stores/media-store"
+import { useUIStore } from "../../stores/ui-store"
 import { MediaPreviewHeader } from "./preview/MediaPreviewHeader"
 import { MediaPropertiesPanel } from "./preview/MediaPropertiesPanel"
 import { ZoomControls } from "./preview/ZoomControls"
@@ -26,7 +27,7 @@ export interface MediaPreviewProps {
   autoPlay?: boolean
 }
 
-const MediaPreviewInner: React.FC<MediaPreviewProps> = ({
+export const MediaPreview: React.FC<MediaPreviewProps> = ({
   item: propItem,
   onClose,
   items,
@@ -34,14 +35,25 @@ const MediaPreviewInner: React.FC<MediaPreviewProps> = ({
   autoPlay = false,
 }) => {
   // 1. State
-  const [showMetaPanel, setShowMetaPanel] = useState(false)
+  const showMetaPanel = useUIStore((s) => s.previewMetaPanelOpen)
+  const toggleMetaPanel = useUIStore((s) => s.togglePreviewMetaPanel)
+  const enableAnimations = useUIStore((s) => s.previewTransitionAnimation)
+  const toggleAnimations = useUIStore((s) => s.togglePreviewTransitionAnimation)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [showControls, setShowControls] = useState(true)
   const [navigatedItem, setNavigatedItem] = useState<MediaItem | null>(null)
+  const [prevPropId, setPrevPropId] = useState<string | undefined>(propItem?.id)
+  const [slideDirection, setSlideDirection] = useState<"left" | "right" | null>(null)
   const [overrideRotation, setOverrideRotation] = useState<{
     id: string
     rotation: number
   } | null>(null)
+
+  // Sync internal navigated item when parent changes propItem
+  if (propItem?.id !== prevPropId) {
+    setPrevPropId(propItem?.id)
+    setNavigatedItem(null)
+  }
 
   const item = navigatedItem ?? propItem
   const isVideo = item?.mediaType === "video"
@@ -88,6 +100,9 @@ const MediaPreviewInner: React.FC<MediaPreviewProps> = ({
     }
   }, [])
 
+const MIN_SCALE = 1
+const MAX_SCALE = 6
+
   const setScaleValue = useCallback(
     (newScale: number, animated = true) => {
       scaleRef.current = newScale
@@ -101,12 +116,20 @@ const MediaPreviewInner: React.FC<MediaPreviewProps> = ({
   )
 
   const handleZoomIn = useCallback(() => {
-    setScaleValue(Math.min(scaleRef.current + 0.5, 4), true)
+    setScaleValue(Math.min(scaleRef.current + 0.5, MAX_SCALE), true)
   }, [setScaleValue])
 
   const handleZoomOut = useCallback(() => {
-    setScaleValue(Math.max(scaleRef.current - 0.5, 1), true)
+    setScaleValue(Math.max(scaleRef.current - 0.5, MIN_SCALE), true)
   }, [setScaleValue])
+
+  const handleSetScale = useCallback(
+    (newScale: number) => {
+      const clamped = Math.max(MIN_SCALE, Math.min(newScale, MAX_SCALE))
+      setScaleValue(clamped, true)
+    },
+    [setScaleValue]
+  )
 
   const handleZoomReset = useCallback(() => {
     setScaleValue(1, true)
@@ -179,8 +202,9 @@ const MediaPreviewInner: React.FC<MediaPreviewProps> = ({
   }, [rotation, handleRotate])
 
   const handleRotateReset = useCallback(() => {
-    handleRotate(0)
-  }, [handleRotate])
+    const nearestZero = Math.round(rotation / 360) * 360
+    handleRotate(nearestZero)
+  }, [rotation, handleRotate])
 
   // 6. Navigation
   const currentIndex = items && item ? items.findIndex((i) => i.id === item.id) : -1
@@ -190,6 +214,7 @@ const MediaPreviewInner: React.FC<MediaPreviewProps> = ({
   const handlePrevious = useCallback(() => {
     if (items && hasPrevious) {
       const prevItem = items[currentIndex - 1]
+      setSlideDirection("left")
       setNavigatedItem(prevItem)
       onItemChange?.(prevItem)
     }
@@ -198,6 +223,7 @@ const MediaPreviewInner: React.FC<MediaPreviewProps> = ({
   const handleNext = useCallback(() => {
     if (items && hasNext) {
       const nextItem = items[currentIndex + 1]
+      setSlideDirection("right")
       setNavigatedItem(nextItem)
       onItemChange?.(nextItem)
     }
@@ -233,7 +259,8 @@ const MediaPreviewInner: React.FC<MediaPreviewProps> = ({
     toggleFullscreen,
     handleRotateLeft,
     handleRotateRight,
-    setShowMetaPanel,
+    toggleMetaPanel,
+    toggleAnimations,
   })
 
   useEffect(() => {
@@ -248,7 +275,8 @@ const MediaPreviewInner: React.FC<MediaPreviewProps> = ({
       toggleFullscreen,
       handleRotateLeft,
       handleRotateRight,
-      setShowMetaPanel,
+      toggleMetaPanel,
+      toggleAnimations,
     }
   }, [
     item,
@@ -261,6 +289,8 @@ const MediaPreviewInner: React.FC<MediaPreviewProps> = ({
     toggleFullscreen,
     handleRotateLeft,
     handleRotateRight,
+    toggleMetaPanel,
+    toggleAnimations,
   ])
 
   useEffect(() => {
@@ -292,7 +322,14 @@ const MediaPreviewInner: React.FC<MediaPreviewProps> = ({
       // Toggle properties info: I
       if (key === "i") {
         e.preventDefault()
-        actions.setShowMetaPanel((prev) => !prev)
+        actions.toggleMetaPanel()
+        return
+      }
+
+      // Toggle transition animation / compare mode: T
+      if (key === "t") {
+        e.preventDefault()
+        actions.toggleAnimations()
         return
       }
 
@@ -340,9 +377,12 @@ const MediaPreviewInner: React.FC<MediaPreviewProps> = ({
   // 8. Pointer & Wheel Handlers for Zoom / Pan
   const handleWheel = useCallback(
     (e: React.WheelEvent) => {
+      if (isVideo) return
+
       const target = e.target as HTMLElement
       if (
         target.closest("button") ||
+        target.closest("input") ||
         target.closest(".slider") ||
         target.closest('[role="slider"]') ||
         target.closest('[data-slot="slider"]') ||
@@ -352,16 +392,19 @@ const MediaPreviewInner: React.FC<MediaPreviewProps> = ({
         return
       }
 
-      const zoomFactor = 0.1
-      let newScale = scaleRef.current + (e.deltaY < 0 ? zoomFactor : -zoomFactor)
-      newScale = Math.max(1, Math.min(newScale, 4))
+      const zoomStep = 0.1
+      let newScale = scaleRef.current + (e.deltaY < 0 ? zoomStep : -zoomStep)
+      newScale = Math.round(newScale * 10) / 10
+      newScale = Math.max(MIN_SCALE, Math.min(newScale, MAX_SCALE))
       setScaleValue(newScale, true)
     },
-    [setScaleValue]
+    [isVideo, setScaleValue]
   )
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
+      if (isVideo) return
+
       const target = e.target as HTMLElement
       if (
         target.closest("button") ||
@@ -369,6 +412,7 @@ const MediaPreviewInner: React.FC<MediaPreviewProps> = ({
         target.closest('[role="slider"]') ||
         target.closest('[data-slot="slider"]') ||
         target.closest('[data-slot="popover"]') ||
+        target.closest('[data-slot="popover-content"]') ||
         target.closest('[data-slot="dialog"]')
       ) {
         return
@@ -381,28 +425,37 @@ const MediaPreviewInner: React.FC<MediaPreviewProps> = ({
         x: e.clientX - positionRef.current.x,
         y: e.clientY - positionRef.current.y,
       }
+      e.currentTarget.setPointerCapture(e.pointerId)
       updateTransform(false)
     },
-    [updateTransform]
+    [isVideo, updateTransform]
   )
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!isPanningRef.current) return
+      if (isVideo || !isPanningRef.current) return
       positionRef.current = {
         x: e.clientX - panStartRef.current.x,
         y: e.clientY - panStartRef.current.y,
       }
       updateTransform(false)
     },
-    [updateTransform]
+    [isVideo, updateTransform]
   )
 
-  const handlePointerUp = useCallback(() => {
-    if (!isPanningRef.current) return
-    isPanningRef.current = false
-    updateTransform(false)
-  }, [updateTransform])
+  const handlePointerUp = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (isVideo || !isPanningRef.current) return
+      isPanningRef.current = false
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId)
+      } catch {
+        // Ignore pointer capture release error
+      }
+      updateTransform(false)
+    },
+    [isVideo, updateTransform]
+  )
 
   // Pause video on unmount
   useEffect(() => {
@@ -443,8 +496,10 @@ const MediaPreviewInner: React.FC<MediaPreviewProps> = ({
             showMetaPanel={showMetaPanel}
             isVideo={isVideo}
             hasMultipleItems={Boolean(items && items.length > 1)}
+            enableAnimations={enableAnimations}
             toggleFullscreen={toggleFullscreen}
-            toggleMetaPanel={() => setShowMetaPanel((prev) => !prev)}
+            toggleMetaPanel={toggleMetaPanel}
+            toggleAnimations={toggleAnimations}
             onClose={onClose}
           />
 
@@ -466,57 +521,80 @@ const MediaPreviewInner: React.FC<MediaPreviewProps> = ({
                 handlePointerMove(e)
                 resetControlsTimeout()
               }}
-              onPointerUp={() => {
-                handlePointerUp()
+              onPointerUp={(e) => {
+                handlePointerUp(e)
                 resetControlsTimeout()
               }}
               onPointerCancel={handlePointerUp}
-              onPointerLeave={handlePointerUp}
               onMouseMove={resetControlsTimeout}
             >
-              {isVideo ? (
-                <div className="flex h-full w-full max-h-full max-w-full items-center justify-center overflow-hidden">
-                  <VideoPlayer
-                    ref={videoPlayerRef}
-                    transformRef={transformElRef}
+              <div
+                key={item.id}
+                className={`relative flex h-full w-full max-h-full max-w-full items-center justify-center overflow-hidden ${
+                  enableAnimations
+                    ? slideDirection === "right"
+                      ? "animate-in fade-in-0 slide-in-from-right-8 duration-150 ease-out"
+                      : slideDirection === "left"
+                        ? "animate-in fade-in-0 slide-in-from-left-8 duration-150 ease-out"
+                        : "animate-in fade-in-0 duration-150"
+                    : ""
+                }`}
+              >
+                {isVideo ? (
+                  <div className="flex h-full w-full max-h-full max-w-full items-center justify-center overflow-hidden">
+                    <VideoPlayer
+                      ref={videoPlayerRef}
+                      transformRef={transformElRef}
+                      src={safeSrc}
+                      mediaId={item.id}
+                      rotation={rotation}
+                      poster={
+                        item.thumbnailPath
+                          ? `media:///${item.thumbnailPath.replace(/\\/g, "/")}`
+                          : undefined
+                      }
+                      className="h-full w-full"
+                      hideFullscreen={false}
+                      autoPlay={autoPlay}
+                      onZoomIn={handleZoomIn}
+                      onZoomOut={handleZoomOut}
+                      onZoomReset={handleZoomReset}
+                      onSetScale={handleSetScale}
+                      onRotateLeft={handleRotateLeft}
+                      onRotateRight={handleRotateRight}
+                      onRotateReset={handleRotateReset}
+                      registerScaleListener={registerScaleListener}
+                    />
+                  </div>
+                ) : (
+                  <ImagePreviewViewport
                     src={safeSrc}
-                    mediaId={item.id}
+                    alt={item.name}
                     rotation={rotation}
-                    poster={
-                      item.thumbnailPath
-                        ? `media:///${item.thumbnailPath.replace(/\\/g, "/")}`
-                        : undefined
-                    }
-                    className="h-full w-full"
-                    hideFullscreen={false}
-                    autoPlay={autoPlay}
+                    itemWidth={item.width}
+                    itemHeight={item.height}
+                    transformRef={transformElRef}
                   />
-                </div>
-              ) : (
-                <ImagePreviewViewport
-                  src={safeSrc}
-                  alt={item.name}
-                  rotation={rotation}
-                  itemWidth={item.width}
-                  itemHeight={item.height}
-                  transformRef={transformElRef}
-                />
-              )}
+                )}
+              </div>
 
               {/* Controls Toolbar (Zoom + Rotation) */}
-              <ZoomControls
-                isFullscreen={isFullscreen}
-                showControls={showControls}
-                toggleFullscreen={toggleFullscreen}
-                onZoomIn={handleZoomIn}
-                onZoomOut={handleZoomOut}
-                onZoomReset={handleZoomReset}
-                onRotateLeft={handleRotateLeft}
-                onRotateRight={handleRotateRight}
-                rotation={rotation}
-                onRotateReset={handleRotateReset}
-                registerScaleListener={registerScaleListener}
-              />
+              {(!isVideo || !isFullscreen) && (
+                <ZoomControls
+                  isFullscreen={isFullscreen}
+                  showControls={showControls}
+                  toggleFullscreen={toggleFullscreen}
+                  onZoomIn={handleZoomIn}
+                  onZoomOut={handleZoomOut}
+                  onZoomReset={handleZoomReset}
+                  onSetScale={handleSetScale}
+                  onRotateLeft={handleRotateLeft}
+                  onRotateRight={handleRotateRight}
+                  rotation={rotation}
+                  onRotateReset={handleRotateReset}
+                  registerScaleListener={registerScaleListener}
+                />
+              )}
 
               {/* Previous Button */}
               {items && hasPrevious && (
@@ -567,9 +645,3 @@ const MediaPreviewInner: React.FC<MediaPreviewProps> = ({
     </Dialog>
   )
 }
-
-// Keyed wrapper: remounts the preview when the target item changes, so the
-// internal navigation state resets without render-phase setState.
-export const MediaPreview: React.FC<MediaPreviewProps> = (props) => (
-  <MediaPreviewInner key={props.item?.id ?? "none"} {...props} />
-)

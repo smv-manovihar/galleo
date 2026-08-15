@@ -10,7 +10,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { Maximize, Minimize, Info, X } from "lucide-react"
+import { Maximize, Minimize, Info, X, Sparkles } from "lucide-react"
 import { MediaKeyboardShortcuts } from "./MediaKeyboardShortcuts"
 
 interface MediaPreviewHeaderProps {
@@ -20,8 +20,10 @@ interface MediaPreviewHeaderProps {
   showMetaPanel: boolean
   isVideo: boolean
   hasMultipleItems: boolean
+  enableAnimations: boolean
   toggleFullscreen: () => void
   toggleMetaPanel: () => void
+  toggleAnimations: () => void
   onClose: () => void
 }
 
@@ -33,8 +35,10 @@ export const MediaPreviewHeader: React.FC<MediaPreviewHeaderProps> = React.memo(
     showMetaPanel,
     isVideo,
     hasMultipleItems,
+    enableAnimations,
     toggleFullscreen,
     toggleMetaPanel,
+    toggleAnimations,
     onClose,
   }) => {
     return (
@@ -81,6 +85,24 @@ export const MediaPreviewHeader: React.FC<MediaPreviewHeaderProps> = React.memo(
             </TooltipTrigger>
             <TooltipContent side="bottom">
               Toggle Properties Info (I)
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                className={`h-8 w-8 shrink-0 rounded-lg border-border hover:bg-accent cursor-pointer ${enableAnimations ? "border-primary/45 bg-accent text-primary" : "text-muted-foreground"}`}
+                onClick={toggleAnimations}
+              >
+                <Sparkles className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              {enableAnimations
+                ? "Transition Animations: Enabled"
+                : "Transition Animations: Disabled"}
             </TooltipContent>
           </Tooltip>
 

@@ -41,31 +41,13 @@ import { formatBytes } from "../lib/format"
 
 export const DashboardPage: React.FC = () => {
   const items = useMediaStore((s) => s.items)
-  const activeRootPath = useMediaStore((s) => s.activeRootPath)
-  const getDashboardMetrics = useMediaStore((s) => s.getDashboardMetrics)
+  const metrics = useMediaStore((s) => s.cachedMetrics)
   const isLoading = useMediaStore((s) => s.isLoading)
-  const fetchMediaItems = useMediaStore((s) => s.fetchMediaItems)
   const isInitialized = useSettingsStore((s) => s.isInitialized)
   const roots = useSettingsStore((s) => s.settings.folders.roots)
   const isScanning = useScanStore((s) => s.isScanning)
   const isPostProcessing = useScanStore((s) => s.isPostProcessing)
   const isBusyScanning = isScanning || isPostProcessing
-
-  // Ensure media items are fetched if roots exist but store has no items
-  React.useEffect(() => {
-    if (isInitialized && roots.length > 0 && items.length === 0 && !isLoading) {
-      fetchMediaItems(activeRootPath || "all")
-    }
-  }, [
-    isInitialized,
-    roots.length,
-    items.length,
-    isLoading,
-    fetchMediaItems,
-    activeRootPath,
-  ])
-
-  const metrics = getDashboardMetrics()
 
   const setFilterQuality = useMediaStore((s) => s.setFilterQuality)
   const setFilterType = useMediaStore((s) => s.setFilterType)

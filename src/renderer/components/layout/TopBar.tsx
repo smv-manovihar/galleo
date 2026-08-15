@@ -1,4 +1,4 @@
-import React from "react"
+import React, { useState, useEffect, useRef, useMemo, memo } from "react"
 import { useUIStore } from "../../stores/ui-store"
 import { useMediaStore } from "../../stores/media-store"
 import { useSettingsStore } from "../../stores/settings-store"
@@ -59,7 +59,7 @@ import { helpComponentsMap, DefaultHelp } from "./help"
 // (e.g. per-file scanning progress) only re-render the individual pill's progress/text elements,
 // keeping the main TopBar (title, search bar, icons, and CSS animations) from re-rendering.
 
-const ScanningPill = React.memo<{
+const ScanningPill = memo<{
   isStopping: boolean
   onStopScan: () => void
 }>(({ isStopping, onStopScan }) => {
@@ -127,7 +127,7 @@ const ScanningPill = React.memo<{
 })
 ScanningPill.displayName = "ScanningPill"
 
-const AIDownloadPill = React.memo(() => {
+const AIDownloadPill = memo(() => {
   const aiDownloadProgress = useScanStore((state) => state.aiDownloadProgress)
   return (
     <div
@@ -150,7 +150,7 @@ const AIDownloadPill = React.memo(() => {
 })
 AIDownloadPill.displayName = "AIDownloadPill"
 
-const PostProcessingPill = React.memo(() => {
+const PostProcessingPill = memo(() => {
   return (
     <div
       style={{ viewTransitionName: "scan-pill-container" }}
@@ -169,7 +169,7 @@ const PostProcessingPill = React.memo(() => {
 })
 PostProcessingPill.displayName = "PostProcessingPill"
 
-const AIIndexingPill = React.memo(() => {
+const AIIndexingPill = memo(() => {
   const aiIndexingProgress = useScanStore((state) => state.aiIndexingProgress)
   const pct =
     aiIndexingProgress.totalCount > 0
@@ -199,7 +199,7 @@ const AIIndexingPill = React.memo(() => {
 })
 AIIndexingPill.displayName = "AIIndexingPill"
 
-const TrashingPill = React.memo(() => {
+const TrashingPill = memo(() => {
   const trashingProgress = useSessionStore((state) => state.trashingProgress)
   const pct =
     trashingProgress && trashingProgress.totalCount > 0
@@ -230,7 +230,7 @@ const TrashingPill = React.memo(() => {
 })
 TrashingPill.displayName = "TrashingPill"
 
-const OrganizingPill = React.memo(() => {
+const OrganizingPill = memo(() => {
   const organizeProgress = useOrganizeStore((state) => state.progress)
   const pct =
     organizeProgress && organizeProgress.totalCount > 0
@@ -275,7 +275,7 @@ const OrganizingPill = React.memo(() => {
 })
 OrganizingPill.displayName = "OrganizingPill"
 
-const MultiTaskPill = React.memo<{
+const MultiTaskPill = memo<{
   isScanActive: boolean
   isStopping: boolean
   isPostProcessingActive: boolean
@@ -539,9 +539,9 @@ const TopBarSearch: React.FC = () => {
   const setCurrentView = useUIStore((s) => s.setCurrentView)
   const aiStatus = useScanStore((state) => state.aiStatus)
 
-  const [localSearch, setLocalSearch] = React.useState(searchQuery)
-  const [prevSearchQuery, setPrevSearchQuery] = React.useState(searchQuery)
-  const searchTimeoutRef = React.useRef<number | null>(null)
+  const [localSearch, setLocalSearch] = useState(searchQuery)
+  const [prevSearchQuery, setPrevSearchQuery] = useState(searchQuery)
+  const searchTimeoutRef = useRef<number | null>(null)
 
   // Sync global search query back to local input (e.g. if cleared from store)
   if (prevSearchQuery !== searchQuery) {
@@ -549,7 +549,7 @@ const TopBarSearch: React.FC = () => {
     setLocalSearch(searchQuery)
   }
 
-  React.useEffect(() => {
+  useEffect(() => {
     return () => {
       if (searchTimeoutRef.current) {
         window.clearTimeout(searchTimeoutRef.current)
@@ -638,19 +638,19 @@ export const TopBar: React.FC = () => {
   const folderRoots = useSettingsStore((state) => state.settings.folders.roots)
   const saveSettings = useSettingsStore((state) => state.saveSettings)
 
-  const [showRescanDialog, setShowRescanDialog] = React.useState(false)
-  const [showSelectiveScanDialog, setShowSelectiveScanDialog] = React.useState(false)
-  const [selectedPaths, setSelectedPaths] = React.useState<string[]>([])
-  const [showInfoDialog, setShowInfoDialog] = React.useState(false)
+  const [showRescanDialog, setShowRescanDialog] = useState(false)
+  const [showSelectiveScanDialog, setShowSelectiveScanDialog] = useState(false)
+  const [selectedPaths, setSelectedPaths] = useState<string[]>([])
+  const [showInfoDialog, setShowInfoDialog] = useState(false)
 
-  const scanGroupRef = React.useRef<HTMLDivElement>(null)
-  const [scanGroupWidth, setScanGroupWidth] = React.useState(0)
+  const scanGroupRef = useRef<HTMLDivElement>(null)
+  const [scanGroupWidth, setScanGroupWidth] = useState(0)
 
-  React.useEffect(() => {
+  useEffect(() => {
     checkAIStatus()
   }, [checkAIStatus])
 
-  React.useEffect(() => {
+  useEffect(() => {
     const el = scanGroupRef.current
     if (!el) return
     const observer = new ResizeObserver(() => {
@@ -662,7 +662,7 @@ export const TopBar: React.FC = () => {
   }, [])
 
   // Onboarding: Auto-open page info dialog on first visit to Media Culling
-  React.useEffect(() => {
+  useEffect(() => {
     if (currentView === "review") {
       const hasVisited = localStorage.getItem("galleo_visited_review")
       if (!hasVisited) {
@@ -740,7 +740,7 @@ export const TopBar: React.FC = () => {
   const isFolderViewActive = Boolean(
     activeRootPath && activeRootPath !== "all"
   )
-  const activeFolderName = React.useMemo(() => {
+  const activeFolderName = useMemo(() => {
     if (!activeRootPath || activeRootPath === "all") return null
     const root = folderRoots.find(
       (r) => r.path.toLowerCase() === activeRootPath.toLowerCase()

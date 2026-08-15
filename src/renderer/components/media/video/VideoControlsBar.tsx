@@ -18,6 +18,7 @@ import { VideoTimeDisplay } from "./VideoTimeDisplay"
 import type { TimeUpdateSubscriber } from "./video-constants"
 import { VideoVolumeControl } from "./VideoVolumeControl"
 import { VideoSpeedMenu } from "./VideoSpeedMenu"
+import { VideoZoomRotateMenu } from "./VideoZoomRotateMenu"
 
 interface VideoControlsBarProps {
   showControls: boolean
@@ -39,6 +40,17 @@ interface VideoControlsBarProps {
   onToggleMute: () => void
   onChangePlaybackRate: (rate: number) => void
   onToggleFullscreen: (e: React.MouseEvent) => void
+  // Zoom & Rotation props
+  showZoomRotateControls?: boolean
+  zoomScale?: number
+  onZoomIn?: () => void
+  onZoomOut?: () => void
+  onZoomReset?: () => void
+  onSetScale?: (scale: number) => void
+  rotation?: number
+  onRotateLeft?: (e?: React.MouseEvent) => void
+  onRotateRight?: (e?: React.MouseEvent) => void
+  onRotateReset?: (e?: React.MouseEvent) => void
 }
 
 export const VideoControlsBar: React.FC<VideoControlsBarProps> = React.memo(
@@ -62,6 +74,16 @@ export const VideoControlsBar: React.FC<VideoControlsBarProps> = React.memo(
     onToggleMute,
     onChangePlaybackRate,
     onToggleFullscreen,
+    showZoomRotateControls = false,
+    zoomScale = 1,
+    onZoomIn,
+    onZoomOut,
+    onZoomReset,
+    onSetScale,
+    rotation = 0,
+    onRotateLeft,
+    onRotateRight,
+    onRotateReset,
   }) => {
     const btnClass = isNarrow
       ? "w-7 h-7 rounded-full text-white hover:bg-white/10 cursor-pointer shrink-0"
@@ -76,17 +98,26 @@ export const VideoControlsBar: React.FC<VideoControlsBarProps> = React.memo(
     const rightGapClass = isNarrow ? "gap-1" : "gap-2"
     const paddingClass = isNarrow
       ? "px-3 pb-2 pt-6 gap-1"
-      : "px-4 pb-3 pt-8 gap-2"
+      : isFullscreen
+        ? "px-6 pb-4 pt-8 gap-2"
+        : "px-4 pb-3 pt-8 gap-2"
 
     return (
       <div
         className={`absolute right-0 bottom-0 left-0 z-20 transition-opacity duration-300 ${showControls ? "opacity-100" : "pointer-events-none opacity-0"}`}
         onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerUp={(e) => e.stopPropagation()}
+        onPointerMove={(e) => e.stopPropagation()}
       >
         {/* Gradient fade */}
         <div className="pointer-events-none absolute inset-0 bg-linear-to-t from-black/80 via-black/30 to-transparent" />
 
-        <div className={`relative mx-auto flex w-full max-w-4xl flex-col ${paddingClass}`}>
+        <div
+          className={`relative mx-auto flex w-full ${
+            isFullscreen ? "max-w-none" : "max-w-4xl"
+          } flex-col ${paddingClass}`}
+        >
           {/* Scrubber */}
           <VideoScrubber
             initialDuration={initialDuration}
@@ -173,7 +204,7 @@ export const VideoControlsBar: React.FC<VideoControlsBarProps> = React.memo(
               />
             </div>
 
-            {/* Right side controls: Speed + Fullscreen */}
+            {/* Right side controls: Speed + Zoom/Rotate (Fullscreen only) + Fullscreen */}
             <div className={`flex items-center ${rightGapClass}`}>
               {/* Playback speed */}
               <VideoSpeedMenu
@@ -181,6 +212,24 @@ export const VideoControlsBar: React.FC<VideoControlsBarProps> = React.memo(
                 containerElement={containerElement}
                 onChangePlaybackRate={onChangePlaybackRate}
               />
+
+              {/* Fullscreen or Force Enabled Zoom & Orientation Menu */}
+              {(isFullscreen || showZoomRotateControls) && (
+                <VideoZoomRotateMenu
+                  containerElement={containerElement}
+                  btnClass={btnClass}
+                  iconClass={iconClass}
+                  scale={zoomScale}
+                  rotation={rotation}
+                  onZoomIn={onZoomIn}
+                  onZoomOut={onZoomOut}
+                  onZoomReset={onZoomReset}
+                  onSetScale={onSetScale}
+                  onRotateLeft={onRotateLeft}
+                  onRotateRight={onRotateRight}
+                  onRotateReset={onRotateReset}
+                />
+              )}
 
               {/* Fullscreen */}
               {!hideFullscreen && (
@@ -191,6 +240,7 @@ export const VideoControlsBar: React.FC<VideoControlsBarProps> = React.memo(
                       size="icon"
                       className={btnClass}
                       onClick={onToggleFullscreen}
+                      tabIndex={-1}
                     >
                       {isFullscreen ? (
                         <Minimize className={iconClass} />

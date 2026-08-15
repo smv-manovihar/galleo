@@ -5,7 +5,7 @@ import { MediaCard } from "./MediaCard"
 import { formatDate } from "../../lib/format"
 import { ChevronRight, FolderSearch } from "lucide-react"
 import { useMediaStore } from "../../stores/media-store"
-import { useSettingsStore } from "../../stores/settings-store"
+import { useSettingsStore, selectIsScanned } from "../../stores/settings-store"
 
 interface MediaTimelineProps {
   items: MediaItem[]
@@ -20,7 +20,7 @@ interface MediaTimelineProps {
 const GAP = 16
 const TARGET_CARD_WIDTH = 200
 
-export const MediaTimeline: React.FC<MediaTimelineProps> = ({
+const MediaTimelineComponent: React.FC<MediaTimelineProps> = ({
   items,
   selectedIds,
   onSelectToggle,
@@ -34,16 +34,11 @@ export const MediaTimeline: React.FC<MediaTimelineProps> = ({
   const [containerWidth, setContainerWidth] = useState<number>(800)
 
   const activeRootPath = useMediaStore((s) => s.activeRootPath)
-  const folderRoots = useSettingsStore((s) => s.settings.folders.roots)
+  const settings = useSettingsStore((s) => s.settings)
 
   const isScanned = useMemo(() => {
-    if (!activeRootPath || activeRootPath === "all") {
-      return folderRoots.some((r) => r.enabled && r.scanned)
-    }
-    return !!folderRoots.find(
-      (r) => r.path.toLowerCase() === activeRootPath.toLowerCase()
-    )?.scanned
-  }, [activeRootPath, folderRoots])
+    return selectIsScanned(settings, activeRootPath)
+  }, [settings, activeRootPath])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -84,7 +79,7 @@ export const MediaTimeline: React.FC<MediaTimelineProps> = ({
     }
 
     return Object.keys(groups)
-      .sort((a, b) => b.localeCompare(a))
+      .sort((a, b) => (b < a ? -1 : b > a ? 1 : 0))
       .map((key) => ({
         dateKey: key,
         dateFormatted: formatDate(key),
@@ -248,3 +243,5 @@ export const MediaTimeline: React.FC<MediaTimelineProps> = ({
     </div>
   )
 }
+
+export const MediaTimeline = React.memo(MediaTimelineComponent)

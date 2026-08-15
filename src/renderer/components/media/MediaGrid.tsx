@@ -3,7 +3,7 @@ import { useVirtualizer } from "@tanstack/react-virtual"
 import type { MediaItem } from "../../../shared/types/media"
 import { MediaCard } from "./MediaCard"
 import { useMediaStore } from "../../stores/media-store"
-import { useSettingsStore } from "../../stores/settings-store"
+import { useSettingsStore, selectIsScanned } from "../../stores/settings-store"
 import { FolderSearch } from "lucide-react"
 
 import type { SearchResultItem } from "../../../main/services/search-engine.service"
@@ -40,16 +40,11 @@ const MediaGridComponent: React.FC<MediaGridProps> = ({
   const [containerWidth, setContainerWidth] = useState(1000)
 
   const activeRootPath = useMediaStore((s) => s.activeRootPath)
-  const folderRoots = useSettingsStore((s) => s.settings.folders.roots)
+  const settings = useSettingsStore((s) => s.settings)
 
   const isScanned = useMemo(() => {
-    if (!activeRootPath || activeRootPath === "all") {
-      return folderRoots.some((r) => r.enabled && r.scanned)
-    }
-    return !!folderRoots.find(
-      (r) => r.path.toLowerCase() === activeRootPath.toLowerCase()
-    )?.scanned
-  }, [activeRootPath, folderRoots])
+    return selectIsScanned(settings, activeRootPath)
+  }, [settings, activeRootPath])
 
   useEffect(() => {
     if (!containerRef.current) return

@@ -11,11 +11,15 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
-import { Sun, Moon, Monitor, Check, Palette, Type } from "lucide-react"
+import { Sun, Moon, Monitor, Check, Palette, Type, Sparkles } from "lucide-react"
+import { useUIStore } from "../../stores/ui-store"
+import { Switch } from "@/components/ui/switch"
 
 export const AppearanceConfig: React.FC = () => {
   const { settings, saveSettings } = useSettingsStore()
   const { theme, setTheme } = useTheme()
+  const previewTransitionAnimation = useUIStore((s) => s.previewTransitionAnimation)
+  const setPreviewTransitionAnimation = useUIStore((s) => s.setPreviewTransitionAnimation)
 
   const handleThemeChange = async (val: string) => {
     const nextTheme = val as "dark" | "light" | "system"
@@ -214,6 +218,29 @@ export const AppearanceConfig: React.FC = () => {
                 )
               })}
             </RadioGroup>
+          </div>
+
+          {/* Media Preview Transitions Section */}
+          <div className="flex items-center justify-between pt-3 border-t border-border/40">
+            <div className="space-y-0.5 pr-4">
+              <Label className="flex items-center gap-2 text-xs font-semibold text-foreground cursor-pointer" htmlFor="preview-transitions">
+                <Sparkles className="size-4 text-primary" />
+                Media Preview Animations
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Enable slide and fade transitions when cycling between media files in preview. Disable for instant side-by-side comparison mode.
+              </p>
+            </div>
+            <Switch
+              id="preview-transitions"
+              checked={previewTransitionAnimation}
+              onCheckedChange={(checked) => {
+                setPreviewTransitionAnimation(checked)
+                toast.success("Preview preferences updated", {
+                  description: checked ? "Navigation animations enabled." : "Instant comparison mode enabled (animations off).",
+                })
+              }}
+            />
           </div>
         </CardContent>
       </Card>

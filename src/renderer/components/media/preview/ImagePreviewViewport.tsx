@@ -26,12 +26,22 @@ export const ImagePreviewViewport: React.FC<ImagePreviewViewportProps> = React.m
       width: number
       height: number
     }>({ width: 0, height: 0 })
+    const [enableTransition, setEnableTransition] = useState(false)
+    const prevSrcRef = useRef(src)
 
     const viewportRef = useRef<HTMLDivElement>(null)
 
-    // Reset dimensions when src changes
+    // Reset dimensions and disable transition when src changes
     useEffect(() => {
       setLoadedDimensions(null)
+      if (prevSrcRef.current !== src) {
+        prevSrcRef.current = src
+        setEnableTransition(false)
+      }
+      const timer = setTimeout(() => {
+        setEnableTransition(true)
+      }, 50)
+      return () => clearTimeout(timer)
     }, [src])
 
     // Observe local viewport size for 90deg aspect scale calculation
@@ -91,7 +101,9 @@ export const ImagePreviewViewport: React.FC<ImagePreviewViewportProps> = React.m
               style={{
                 transform: `rotate(${rotation}deg) scale(${imgFitScale})`,
               }}
-              className="pointer-events-none max-h-full max-w-full object-contain shadow-lg select-none transition-transform duration-200"
+              className={`pointer-events-none max-h-full max-w-full object-contain shadow-lg select-none ${
+                enableTransition ? "transition-transform duration-200" : ""
+              }`}
             />
           </div>
         </div>

@@ -23,12 +23,10 @@ const SOURCE_LABELS: Record<string, string> = {
 
 export const MediaPropertiesPanel: React.FC<MediaPropertiesPanelProps> = React.memo(
   ({ item }) => {
-    const parentFolder = useMemo(() => {
-      return item.path.substring(
-        0,
-        Math.max(item.path.lastIndexOf("/"), item.path.lastIndexOf("\\"))
-      )
-    }, [item.path])
+    const parentFolder = item.path.substring(
+      0,
+      Math.max(item.path.lastIndexOf("/"), item.path.lastIndexOf("\\"))
+    )
 
     const formattedDates = useMemo(() => {
       const resolvedSourceLabel = SOURCE_LABELS[item.dateTargetSource] || "Resolved"

@@ -48,6 +48,24 @@ jobs:
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "📦 Release: ${TAG}"
 
+          # Detect release notes file (RELEASE_NOTES.md, RELEASE.md, or CHANGELOG.md)
+          NOTES_FILE=""
+          if [ -f "RELEASE_NOTES.md" ]; then
+            NOTES_FILE="RELEASE_NOTES.md"
+          elif [ -f "RELEASE.md" ]; then
+            NOTES_FILE="RELEASE.md"
+          elif [ -f "CHANGELOG.md" ]; then
+            NOTES_FILE="CHANGELOG.md"
+          fi
+
+          if [ -n "$NOTES_FILE" ]; then
+            echo "Found release notes file: ${NOTES_FILE}"
+            NOTES_ARG=(--notes-file "${NOTES_FILE}")
+          else
+            echo "No release notes file found. Using default release notes."
+            NOTES_ARG=(--notes "Galleo Release v${VERSION}")
+          fi
+
           if gh release view "${TAG}" &>/dev/null; then
             # Release exists. Check if it's a draft.
             IS_DRAFT=$(gh release view "${TAG}" --json isDraft --jq '.isDraft')
@@ -55,11 +73,12 @@ jobs:
               echo "::error::Release ${TAG} already exists and is published. Bump version in package.json first."
               exit 1
             else
-              echo "Draft release ${TAG} already exists. Reusing it."
+              echo "Draft release ${TAG} already exists. Updating title and release notes..."
+              gh release edit "${TAG}" --title "Galleo v${VERSION}" "${NOTES_ARG[@]}"
             fi
           else
             echo "Creating draft release for ${TAG}..."
-            gh release create "${TAG}" --draft --target "$GITHUB_SHA" --title "Version ${VERSION}" --notes "Release Version ${VERSION}"
+            gh release create "${TAG}" --draft --target "$GITHUB_SHA" --title "Galleo v${VERSION}" "${NOTES_ARG[@]}"
           fi
 
   # ─── Build and publish installers for each platform ───
@@ -136,3 +155,49 @@ jobs:
             export WIN_CSC_KEY_PASSWORD="$RAW_WIN_CSC_KEY_PASSWORD"
           fi
           pnpm exec electron-builder --config electron-builder.json --publish always
+
+  # ─── Finalize and automatically publish the release ───
+  publish:
+    name: Publish Release
+    needs: [validate, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Publish Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.validate.outputs.tag }}"
+          VERSION="${{ needs.validate.outputs.version }}"
+          echo "Finalizing release ${TAG} (v${VERSION})..."
+
+          # Detect release notes file (RELEASE_NOTES.md, RELEASE.md, or CHANGELOG.md)
+          NOTES_FILE=""
+          if [ -f "RELEASE_NOTES.md" ]; then
+            NOTES_FILE="RELEASE_NOTES.md"
+          elif [ -f "RELEASE.md" ]; then
+            NOTES_FILE="RELEASE.md"
+          elif [ -f "CHANGELOG.md" ]; then
+            NOTES_FILE="CHANGELOG.md"
+          fi
+
+          if [ -n "$NOTES_FILE" ]; then
+            echo "Publishing release with notes from ${NOTES_FILE}..."
+            gh release edit "${TAG}" --draft=false --title "Galleo v${VERSION}" --notes-file "${NOTES_FILE}"
+          else
+            echo "Publishing release with default title..."
+            gh release edit "${TAG}" --draft=false --title "Galleo v${VERSION}"
+          fi
+
+          echo "🎉 Release ${TAG} has been automatically published!"
+
+      - name: Cleanup Release Branch
+        if: startsWith(github.ref, 'refs/heads/release/') || startsWith(github.ref, 'refs/heads/releases/')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH="${GITHUB_REF#refs/heads/}"
+          echo "Cleaning up ephemeral release branch: ${BRANCH}..."
+          git push origin --delete "${BRANCH}" || echo "Branch ${BRANCH} already deleted or not found."

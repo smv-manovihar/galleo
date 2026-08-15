@@ -407,6 +407,7 @@ export const DuplicateAuditSimilarMedia: React.FC<
         document.activeElement?.tagName === "TEXTAREA" ||
         document.activeElement?.getAttribute("contenteditable") === "true" ||
         previewItem !== null ||
+        infoItem !== null ||
         isHistoryOpen
       ) {
         return
@@ -563,6 +564,7 @@ export const DuplicateAuditSimilarMedia: React.FC<
     currentGroup,
     focusedCardIndex,
     previewItem,
+    infoItem,
     isHistoryOpen,
     handleUndo,
     prevGroup,

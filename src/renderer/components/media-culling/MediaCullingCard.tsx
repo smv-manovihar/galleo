@@ -75,6 +75,7 @@ const MediaCullingCardInner: React.FC<MediaCullingCardInnerProps> = React.memo(
                 onPlayStateChange={onPlayStateChange}
                 fillContainer={true}
                 showZoomRotateControls={true}
+                disableKeyboardShortcuts={true}
               />
             ) : (
               <img

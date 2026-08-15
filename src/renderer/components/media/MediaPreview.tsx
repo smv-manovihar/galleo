@@ -55,7 +55,7 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
     setNavigatedItem(null)
   }
 
-  const item = navigatedItem ?? propItem
+  const item = propItem ? (navigatedItem ?? propItem) : null
   const isVideo = item?.mediaType === "video"
   const rotation =
     overrideRotation && item && overrideRotation.id === item.id
@@ -209,10 +209,10 @@ const MAX_SCALE = 6
   // 6. Navigation
   const currentIndex = items && item ? items.findIndex((i) => i.id === item.id) : -1
   const hasPrevious = currentIndex > 0
-  const hasNext = items ? currentIndex < items.length - 1 : false
+  const hasNext = items && currentIndex >= 0 ? currentIndex < items.length - 1 : false
 
   const handlePrevious = useCallback(() => {
-    if (items && hasPrevious) {
+    if (items && hasPrevious && currentIndex > 0) {
       const prevItem = items[currentIndex - 1]
       setSlideDirection("left")
       setNavigatedItem(prevItem)
@@ -221,7 +221,7 @@ const MAX_SCALE = 6
   }, [items, hasPrevious, currentIndex, onItemChange])
 
   const handleNext = useCallback(() => {
-    if (items && hasNext) {
+    if (items && hasNext && currentIndex >= 0 && currentIndex < items.length - 1) {
       const nextItem = items[currentIndex + 1]
       setSlideDirection("right")
       setNavigatedItem(nextItem)
@@ -294,6 +294,8 @@ const MAX_SCALE = 6
   ])
 
   useEffect(() => {
+    if (!propItem) return
+
     const handleKeyDown = (e: KeyboardEvent) => {
       const activeEl = document.activeElement as HTMLElement | null
       if (
@@ -311,6 +313,8 @@ const MAX_SCALE = 6
 
       const key = e.key.toLowerCase()
       const actions = navActionsRef.current
+
+      if (!actions.item) return
 
       // Close preview: Q, Z, or Escape
       if (e.key === "Escape" || key === "q" || key === "z") {
@@ -352,14 +356,18 @@ const MAX_SCALE = 6
         return
       }
 
-      // Navigation: Left / Right arrows or A / D
+      // Navigation: Left / Right arrows (for images) or A / D
       if (actions.items) {
-        if (e.key === "ArrowLeft" || key === "a") {
+        const isVideoItem = actions.item.mediaType === "video"
+        const isPrev = key === "a" || (!isVideoItem && e.key === "ArrowLeft")
+        const isNext = key === "d" || (!isVideoItem && e.key === "ArrowRight")
+
+        if (isPrev) {
           if (actions.hasPrevious) {
             e.preventDefault()
             actions.handlePrevious()
           }
-        } else if (e.key === "ArrowRight" || key === "d") {
+        } else if (isNext) {
           if (actions.hasNext) {
             e.preventDefault()
             actions.handleNext()
@@ -372,7 +380,7 @@ const MAX_SCALE = 6
     return () => {
       window.removeEventListener("keydown", handleKeyDown)
     }
-  }, [])
+  }, [propItem])
 
   // 8. Pointer & Wheel Handlers for Zoom / Pan
   const handleWheel = useCallback(
@@ -471,7 +479,7 @@ const MAX_SCALE = 6
     }
   }, [])
 
-  if (!item) return null
+  if (!item || !propItem) return null
 
   const safeSrc = `media:///${item.path.replace(/\\/g, "/")}`
 

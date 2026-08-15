@@ -51,6 +51,8 @@ export interface VideoPlayerProps {
   onRotateRight?: () => void
   onRotateReset?: () => void
   registerScaleListener?: (listener: (scale: number) => void) => () => void
+  /** When true, disables the global window keydown listener (useful when embedded in cards) */
+  disableKeyboardShortcuts?: boolean
 }
 
 export interface VideoPlayerRef {
@@ -78,6 +80,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       fillContainer = false,
       transformRef,
       showZoomRotateControls = false,
+      disableKeyboardShortcuts = false,
       onZoomIn: onZoomInProp,
       onZoomOut: onZoomOutProp,
       onZoomReset: onZoomResetProp,
@@ -837,6 +840,8 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
 
     // Stable global keydown listener (attached once)
     useEffect(() => {
+      if (disableKeyboardShortcuts) return
+
       const handleKeyDown = (e: KeyboardEvent) => {
         const target = e.target as HTMLElement | null
         if (
@@ -933,6 +938,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       window.addEventListener("keydown", handleKeyDown)
       return () => window.removeEventListener("keydown", handleKeyDown)
     }, [
+      disableKeyboardShortcuts,
       toggleFullscreen,
       increaseSpeed,
       decreaseSpeed,

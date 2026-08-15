@@ -1,32 +1,15 @@
 import Database from "better-sqlite3"
-import path from "path"
-import fs from "fs"
-import { app } from "electron"
+import { getDatabasePath } from "./app-paths"
+
+export { getDatabasePath } from "./app-paths"
 
 let dbInstance: Database.Database | null = null
 
-export function getDatabasePath(): string {
-  try {
-    const isDev = !app.isPackaged || process.env.NODE_ENV === "development"
-    let targetDir: string
-    if (isDev) {
-      // targetDir = path.join(process.cwd(), ".data")
-      targetDir = app.getPath("userData")
-    } else {
-      targetDir = app.getPath("userData")
-    }
-    if (!fs.existsSync(targetDir)) {
-      fs.mkdirSync(targetDir, { recursive: true })
-    }
-    return path.join(targetDir, "galleo.db")
-  } catch {
-    // If app is not ready (e.g. running in unit test runner), fallback to .data/galleo.db
-    const fallbackDir = path.join(process.cwd(), ".data")
-    if (!fs.existsSync(fallbackDir)) {
-      fs.mkdirSync(fallbackDir, { recursive: true })
-    }
-    return path.join(fallbackDir, "galleo.db")
-  }
+/**
+ * Returns the active SQLite database instance, initializing it if needed.
+ */
+export function getDb(): Database.Database {
+  return initDatabase()
 }
 
 export function initDatabase(): Database.Database {

@@ -35,20 +35,7 @@ interface EmbedMessage {
 
 type InboundMessage = EmbedMessage
 
-// ---------------------------------------------------------------------------
-// Model cache directory (mirrors ai.service.ts helper)
-// ---------------------------------------------------------------------------
-
-function getModelCacheDir(): string {
-  const userDataPath =
-    (process.env["GALLEO_USER_DATA"] as string | undefined) ??
-    path.join(process.cwd(), ".data")
-  const cacheDir = path.join(userDataPath, "models")
-  if (!fs.existsSync(cacheDir)) {
-    fs.mkdirSync(cacheDir, { recursive: true })
-  }
-  return cacheDir
-}
+import { getModelCacheDir } from "../infrastructure/app-paths"
 
 const MODEL_NAME = "Xenova/siglip-base-patch16-224"
 

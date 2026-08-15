@@ -1,9 +1,9 @@
 import { app } from "electron"
-import path from "path"
 import fs from "fs/promises"
 
 import { type Result, ok, fail } from "../../shared/types/results"
 import type { UpdateCheckResult } from "../../shared/types/ipc"
+import { getUpdateCachePath } from "../infrastructure/app-paths"
 
 const GITHUB_RELEASES_URL =
   "https://api.github.com/repos/smv-manovihar/galleo/releases/latest"
@@ -33,7 +33,7 @@ export class UpdateService {
   private static inMemoryCache: UpdateCache | null = null
 
   private getCacheFilePath(): string {
-    return path.join(app.getPath("userData"), "update_cache.json")
+    return getUpdateCachePath()
   }
 
   private async loadCache(): Promise<UpdateCache | null> {

@@ -1,11 +1,16 @@
+import { execFile } from "node:child_process"
+import { promisify } from "node:util"
+import path from "node:path"
+import { existsSync } from "node:fs"
+import { unlink } from "node:fs/promises"
 import ffmpegPath from "ffmpeg-static"
 import ffprobeStatic from "ffprobe-static"
-import ffmpeg from "fluent-ffmpeg"
-import path from "path"
-import { existsSync } from "fs"
 import { type Result, fail, ok } from "../../shared/types/results"
 import { getThumbnailCacheDir, purgeOldThumbnailVersions } from "./image-processor"
 import { VIDEO_THUMB_SUFFIX } from "../../shared/constants"
+import { analyzeImage } from "./image-processor"
+
+const execFileAsync = promisify(execFile)
 
 // Set static path for ffmpeg, adjusting for Electron ASAR unpacking in production
 let resolvedFfmpegPath = ffmpegPath
@@ -14,10 +19,6 @@ if (resolvedFfmpegPath && resolvedFfmpegPath.includes("app.asar")) {
     "app.asar",
     "app.asar.unpacked"
   )
-}
-
-if (resolvedFfmpegPath) {
-  ffmpeg.setFfmpegPath(resolvedFfmpegPath)
 }
 
 const rawFfprobePath =
@@ -32,96 +33,127 @@ if (resolvedFfprobePath && resolvedFfprobePath.includes("app.asar")) {
   )
 }
 
-if (resolvedFfprobePath) {
-  ffmpeg.setFfprobePath(resolvedFfprobePath)
+export function getFfmpegPath(): string | null {
+  return resolvedFfmpegPath || null
 }
 
-import { unlink } from "fs/promises"
-import { analyzeImage } from "./image-processor"
+export function getFfprobePath(): string | null {
+  return resolvedFfprobePath || null
+}
+
+export async function runFfmpeg(
+  args: string[],
+  timeoutMs: number = 15000
+): Promise<void> {
+  const binary = getFfmpegPath()
+  if (!binary) {
+    throw new Error("FFmpeg binary not found")
+  }
+  await execFileAsync(binary, args, {
+    timeout: timeoutMs,
+    maxBuffer: 10 * 1024 * 1024,
+  })
+}
+
+interface FfprobeStream {
+  codec_type?: string
+  width?: number
+  height?: number
+  coded_width?: number
+  coded_height?: number
+  display_aspect_ratio?: string
+  disposition?: {
+    attached_pic?: number
+    [key: string]: unknown
+  }
+  tags?: {
+    rotate?: string | number
+    [key: string]: unknown
+  }
+  side_data_list?: Array<{
+    rotation?: number
+    [key: string]: unknown
+  }>
+  [key: string]: unknown
+}
+
+interface FfprobeFormat {
+  duration?: string | number
+  [key: string]: unknown
+}
+
+interface FfprobeOutput {
+  streams?: FfprobeStream[]
+  format?: FfprobeFormat
+}
 
 /**
  * Extracts a representative thumbnail frame from a video file past typical intro cards.
  */
-export function generateVideoThumbnail(
+export async function generateVideoThumbnail(
   videoPath: string,
   mediaId: string,
   duration?: number
 ): Promise<Result<string>> {
-  return new Promise((resolve) => {
-    try {
-      const cacheDir = getThumbnailCacheDir()
-      const outputFilename = `${mediaId}${VIDEO_THUMB_SUFFIX}`
-      const outputPath = path.join(cacheDir, outputFilename)
+  try {
+    const cacheDir = getThumbnailCacheDir()
+    const outputFilename = `${mediaId}${VIDEO_THUMB_SUFFIX}`
+    const outputPath = path.join(cacheDir, outputFilename)
 
-      // Check if thumbnail is already cached
-      if (existsSync(outputPath)) {
-        return resolve(ok(outputPath))
-      }
-
-      // Invalidate/purge any previous thumbnail versions for this mediaId
-      purgeOldThumbnailVersions(cacheDir, mediaId, outputFilename).catch(() => {})
-
-      // Calculate timestamp past intros (e.g. 20% mark for videos > 5s, capped 3s-30s)
-      let sampleTimestamp = 1
-      if (duration && duration > 5) {
-        sampleTimestamp = Math.min(30, Math.max(3, duration * 0.2))
-      } else if (duration && duration > 0) {
-        sampleTimestamp = Math.max(0.5, duration * 0.5)
-      }
-
-      let killed = false
-      const command = ffmpeg()
-        .inputOption(`-ss ${sampleTimestamp}`)
-        .input(videoPath)
-        .outputOptions(["-vframes 1", "-vf scale=1080:-2"])
-        .output(outputPath)
-
-      const timeout = setTimeout(() => {
-        killed = true
-        try {
-          command.kill("SIGKILL")
-        } catch {
-          // ignore kill error
-        }
-      }, 15000)
-
-      command
-        .on("end", () => {
-          clearTimeout(timeout)
-          resolve(ok(outputPath))
-        })
-        .on("error", (err) => {
-          clearTimeout(timeout)
-          try {
-            command.kill("SIGKILL")
-          } catch {
-            // ignore kill error
-          }
-          resolve(
-            fail({
-              code: "THUMBNAIL_FAILED",
-              path: videoPath,
-              reason: killed ? "ffmpeg process timed out" : err.message || "ffmpeg extraction failed",
-            })
-          )
-        })
-        .run()
-    } catch (e: unknown) {
-      const err = e as { message?: string }
-      resolve(
-        fail({
-          code: "THUMBNAIL_FAILED",
-          path: videoPath,
-          reason: err.message || "Video frame extraction failed",
-        })
-      )
+    // Check if thumbnail is already cached
+    if (existsSync(outputPath)) {
+      return ok(outputPath)
     }
-  })
+
+    // Invalidate/purge any previous thumbnail versions for this mediaId
+    purgeOldThumbnailVersions(cacheDir, mediaId, outputFilename).catch(() => {})
+
+    // Calculate timestamp past intros (e.g. 20% mark for videos > 5s, capped 3s-30s)
+    let sampleTimestamp = 1
+    if (duration && duration > 5) {
+      sampleTimestamp = Math.min(30, Math.max(3, duration * 0.2))
+    } else if (duration && duration > 0) {
+      sampleTimestamp = Math.max(0.5, duration * 0.5)
+    }
+
+    await runFfmpeg(
+      [
+        "-ss",
+        String(sampleTimestamp),
+        "-i",
+        videoPath,
+        "-vframes",
+        "1",
+        "-vf",
+        "scale=1080:-2",
+        "-y",
+        outputPath,
+      ],
+      15000
+    )
+
+    if (!existsSync(outputPath)) {
+      return fail({
+        code: "THUMBNAIL_FAILED",
+        path: videoPath,
+        reason: "Thumbnail output file was not generated",
+      })
+    }
+
+    return ok(outputPath)
+  } catch (e: unknown) {
+    const err = e as { message?: string }
+    return fail({
+      code: "THUMBNAIL_FAILED",
+      path: videoPath,
+      reason: err.message || "Video frame extraction failed",
+    })
+  }
 }
 
 /**
  * Extracts multiple keyframe hashes across a video (25%, 55%, 85% of duration)
- * and concatenates them into a robust multi-frame perceptual hash.
+ * and concatenates them into a robust multi-frame perceptual hash in a single batched FFmpeg run.
  */
 export async function extractVideoMultiHash(
   videoPath: string,
@@ -144,61 +176,78 @@ export async function extractVideoMultiHash(
       timestamps.push(1)
     }
 
-    const hashes: string[] = []
+    const tempPaths: string[] = timestamps.map((_, i) =>
+      path.join(cacheDir, `temp_${mediaId}_hashframe_${i}.webp`)
+    )
 
+    // Build a single batched FFmpeg command with fast-seek multi-inputs
+    const ffmpegArgs: string[] = []
     for (let i = 0; i < timestamps.length; i++) {
-      const ts = timestamps[i]
-      const tempFilename = `temp_${mediaId}_hashframe_${i}.webp`
-      const tempPath = path.join(cacheDir, tempFilename)
+      ffmpegArgs.push("-ss", String(timestamps[i]), "-i", videoPath)
+    }
+    for (let i = 0; i < timestamps.length; i++) {
+      ffmpegArgs.push(
+        "-map",
+        `${i}:v:0`,
+        "-vframes",
+        "1",
+        "-vf",
+        "scale=448:-2",
+        "-y",
+        tempPaths[i]
+      )
+    }
 
-      const extractSuccess = await new Promise<boolean>((resolve) => {
-        let killed = false
-        const command = ffmpeg()
-          .inputOption(`-ss ${ts}`)
-          .input(videoPath)
-          .outputOptions(["-vframes 1", "-vf scale=448:-2"])
-          .output(tempPath)
+    let lastError: string | undefined = undefined
 
-        const timeout = setTimeout(() => {
-          killed = true
+    try {
+      await runFfmpeg(ffmpegArgs, 15000)
+    } catch (e: unknown) {
+      const err = e as { message?: string }
+      lastError = err.message
+      console.warn(`[VideoProcessor] Batched multi-frame extraction failed for ${videoPath}, falling back to single-frame extraction:`, lastError)
+
+      // Fallback to individual extraction if multi-input stream mapping encounters non-standard codec
+      for (let i = 0; i < timestamps.length; i++) {
+        if (!existsSync(tempPaths[i])) {
           try {
-            command.kill("SIGKILL")
-          } catch {
-            // ignore
+            await runFfmpeg(
+              [
+                "-ss",
+                String(timestamps[i]),
+                "-i",
+                videoPath,
+                "-vframes",
+                "1",
+                "-vf",
+                "scale=448:-2",
+                "-y",
+                tempPaths[i],
+              ],
+              5000
+            )
+          } catch (singleErr: unknown) {
+            const errObj = singleErr as { message?: string }
+            lastError = errObj.message || lastError
+            console.warn(`[VideoProcessor] Fallback frame extraction failed for frame ${i} (${videoPath}):`, errObj.message)
           }
-          resolve(false)
-        }, 10000)
+        }
+      }
+    }
 
-        command
-          .on("end", () => {
-            clearTimeout(timeout)
-            resolve(true)
-          })
-          .on("error", () => {
-            clearTimeout(timeout)
-            if (!killed) {
-              try {
-                command.kill("SIGKILL")
-              } catch {
-                // ignore
-              }
-            }
-            resolve(false)
-          })
-          .run()
-      })
-
-      if (extractSuccess && existsSync(tempPath)) {
-        try {
+    const hashes: string[] = []
+    try {
+      for (const tempPath of tempPaths) {
+        if (existsSync(tempPath)) {
           const analysisRes = await analyzeImage(tempPath)
           if (analysisRes.ok) {
             hashes.push(analysisRes.data.hash)
           }
-        } catch {
-          // ignore
-        } finally {
-          unlink(tempPath).catch(() => {})
         }
+      }
+    } finally {
+      for (const tempPath of tempPaths) {
+        unlink(tempPath).catch(() => {})
       }
     }
 
@@ -207,7 +256,7 @@ export async function extractVideoMultiHash(
       return fail({
         code: "THUMBNAIL_FAILED",
         path: videoPath,
-        reason: `Incomplete keyframe extractions for video (${hashes.length}/${expectedCount} succeeded)`,
+        reason: lastError || `Incomplete keyframe extractions for video (${hashes.length}/${expectedCount} succeeded)`,
       })
     }
 
@@ -226,97 +275,104 @@ export async function extractVideoMultiHash(
 /**
  * Extracts metadata for a video file (duration, dimensions).
  */
-export function readVideoMetadata(
+export async function readVideoMetadata(
   videoPath: string
 ): Promise<
   Result<{ duration: number; width: number | null; height: number | null }>
 > {
-  return new Promise((resolve) => {
-    try {
-      ffmpeg.ffprobe(videoPath, (err, metadata) => {
-        if (err || !metadata || !metadata.streams) {
-          return resolve(
-            ok({
-              duration: 0,
-              width: null,
-              height: null,
-            })
-          )
-        }
+  const fallback = {
+    duration: 0,
+    width: null,
+    height: null,
+  }
 
-        const videoStream =
-          metadata.streams.find(
-            (s) => s.codec_type === "video" && !s.disposition?.attached_pic
-          ) || metadata.streams.find((s) => s.codec_type === "video")
-        const duration = metadata.format?.duration || 0
+  const binary = getFfprobePath()
+  if (!binary) {
+    return ok(fallback)
+  }
 
-        // Tier 1: primary display dimensions
-        let width: number | null =
-          videoStream?.width && videoStream.width > 0
-            ? Number(videoStream.width)
-            : null
-        let height: number | null =
-          videoStream?.height && videoStream.height > 0
-            ? Number(videoStream.height)
-            : null
+  try {
+    const { stdout } = await execFileAsync(
+      binary,
+      [
+        "-v",
+        "quiet",
+        "-print_format",
+        "json",
+        "-show_format",
+        "-show_streams",
+        videoPath,
+      ],
+      { timeout: 10000, maxBuffer: 10 * 1024 * 1024 }
+    )
 
-        // Tier 2: coded dimensions (some codecs report 0 on width/height but not coded_*)
-        if (
-          !width &&
-          videoStream?.coded_width &&
-          Number(videoStream.coded_width) > 0
-        ) {
-          width = Number(videoStream.coded_width)
-        }
-        if (
-          !height &&
-          videoStream?.coded_height &&
-          Number(videoStream.coded_height) > 0
-        ) {
-          height = Number(videoStream.coded_height)
-        }
-
-        // Tier 3: derive from display_aspect_ratio if one dimension is still missing
-        if (videoStream?.display_aspect_ratio && (width || height)) {
-          const ratio = videoStream.display_aspect_ratio as string
-          const parts = ratio.split(":").map(Number)
-          if (parts.length === 2 && parts[0] > 0 && parts[1] > 0) {
-            if (width && !height)
-              height = Math.round((width * parts[1]) / parts[0])
-            if (height && !width)
-              width = Math.round((height * parts[0]) / parts[1])
-          }
-        }
-
-        // Tier 4: Account for video rotation tags (e.g. mobile portrait videos rotated 90 or 270 degrees)
-        const rotationTag =
-          videoStream?.tags?.rotate ||
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          videoStream?.side_data_list?.find((sd: any) => sd.rotation !== undefined)?.rotation
-        const rotation = Math.abs(Number(rotationTag) || 0)
-        if ((rotation === 90 || rotation === 270) && width && height) {
-          const temp = width
-          width = height
-          height = temp
-        }
-
-        resolve(
-          ok({
-            duration: Number(duration),
-            width,
-            height,
-          })
-        )
-      })
-    } catch {
-      // Return defaults on error so scan pipeline doesn't crash
-      resolve(
-        ok({
-          duration: 0,
-          width: null,
-          height: null,
-        })
-      )
+    const metadata = JSON.parse(stdout) as FfprobeOutput
+    if (!metadata || !metadata.streams) {
+      return ok(fallback)
     }
-  })
+
+    const videoStream =
+      metadata.streams.find(
+        (s) => s.codec_type === "video" && !s.disposition?.attached_pic
+      ) || metadata.streams.find((s) => s.codec_type === "video")
+    const duration = Number(metadata.format?.duration) || 0
+
+    // Tier 1: primary display dimensions
+    let width: number | null =
+      videoStream?.width && videoStream.width > 0
+        ? Number(videoStream.width)
+        : null
+    let height: number | null =
+      videoStream?.height && videoStream.height > 0
+        ? Number(videoStream.height)
+        : null
+
+    // Tier 2: coded dimensions (some codecs report 0 on width/height but not coded_*)
+    if (
+      !width &&
+      videoStream?.coded_width &&
+      Number(videoStream.coded_width) > 0
+    ) {
+      width = Number(videoStream.coded_width)
+    }
+    if (
+      !height &&
+      videoStream?.coded_height &&
+      Number(videoStream.coded_height) > 0
+    ) {
+      height = Number(videoStream.coded_height)
+    }
+
+    // Tier 3: derive from display_aspect_ratio if one dimension is still missing
+    if (videoStream?.display_aspect_ratio && (width || height)) {
+      const ratio = videoStream.display_aspect_ratio
+      const parts = ratio.split(":").map(Number)
+      if (parts.length === 2 && parts[0] > 0 && parts[1] > 0) {
+        if (width && !height)
+          height = Math.round((width * parts[1]) / parts[0])
+        if (height && !width)
+          width = Math.round((height * parts[0]) / parts[1])
+      }
+    }
+
+    // Tier 4: Account for video rotation tags (e.g. mobile portrait videos rotated 90 or 270 degrees)
+    const rotationTag =
+      videoStream?.tags?.rotate ||
+      videoStream?.side_data_list?.find((sd) => sd.rotation !== undefined)?.rotation
+    const rotation = Math.abs(Number(rotationTag) || 0)
+    if ((rotation === 90 || rotation === 270) && width && height) {
+      const temp = width
+      width = height
+      height = temp
+    }
+
+    return ok({
+      duration: Number(duration),
+      width,
+      height,
+    })
+  } catch {
+    // Return defaults on error so scan pipeline doesn't crash
+    return ok(fallback)
+  }
 }

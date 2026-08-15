@@ -1,10 +1,11 @@
 import sharp, { type Sharp } from "sharp"
 import fs from "fs/promises"
-import { existsSync, mkdirSync } from "fs"
 import path from "path"
-import { app } from "electron"
 import { type Result, fail, ok } from "../../shared/types/results"
 import { bmvbhash } from "blockhash-core"
+import { getThumbnailCacheDir } from "./app-paths"
+
+export { getThumbnailCacheDir } from "./app-paths"
 
 import {
   IMAGE_THUMB_SUFFIX,
@@ -20,29 +21,6 @@ export interface ImageAnalysisResult {
   peakBrightness: number // 0 - 255 (95th percentile)
   contrast: number // 0 - 255 (max - min)
   hash: string // perceptual hash (hex)
-}
-
-export function getThumbnailCacheDir(): string {
-  let cachePath: string
-  try {
-    const isDev = !app.isPackaged || process.env.NODE_ENV === "development"
-    cachePath = isDev
-      // ? path.join(process.cwd(), ".data", "thumbnails")
-      ? path.join(app.getPath("userData"), "thumbnails")
-      : path.join(app.getPath("userData"), "thumbnails")
-  } catch {
-    cachePath = path.join(process.cwd(), ".data", "thumbnails")
-  }
-
-  if (!existsSync(cachePath)) {
-    // Create sync to avoid race conditions
-    try {
-      mkdirSync(cachePath, { recursive: true })
-    } catch {
-      // ignore
-    }
-  }
-  return cachePath
 }
 
 /**

@@ -1,38 +1,10 @@
-import ffmpegPath from "ffmpeg-static"
-import ffprobeStatic from "ffprobe-static"
-import ffmpeg from "fluent-ffmpeg"
-import path from "path"
-import fs from "fs"
-import { readVideoMetadata } from "../infrastructure/video-processor"
-import { getThumbnailCacheDir } from "../infrastructure/image-processor"
+import path from "node:path"
+import fs from "node:fs"
+import { readVideoMetadata, runFfmpeg } from "../infrastructure/video-processor"
+import { getVideoFrameCacheDir } from "../infrastructure/app-paths"
 import { type Result, ok, fail } from "../../shared/types/results"
 
-// Set static path for ffmpeg, adjusting for Electron ASAR unpacking in production
-let resolvedFfmpegPath = ffmpegPath
-if (resolvedFfmpegPath && resolvedFfmpegPath.includes("app.asar")) {
-  resolvedFfmpegPath = resolvedFfmpegPath.replace(
-    "app.asar",
-    "app.asar.unpacked"
-  )
-}
-if (resolvedFfmpegPath) {
-  ffmpeg.setFfmpegPath(resolvedFfmpegPath)
-}
-
-const rawFfprobePath =
-  typeof ffprobeStatic === "string"
-    ? ffprobeStatic
-    : (ffprobeStatic as { path?: string })?.path
-let resolvedFfprobePath = rawFfprobePath
-if (resolvedFfprobePath && resolvedFfprobePath.includes("app.asar")) {
-  resolvedFfprobePath = resolvedFfprobePath.replace(
-    "app.asar",
-    "app.asar.unpacked"
-  )
-}
-if (resolvedFfprobePath) {
-  ffmpeg.setFfprobePath(resolvedFfprobePath)
-}
+export { getVideoFrameCacheDir as getFrameCacheDir } from "../infrastructure/app-paths"
 
 export interface ExtractedFrame {
   id: string
@@ -40,15 +12,6 @@ export interface ExtractedFrame {
   frameIndex: number
   timestampSeconds: number
   framePath: string
-}
-
-export function getFrameCacheDir(): string {
-  const baseCacheDir = getThumbnailCacheDir()
-  const frameDir = path.join(baseCacheDir, "video_frames")
-  if (!fs.existsSync(frameDir)) {
-    fs.mkdirSync(frameDir, { recursive: true })
-  }
-  return frameDir
 }
 
 export class VideoFrameExtractorService {
@@ -63,7 +26,7 @@ export class VideoFrameExtractorService {
     try {
       const metaRes = await readVideoMetadata(videoPath)
       const duration = metaRes.ok ? metaRes.data.duration : 0
-      
+
       const timestamps: number[] = []
       if (duration <= 0) {
         timestamps.push(0)
@@ -73,27 +36,87 @@ export class VideoFrameExtractorService {
         }
       }
 
-      const frameDir = getFrameCacheDir()
+      const frameDir = getVideoFrameCacheDir()
       const extractedFrames: ExtractedFrame[] = []
+
+      // Identify missing frames that need to be generated
+      const missingIndices: number[] = []
+      for (let i = 0; i < timestamps.length; i++) {
+        const frameId = `${mediaId}_frame_${i}`
+        const frameFilename = `${frameId}.jpg`
+        const framePath = path.join(frameDir, frameFilename)
+        if (!fs.existsSync(framePath)) {
+          missingIndices.push(i)
+        }
+      }
+
+      // Batch generate missing frames in chunks of up to 8 per FFmpeg process
+      const BATCH_SIZE = 8
+      for (let c = 0; c < missingIndices.length; c += BATCH_SIZE) {
+        const chunk = missingIndices.slice(c, c + BATCH_SIZE)
+        const args: string[] = []
+        for (let j = 0; j < chunk.length; j++) {
+          const idx = chunk[j]
+          args.push("-ss", String(timestamps[idx]), "-i", videoPath)
+        }
+        for (let j = 0; j < chunk.length; j++) {
+          const idx = chunk[j]
+          const framePath = path.join(frameDir, `${mediaId}_frame_${idx}.jpg`)
+          args.push(
+            "-map",
+            `${j}:v:0`,
+            "-vframes",
+            "1",
+            "-vf",
+            "scale=448:-2",
+            "-y",
+            framePath
+          )
+        }
+
+        let batchError: string | undefined = undefined
+
+        try {
+          await runFfmpeg(args, 20000)
+        } catch (e: unknown) {
+          const err = e as { message?: string }
+          batchError = err.message
+          console.warn(`[VideoFrameExtractor] Batched extraction failed for chunk (${videoPath}), falling back to single frame:`, batchError)
+
+          // Fallback to single-frame extraction if multi-input mapping encounters non-standard codec
+          for (const idx of chunk) {
+            const framePath = path.join(frameDir, `${mediaId}_frame_${idx}.jpg`)
+            if (!fs.existsSync(framePath)) {
+              try {
+                await runFfmpeg(
+                  [
+                    "-ss",
+                    String(timestamps[idx]),
+                    "-i",
+                    videoPath,
+                    "-vframes",
+                    "1",
+                    "-vf",
+                    "scale=448:-2",
+                    "-y",
+                    framePath,
+                  ],
+                  5000
+                )
+              } catch (singleErr: unknown) {
+                const singleErrObj = singleErr as { message?: string }
+                console.warn(`[VideoFrameExtractor] Fallback extraction failed for frame ${idx} (${videoPath}):`, singleErrObj.message)
+              }
+            }
+          }
+        }
+      }
 
       for (let i = 0; i < timestamps.length; i++) {
         const ts = timestamps[i]
         const frameId = `${mediaId}_frame_${i}`
         const frameFilename = `${frameId}.jpg`
         const framePath = path.join(frameDir, frameFilename)
-
-        if (!fs.existsSync(framePath)) {
-          await new Promise<void>((resolve, reject) => {
-            ffmpeg()
-              .inputOption(`-ss ${ts}`)
-              .input(videoPath)
-              .outputOptions(["-vframes 1", "-vf scale=448:-2"])
-              .output(framePath)
-              .on("end", () => resolve())
-              .on("error", (err) => reject(err))
-              .run()
-          })
-        }
 
         extractedFrames.push({
           id: frameId,
@@ -115,3 +138,4 @@ export class VideoFrameExtractorService {
     }
   }
 }
+

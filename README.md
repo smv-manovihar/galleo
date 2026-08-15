@@ -77,7 +77,7 @@ Automatically flags low-value or clutter media:
 | State | Zustand |
 | Database | better-sqlite3 |
 | Image processing | sharp, blockhash-core, ExifReader |
-| Video processing | fluent-ffmpeg, ffmpeg-static |
+| Video processing | ffmpeg-static, ffprobe-static |
 | Testing | Vitest |
 | Package manager | pnpm |
 

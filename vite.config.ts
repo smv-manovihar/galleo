@@ -37,7 +37,6 @@ export default defineConfig({
               external: [
                 "better-sqlite3",
                 "sharp",
-                "fluent-ffmpeg",
                 "ffmpeg-static",
                 "ffprobe-static",
                 "trash",

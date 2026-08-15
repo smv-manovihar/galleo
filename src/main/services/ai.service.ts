@@ -1,29 +1,12 @@
-import { app } from "electron"
 import path from "path"
 import fs from "fs"
 import { Worker } from "worker_threads"
 import { EmbeddingRepository } from "../repositories/embedding.repository"
+import { getModelCacheDir, getUserDataDir } from "../infrastructure/app-paths"
+
+export { getModelCacheDir } from "../infrastructure/app-paths"
 
 export const MODEL_NAME = "Xenova/siglip-base-patch16-224"
-
-export function getModelCacheDir(): string {
-  let userDataPath: string
-  try {
-    const isDev = !app.isPackaged || process.env.NODE_ENV === "development"
-    if (isDev) {
-      userDataPath = path.join(process.cwd(), ".data")
-    } else {
-      userDataPath = app.getPath("userData")
-    }
-  } catch {
-    userDataPath = path.join(process.cwd(), ".data")
-  }
-  const cacheDir = path.join(userDataPath, "models")
-  if (!fs.existsSync(cacheDir)) {
-    fs.mkdirSync(cacheDir, { recursive: true })
-  }
-  return cacheDir
-}
 
 export function cosineSimilarity(
   a: Float32Array,
@@ -165,8 +148,7 @@ export class AIService {
   // ---------------------------------------------------------------------------
 
   private spawnWorker(): void {
-    const cacheDir = getModelCacheDir()
-    const userDataPath = path.dirname(cacheDir)
+    const userDataPath = getUserDataDir()
 
     if (!this.isModelDownloaded()) {
       console.warn("[AIService] spawnWorker called but model is NOT fully downloaded — worker thread waiting for download")

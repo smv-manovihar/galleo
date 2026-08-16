@@ -19,6 +19,8 @@ interface MediaGridProps {
   searchResultsMap?: Map<string, SearchResultItem>
   onFindSimilar?: (mediaId: string) => void
   onPlayOpen?: (item: MediaItem) => void
+  onContextMenu?: (item: MediaItem, e: React.MouseEvent) => void
+  topOffset?: number
 }
 
 const GAP = 16
@@ -35,6 +37,8 @@ const MediaGridComponent: React.FC<MediaGridProps> = ({
   searchResultsMap,
   onFindSimilar,
   onPlayOpen,
+  onContextMenu,
+  topOffset = 64,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(1000)
@@ -86,7 +90,8 @@ const MediaGridComponent: React.FC<MediaGridProps> = ({
     count: rows.length,
     getScrollElement: () => containerRef.current,
     estimateSize: () => estimatedRowHeight,
-    overscan: 4,
+    getItemKey: (index) => rows[index]?.[0]?.id || index,
+    overscan: 2,
   })
 
   if (items.length === 0) {
@@ -116,20 +121,19 @@ const MediaGridComponent: React.FC<MediaGridProps> = ({
       <div
         className="relative w-full"
         style={{
-          height: `${rowVirtualizer.getTotalSize()}px`,
+          height: `${rowVirtualizer.getTotalSize() + topOffset}px`,
         }}
       >
         {rowVirtualizer.getVirtualItems().map((virtualRow) => {
           const rowItems = rows[virtualRow.index]
+          if (!rowItems) return null
           return (
             <div
-              key={virtualRow.index}
-              ref={rowVirtualizer.measureElement}
-              data-index={virtualRow.index}
+              key={virtualRow.key}
               className="absolute top-0 left-0 grid w-full gap-4 py-2 will-change-transform"
               style={{
                 gridTemplateColumns: `repeat(${activeColumns}, minmax(0, 1fr))`,
-                transform: `translateY(${virtualRow.start}px)`,
+                transform: `translateY(${virtualRow.start + topOffset}px)`,
               }}
             >
               {rowItems.map((item) => {
@@ -147,6 +151,7 @@ const MediaGridComponent: React.FC<MediaGridProps> = ({
                     searchScore={searchMatch?.score}
                     onFindSimilar={onFindSimilar}
                     onPlayOpen={onPlayOpen}
+                    onContextMenu={onContextMenu}
                   />
                 )
               })}

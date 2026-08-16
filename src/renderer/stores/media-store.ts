@@ -112,30 +112,78 @@ export function filterAndSortItems(
   // 5. Fast Sorting logic (avoid expensive Intl.Collator / localeCompare)
   result.sort((a, b) => {
     if (sortBy === "date-desc") {
-      const dA = a.dateTarget || ""
-      const dB = b.dateTarget || ""
-      return dB < dA ? -1 : dB > dA ? 1 : 0
+      const dA = a.dateTarget || a.dateAdded || ""
+      const dB = b.dateTarget || b.dateAdded || ""
+      if (dB !== dA) return dB < dA ? -1 : 1
+      return a.name.localeCompare(b.name)
     }
     if (sortBy === "date-asc") {
-      const dA = a.dateTarget || ""
-      const dB = b.dateTarget || ""
-      return dA < dB ? -1 : dA > dB ? 1 : 0
+      const dA = a.dateTarget || a.dateAdded || ""
+      const dB = b.dateTarget || b.dateAdded || ""
+      if (dA !== dB) return dA < dB ? -1 : 1
+      return a.name.localeCompare(b.name)
     }
     if (sortBy === "score-desc") {
-      const scoreA = a.quality?.compositeScore ?? 0
-      const scoreB = b.quality?.compositeScore ?? 0
-      return scoreB - scoreA
+      const scoreA = a.quality ? a.quality.compositeScore : -1
+      const scoreB = b.quality ? b.quality.compositeScore : -1
+      if (scoreB !== scoreA) {
+        return scoreB - scoreA
+      }
+      const blurA = a.quality?.blurScore ?? 0
+      const blurB = b.quality?.blurScore ?? 0
+      if (blurB !== blurA) {
+        return blurB - blurA
+      }
+      const resA = (a.width ?? 0) * (a.height ?? 0)
+      const resB = (b.width ?? 0) * (b.height ?? 0)
+      if (resB !== resA) {
+        return resB - resA
+      }
+      if (b.size !== a.size) {
+        return b.size - a.size
+      }
+      const dA = a.dateTarget || a.dateAdded || ""
+      const dB = b.dateTarget || b.dateAdded || ""
+      if (dB !== dA) return dB < dA ? -1 : 1
+      return a.name.localeCompare(b.name)
     }
     if (sortBy === "score-asc") {
-      const scoreA = a.quality?.compositeScore ?? 0
-      const scoreB = b.quality?.compositeScore ?? 0
-      return scoreA - scoreB
+      const scoreA = a.quality ? a.quality.compositeScore : 999
+      const scoreB = b.quality ? b.quality.compositeScore : 999
+      if (scoreA !== scoreB) {
+        return scoreA - scoreB
+      }
+      const blurA = a.quality?.blurScore ?? 100
+      const blurB = b.quality?.blurScore ?? 100
+      if (blurA !== blurB) {
+        return blurA - blurB
+      }
+      const resA = (a.width ?? 0) * (a.height ?? 0)
+      const resB = (b.width ?? 0) * (b.height ?? 0)
+      if (resA !== resB) {
+        return resA - resB
+      }
+      if (a.size !== b.size) {
+        return a.size - b.size
+      }
+      const dA = a.dateTarget || a.dateAdded || ""
+      const dB = b.dateTarget || b.dateAdded || ""
+      if (dA !== dB) return dA < dB ? -1 : 1
+      return a.name.localeCompare(b.name)
     }
     if (sortBy === "size-desc") {
-      return b.size - a.size
+      if (b.size !== a.size) return b.size - a.size
+      const dA = a.dateTarget || a.dateAdded || ""
+      const dB = b.dateTarget || b.dateAdded || ""
+      if (dB !== dA) return dB < dA ? -1 : 1
+      return a.name.localeCompare(b.name)
     }
     if (sortBy === "size-asc") {
-      return a.size - b.size
+      if (a.size !== b.size) return a.size - b.size
+      const dA = a.dateTarget || a.dateAdded || ""
+      const dB = b.dateTarget || b.dateAdded || ""
+      if (dA !== dB) return dA < dB ? -1 : 1
+      return a.name.localeCompare(b.name)
     }
     return 0
   })
@@ -322,15 +370,18 @@ function computeCaches(
   const scanState = useScanStore.getState()
   const isBusyScanning = scanState.isScanning || scanState.isPostProcessing
 
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i]
+  for (let i = 0; i < targetItems.length; i++) {
+    const item = targetItems[i]
     if (!isBusyScanning && item.isDuplicate && item.duplicateGroupId) {
       if (!dupGroupsMap[item.duplicateGroupId]) {
         dupGroupsMap[item.duplicateGroupId] = []
       }
       dupGroupsMap[item.duplicateGroupId].push(item)
     }
+  }
 
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]
     const normPath = item.path.replace(/\\/g, "/").toLowerCase()
     for (let rIdx = 0; rIdx < roots.length; rIdx++) {
       const rootNorm = roots[rIdx].norm.replace(/\/+$/, "")
@@ -343,7 +394,14 @@ function computeCaches(
   const cachedDuplicateGroups = isBusyScanning
     ? []
     : Object.keys(dupGroupsMap)
-        .sort()
+        .sort((a, b) => {
+          const countDiff = dupGroupsMap[b].length - dupGroupsMap[a].length
+          if (countDiff !== 0) return countDiff
+          const sizeB = dupGroupsMap[b].reduce((acc, item) => acc + item.size, 0)
+          const sizeA = dupGroupsMap[a].reduce((acc, item) => acc + item.size, 0)
+          if (sizeB !== sizeA) return sizeB - sizeA
+          return a.localeCompare(b)
+        })
         .map((k) => dupGroupsMap[k])
         .filter((g) => g.length > 1)
 

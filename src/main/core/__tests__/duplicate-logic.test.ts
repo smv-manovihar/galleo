@@ -72,6 +72,23 @@ describe("findDuplicates", () => {
     expect(groups[0].items.map((i) => i.id)).toContain("item2")
   })
 
+  it("prevents runaway transitive chaining across loosely related items", async () => {
+    // 5 items in a chain:
+    // i1 (ffff) -> i2 (fffe, dist 1) -> i3 (fffc, dist 1) -> i4 (fff8, dist 1) -> i5 (fff0, dist 1) -> i6 (0000, dist 12 from i1)
+    const i1 = createMockItem("i1", "ffff", 95) // anchor (best quality)
+    const i2 = createMockItem("i2", "fffe", 90) // dist to i1: 1
+    const i3 = createMockItem("i3", "fffc", 85) // dist to i1: 2
+    const i4 = createMockItem("i4", "0000", 80) // dist to i1: 16 (completely different)
+
+    const groups = await findDuplicates([i1, i2, i3, i4], 2)
+    expect(groups.length).toBe(1)
+    // i4 must NOT be included in i1's group
+    expect(groups[0].items.map((i) => i.id)).toContain("i1")
+    expect(groups[0].items.map((i) => i.id)).toContain("i2")
+    expect(groups[0].items.map((i) => i.id)).toContain("i3")
+    expect(groups[0].items.map((i) => i.id)).not.toContain("i4")
+  })
+
   it("selects the best quality item as best in group for exact duplicates", async () => {
     const item1 = createMockItem("item1", "ffff", 80, 500, "copy") // same name, same size
     const item2 = createMockItem("item2", "fffe", 90, 500, "copy") // same name, same size

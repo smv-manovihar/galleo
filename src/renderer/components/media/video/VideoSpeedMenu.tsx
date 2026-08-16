@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/popover"
 import { PLAYBACK_SPEEDS } from "./video-constants"
 
+import { cn } from "@/lib/utils"
+
 interface VideoSpeedMenuProps {
   playbackRate: number
   containerElement?: HTMLElement | null
@@ -42,6 +44,7 @@ export const VideoSpeedMenu: React.FC<VideoSpeedMenuProps> = React.memo(
           side="top"
           align="end"
           sideOffset={12}
+          container={containerElement}
           className="w-56 space-y-2 rounded-xl border border-white/15 bg-black/95 p-2.5 text-white shadow-2xl backdrop-blur-md"
         >
           <div className="flex items-center justify-between border-b border-white/10 pb-1.5 text-2xs">
@@ -51,23 +54,29 @@ export const VideoSpeedMenu: React.FC<VideoSpeedMenuProps> = React.memo(
             </kbd>
           </div>
           <div className="grid grid-cols-4 gap-1">
-            {PLAYBACK_SPEEDS.map((rate) => (
-              <button
-                key={rate}
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onChangePlaybackRate(rate)
-                }}
-                className={`cursor-pointer rounded-md px-1.5 py-1 text-center font-mono text-2xs font-semibold transition-colors ${
-                  Math.abs(playbackRate - rate) < 0.01
-                    ? "bg-primary text-primary-foreground font-bold shadow-sm"
-                    : "bg-white/10 text-white/80 hover:bg-white/20 hover:text-white"
-                }`}
-              >
-                {rate === 1 ? "1x" : `${rate}x`}
-              </button>
-            ))}
+            {PLAYBACK_SPEEDS.map((rate) => {
+              const isSelected = Math.abs(playbackRate - rate) < 0.01
+              return (
+                <Button
+                  key={rate}
+                  type="button"
+                  variant={isSelected ? "default" : "ghost"}
+                  size="xs"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onChangePlaybackRate(rate)
+                  }}
+                  className={cn(
+                    "h-6 font-mono text-2xs font-semibold cursor-pointer transition-colors",
+                    isSelected
+                      ? "bg-primary text-primary-foreground font-bold shadow-sm hover:bg-primary/90"
+                      : "bg-white/10 text-white/80 hover:bg-white/20 hover:text-white"
+                  )}
+                >
+                  {rate === 1 ? "1x" : `${rate}x`}
+                </Button>
+              )
+            })}
           </div>
         </PopoverContent>
       </Popover>

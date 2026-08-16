@@ -265,11 +265,12 @@ async function computeBlurScore(image: Sharp): Promise<number> {
  */
 async function computePerceptualHash(image: Sharp): Promise<string> {
   try {
-    // blockhash-core expects raw RGBA data
+    // blockhash-core expects raw RGBA data (4 channels)
     const size = 16 // 16x16 blockhash yields 256 bits = 64 characters hex
     const { data, info } = await image
       .clone()
       .resize(size, size, { fit: "fill" })
+      .ensureAlpha()
       .raw()
       .toBuffer({ resolveWithObject: true })
 

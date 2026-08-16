@@ -81,7 +81,7 @@ export function resolveFilenameConflict(
  */
 export function planOrganization(params: {
   items: MediaItem[]
-  destinationDir: string
+  destinationDir?: string
   pattern: string
   // A set of lowercase file paths that already exist on disk in the destination directory,
   // to avoid overwriting existing files.
@@ -91,7 +91,9 @@ export function planOrganization(params: {
   const result: OrganizePreviewItem[] = []
 
   // Normalize destinationDir
-  const normalizedDest = destinationDir.replace(/\\/g, "/").replace(/\/$/, "")
+  const normalizedDest = destinationDir
+    ? destinationDir.replace(/\\/g, "/").replace(/\/$/, "")
+    : ""
 
   // Keep track of target paths we have already assigned in THIS execution batch
   // to avoid internal conflicts.
@@ -108,8 +110,9 @@ export function planOrganization(params: {
     // Check if filename conflict exists
     // Find all files already allocated in the target subfolder
     // Combine existing files on disk + files we just planned for this subfolder
-    const targetFolderLower =
-      `${normalizedDest}/${folderFragment}`.toLowerCase()
+    const targetFolderLower = normalizedDest
+      ? `${normalizedDest}/${folderFragment}`.toLowerCase()
+      : folderFragment.toLowerCase()
 
     // We collect files that map to this folder
     const siblingNames = new Set<string>()
@@ -138,13 +141,16 @@ export function planOrganization(params: {
     // Resolve conflict (e.g. photo.jpg -> photo_1.jpg if target file already exists)
     const finalFilename = resolveFilenameConflict(item.name, siblingNames)
     const relativePath = `${folderFragment}${finalFilename}`
-    const targetPath = `${normalizedDest}/${relativePath}`
+    const targetPath = normalizedDest
+      ? `${normalizedDest}/${relativePath}`
+      : relativePath
 
     assignedLowerPaths.add(targetPath.toLowerCase())
 
-    const isConflict =
-      existingFilePaths.has(targetPath.toLowerCase()) ||
-      item.path.toLowerCase() === targetPath.toLowerCase()
+    const isConflict = normalizedDest
+      ? existingFilePaths.has(targetPath.toLowerCase()) ||
+        item.path.toLowerCase() === targetPath.toLowerCase()
+      : false
 
     result.push({
       mediaId: item.id,

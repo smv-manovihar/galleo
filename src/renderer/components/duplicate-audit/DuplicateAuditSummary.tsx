@@ -79,7 +79,7 @@ export const DuplicateAuditSummary: React.FC<DuplicateAuditSummaryProps> = ({
 
   // --- Summary state ---
   return (
-    <div className="flex h-full animate-in flex-col items-center justify-center px-8 font-sans duration-300 select-none fade-in">
+    <div className="flex h-full animate-in flex-col items-center justify-center px-8 font-sans duration-300 select-none fade-in pt-14">
       <div className="w-full max-w-lg space-y-4">
         {/* Header card */}
         <div className="flex flex-col items-center gap-5 rounded-2xl border border-border bg-card p-6 text-center shadow-sm">

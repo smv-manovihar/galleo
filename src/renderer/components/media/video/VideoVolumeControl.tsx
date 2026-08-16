@@ -84,7 +84,7 @@ export const VideoVolumeControl: React.FC<VideoVolumeControlProps> = React.memo(
                 value={[displayVolume]}
                 onValueChange={handleSliderChange}
                 orientation="vertical"
-                className="h-24 w-4 cursor-pointer data-vertical:min-h-0 [&_.slider-range]:bg-white [&_.slider-thumb]:bg-white [&_.slider-track]:bg-white/20"
+                className="h-24 w-4 cursor-pointer data-vertical:min-h-0 **:data-[slot=slider-range]:bg-primary **:data-[slot=slider-thumb]:bg-white **:data-[slot=slider-thumb]:border-primary **:data-[slot=slider-track]:bg-white/20 [&_.slider-range]:bg-primary [&_.slider-thumb]:bg-white [&_.slider-thumb]:border-primary [&_.slider-track]:bg-white/20"
               />
             </HoverCardContent>
           </HoverCard>
@@ -116,7 +116,7 @@ export const VideoVolumeControl: React.FC<VideoVolumeControlProps> = React.memo(
                 step={0.05}
                 value={[displayVolume]}
                 onValueChange={handleSliderChange}
-                className="cursor-pointer [&_.slider-range]:bg-white [&_.slider-thumb]:bg-white [&_.slider-track]:bg-white/20"
+                className="cursor-pointer **:data-[slot=slider-range]:bg-primary **:data-[slot=slider-thumb]:bg-white **:data-[slot=slider-thumb]:border-primary **:data-[slot=slider-track]:bg-white/20 [&_.slider-range]:bg-primary [&_.slider-thumb]:bg-white [&_.slider-thumb]:border-primary [&_.slider-track]:bg-white/20"
               />
             </div>
           </>

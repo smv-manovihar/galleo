@@ -29,6 +29,7 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
     "slide-left" | "slide-right" | ""
   >("")
   const [showPreview, setShowPreview] = useState(false)
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false)
   const [restoringItem, setRestoringItem] = useState<{
     id: string
     direction: "left" | "right"
@@ -194,6 +195,16 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
 
   // Handle keyboard shortcuts
   const handleKeyDown = async (e: KeyboardEvent) => {
+    if (
+      document.activeElement?.tagName === "INPUT" ||
+      document.activeElement?.tagName === "TEXTAREA" ||
+      document.activeElement?.getAttribute("contenteditable") === "true" ||
+      showPreview ||
+      isHistoryOpen
+    ) {
+      return
+    }
+
     const key = e.key.toLowerCase()
 
     // Undo: ↓ / S / Ctrl+Z / Backspace
@@ -205,6 +216,14 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
     ) {
       e.preventDefault()
       await handleUndo()
+      return
+    }
+
+    // History: H
+    const cullingActionsCount = undoStack.filter((a) => a.newState.source === "culling").length
+    if (key === "h" && cullingActionsCount > 0) {
+      e.preventDefault()
+      setIsHistoryOpen((prev) => !prev)
       return
     }
 
@@ -317,6 +336,8 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
         onDelete={() => handleAction("delete")}
         onKeep={() => handleAction("keep")}
         onBulkChangeDecisions={bulkChangeDecisions}
+        isHistoryOpen={isHistoryOpen}
+        onHistoryOpenChange={setIsHistoryOpen}
       />
 
       <MediaPreview

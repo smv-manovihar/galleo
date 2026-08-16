@@ -18,6 +18,7 @@ import { MediaPreviewHeader } from "./preview/MediaPreviewHeader"
 import { MediaPropertiesPanel } from "./preview/MediaPropertiesPanel"
 import { ZoomControls } from "./preview/ZoomControls"
 import { ImagePreviewViewport } from "./preview/ImagePreviewViewport"
+import { preloadAdjacentMedia } from "../../lib/media-preloader"
 
 export interface MediaPreviewProps {
   item: MediaItem | null
@@ -27,7 +28,7 @@ export interface MediaPreviewProps {
   autoPlay?: boolean
 }
 
-export const MediaPreview: React.FC<MediaPreviewProps> = ({
+export const MediaPreview: React.FC<MediaPreviewProps> = React.memo(({
   item: propItem,
   onClose,
   items,
@@ -49,13 +50,35 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
     rotation: number
   } | null>(null)
 
+  const isOpen = propItem !== null
+  const isInitialOpenRef = useRef(true)
+
+  useEffect(() => {
+    if (isOpen) {
+      const timer = setTimeout(() => {
+        isInitialOpenRef.current = false
+      }, 250)
+      return () => clearTimeout(timer)
+    } else {
+      isInitialOpenRef.current = true
+      setSlideDirection(null)
+    }
+  }, [isOpen])
+
   // Sync internal navigated item when parent changes propItem
   if (propItem?.id !== prevPropId) {
     setPrevPropId(propItem?.id)
     setNavigatedItem(null)
   }
 
-  const item = propItem ? (navigatedItem ?? propItem) : null
+  const currentItem = propItem ? (navigatedItem ?? propItem) : null
+  const [lastActiveItem, setLastActiveItem] = useState<MediaItem | null>(currentItem)
+
+  if (currentItem && currentItem !== lastActiveItem) {
+    setLastActiveItem(currentItem)
+  }
+
+  const item = currentItem ?? lastActiveItem
   const isVideo = item?.mediaType === "video"
   const rotation =
     overrideRotation && item && overrideRotation.id === item.id
@@ -84,21 +107,27 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
 
   const updateTransform = useCallback((animated = false) => {
     const el = transformElRef.current
+    const previewEl = previewRef.current
     if (!el) return
     const s = scaleRef.current
     const pos = positionRef.current
     const panning = isPanningRef.current
+    const cursorStyle = s > 1 ? (panning ? "grabbing" : "grab") : ""
 
     if (s > 1) {
       el.style.transform = `translate(${pos.x}px, ${pos.y}px) scale(${s})`
       el.style.transitionDuration = panning || !animated ? "0s" : "0.15s"
-      el.style.cursor = panning ? "grabbing" : "grab"
+      el.style.cursor = cursorStyle
     } else {
       el.style.transform = ""
       el.style.transitionDuration = animated ? "0.15s" : "0s"
-      el.style.cursor = "default"
+      el.style.cursor = ""
     }
-  }, [])
+
+    if (previewEl && !isVideo) {
+      previewEl.style.cursor = cursorStyle
+    }
+  }, [isVideo])
 
 const MIN_SCALE = 1
 const MAX_SCALE = 6
@@ -142,7 +171,10 @@ const MAX_SCALE = 6
     isPanningRef.current = false
     if (transformElRef.current) {
       transformElRef.current.style.transform = ""
-      transformElRef.current.style.cursor = "default"
+      transformElRef.current.style.cursor = ""
+    }
+    if (previewRef.current) {
+      previewRef.current.style.cursor = ""
     }
     scaleListenersRef.current.forEach((fn) => fn(1))
   }, [item?.id])
@@ -160,16 +192,11 @@ const MAX_SCALE = 6
   }, [isFullscreen])
 
   useEffect(() => {
-    if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current)
-    if (isFullscreen) {
-      controlsTimeoutRef.current = setTimeout(() => {
-        setShowControls(false)
-      }, 2000)
-    }
+    resetControlsTimeout()
     return () => {
       if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current)
     }
-  }, [isFullscreen])
+  }, [isFullscreen, resetControlsTimeout])
 
   // Sync fullscreenchange
   useEffect(() => {
@@ -211,6 +238,13 @@ const MAX_SCALE = 6
   const hasPrevious = currentIndex > 0
   const hasNext = items && currentIndex >= 0 ? currentIndex < items.length - 1 : false
 
+  // Preload and off-thread decode adjacent images (1 behind, 2 ahead) for instant 0ms transitions
+  useEffect(() => {
+    if (items && currentIndex >= 0) {
+      preloadAdjacentMedia(items, currentIndex)
+    }
+  }, [items, currentIndex])
+
   const handlePrevious = useCallback(() => {
     if (items && hasPrevious && currentIndex > 0) {
       const prevItem = items[currentIndex - 1]
@@ -247,7 +281,7 @@ const MAX_SCALE = 6
     }
   }, [isVideo])
 
-  // 7. Stable Keyboard Shortcut Listener via Ref
+  // 7. Stable Keyboard Shortcut Listener via Ref (updated synchronously during render)
   const navActionsRef = useRef({
     item,
     items,
@@ -263,22 +297,7 @@ const MAX_SCALE = 6
     toggleAnimations,
   })
 
-  useEffect(() => {
-    navActionsRef.current = {
-      item,
-      items,
-      onClose,
-      hasPrevious,
-      hasNext,
-      handlePrevious,
-      handleNext,
-      toggleFullscreen,
-      handleRotateLeft,
-      handleRotateRight,
-      toggleMetaPanel,
-      toggleAnimations,
-    }
-  }, [
+  navActionsRef.current = {
     item,
     items,
     onClose,
@@ -291,7 +310,7 @@ const MAX_SCALE = 6
     handleRotateRight,
     toggleMetaPanel,
     toggleAnimations,
-  ])
+  }
 
   useEffect(() => {
     if (!propItem) return
@@ -433,7 +452,11 @@ const MAX_SCALE = 6
         x: e.clientX - positionRef.current.x,
         y: e.clientY - positionRef.current.y,
       }
-      e.currentTarget.setPointerCapture(e.pointerId)
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId)
+      } catch {
+        // Ignore pointer capture error
+      }
       updateTransform(false)
     },
     [isVideo, updateTransform]
@@ -453,33 +476,45 @@ const MAX_SCALE = 6
 
   const handlePointerUp = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      if (isVideo || !isPanningRef.current) return
-      isPanningRef.current = false
-      try {
-        e.currentTarget.releasePointerCapture(e.pointerId)
-      } catch {
-        // Ignore pointer capture release error
+      if (isVideo) return
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+        try {
+          e.currentTarget.releasePointerCapture(e.pointerId)
+        } catch {
+          // Ignore pointer capture release error
+        }
       }
+      if (!isPanningRef.current) return
+      isPanningRef.current = false
       updateTransform(false)
     },
     [isVideo, updateTransform]
   )
 
-  // Pause video on unmount
+  // Pause video on close or unmount
   useEffect(() => {
     const player = videoPlayerRef.current
-    return () => {
-      if (player?.pause) {
-        try {
+    if (!propItem) {
+      try {
+        if (player && typeof player.pause === "function") {
           player.pause()
-        } catch {
-          // Ignore pause error during unmount
         }
+      } catch {
+        // Ignore pause error
       }
     }
-  }, [])
+    return () => {
+      try {
+        if (player && typeof player.pause === "function") {
+          player.pause()
+        }
+      } catch {
+        // Ignore pause error during unmount
+      }
+    }
+  }, [propItem])
 
-  if (!item || !propItem) return null
+  if (!item) return null
 
   const safeSrc = `media:///${item.path.replace(/\\/g, "/")}`
 
@@ -534,12 +569,13 @@ const MAX_SCALE = 6
                 resetControlsTimeout()
               }}
               onPointerCancel={handlePointerUp}
+              onLostPointerCapture={handlePointerUp}
               onMouseMove={resetControlsTimeout}
             >
               <div
                 key={item.id}
                 className={`relative flex h-full w-full max-h-full max-w-full items-center justify-center overflow-hidden ${
-                  enableAnimations
+                  enableAnimations && !isInitialOpenRef.current
                     ? slideDirection === "right"
                       ? "animate-in fade-in-0 slide-in-from-right-8 duration-150 ease-out"
                       : slideDirection === "left"
@@ -577,6 +613,11 @@ const MAX_SCALE = 6
                 ) : (
                   <ImagePreviewViewport
                     src={safeSrc}
+                    thumbnailSrc={
+                      item.thumbnailPath
+                        ? `media:///${item.thumbnailPath.replace(/\\/g, "/")}`
+                        : undefined
+                    }
                     alt={item.name}
                     rotation={rotation}
                     itemWidth={item.width}
@@ -652,4 +693,7 @@ const MAX_SCALE = 6
       </DialogContent>
     </Dialog>
   )
-}
+})
+
+MediaPreview.displayName = "MediaPreview"
+

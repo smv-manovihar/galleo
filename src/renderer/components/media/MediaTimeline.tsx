@@ -15,6 +15,8 @@ interface MediaTimelineProps {
   onInfoOpen: (item: MediaItem) => void
   onReviewAction: (id: string, state: "keep" | "delete" | "skipped") => void
   onPlayOpen?: (item: MediaItem) => void
+  onContextMenu?: (item: MediaItem, e: React.MouseEvent) => void
+  topOffset?: number
 }
 
 const GAP = 16
@@ -28,6 +30,8 @@ const MediaTimelineComponent: React.FC<MediaTimelineProps> = ({
   onInfoOpen,
   onReviewAction,
   onPlayOpen,
+  onContextMenu,
+  topOffset = 64,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
@@ -147,7 +151,7 @@ const MediaTimelineComponent: React.FC<MediaTimelineProps> = ({
       return row?.type === "header" ? 36 : estimatedRowHeight
     },
     getItemKey: (index) => flatRows[index]?.key || index,
-    overscan: 4,
+    overscan: 2,
   })
 
   if (items.length === 0) {
@@ -177,7 +181,7 @@ const MediaTimelineComponent: React.FC<MediaTimelineProps> = ({
       <div
         className="relative w-full"
         style={{
-          height: `${rowVirtualizer.getTotalSize()}px`,
+          height: `${rowVirtualizer.getTotalSize() + topOffset}px`,
         }}
       >
         {rowVirtualizer.getVirtualItems().map((virtualRow) => {
@@ -189,11 +193,9 @@ const MediaTimelineComponent: React.FC<MediaTimelineProps> = ({
             return (
               <div
                 key={virtualRow.key}
-                ref={rowVirtualizer.measureElement}
-                data-index={virtualRow.index}
-                className="absolute top-0 left-0 z-10 flex w-full cursor-pointer items-center gap-4 bg-background/90 py-2 backdrop-blur select-none hover:opacity-85"
+                className="absolute top-0 left-0 z-10 flex w-full cursor-pointer items-center gap-4 bg-background/95 py-2 select-none hover:opacity-85"
                 style={{
-                  transform: `translateY(${virtualRow.start}px)`,
+                  transform: `translateY(${virtualRow.start + topOffset}px)`,
                 }}
                 onClick={() => toggleGroup(row.dateKey)}
               >
@@ -215,12 +217,10 @@ const MediaTimelineComponent: React.FC<MediaTimelineProps> = ({
             return (
               <div
                 key={virtualRow.key}
-                ref={rowVirtualizer.measureElement}
-                data-index={virtualRow.index}
                 className="absolute top-0 left-0 grid w-full gap-4 py-2 will-change-transform"
                 style={{
                   gridTemplateColumns: `repeat(${activeColumns}, minmax(0, 1fr))`,
-                  transform: `translateY(${virtualRow.start}px)`,
+                  transform: `translateY(${virtualRow.start + topOffset}px)`,
                 }}
               >
                 {row.items.map((item) => (
@@ -233,6 +233,7 @@ const MediaTimelineComponent: React.FC<MediaTimelineProps> = ({
                     onInfoOpen={onInfoOpen}
                     onReviewAction={onReviewAction}
                     onPlayOpen={onPlayOpen}
+                    onContextMenu={onContextMenu}
                   />
                 ))}
               </div>

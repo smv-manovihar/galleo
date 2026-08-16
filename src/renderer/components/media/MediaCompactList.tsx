@@ -55,7 +55,8 @@ export const MediaCompactList: React.FC<MediaCompactListProps> = ({
     count: rows.length,
     getScrollElement: () => containerRef.current,
     estimateSize: () => 40, // Height of card row including gap
-    overscan: 10,
+    getItemKey: (index) => rows[index]?.[0]?.id || index,
+    overscan: 4,
   })
 
   const handleOpenFile = async (path: string) => {
@@ -69,7 +70,7 @@ export const MediaCompactList: React.FC<MediaCompactListProps> = ({
   return (
     <div
       ref={containerRef}
-      className="h-full w-full scrollbar-thin overflow-y-auto rounded-lg border border-border bg-card/45 p-4 backdrop-blur-md select-none"
+      className="h-full w-full scrollbar-thin overflow-y-auto rounded-lg border border-border bg-card/60 p-4 select-none"
     >
       <div
         className="relative w-full"
@@ -79,11 +80,10 @@ export const MediaCompactList: React.FC<MediaCompactListProps> = ({
       >
         {rowVirtualizer.getVirtualItems().map((virtualRow) => {
           const rowItems = rows[virtualRow.index]
+          if (!rowItems) return null
           return (
             <div
-              key={virtualRow.index}
-              ref={rowVirtualizer.measureElement}
-              data-index={virtualRow.index}
+              key={virtualRow.key}
               className="absolute top-0 left-0 grid w-full gap-2 py-1"
               style={{
                 gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
@@ -137,7 +137,6 @@ export const MediaCompactList: React.FC<MediaCompactListProps> = ({
                                 : undefined
                             }
                             className="h-full w-full object-cover"
-                            decoding="async"
                           />
                         ) : isVideo ? (
                           <Play className="size-4 fill-current text-primary" />
@@ -199,7 +198,7 @@ export const MediaCompactList: React.FC<MediaCompactListProps> = ({
                         </DropdownMenuTrigger>
                         <DropdownMenuContent
                           align="end"
-                          className="w-44 border-border bg-card/95 font-sans text-xs text-foreground backdrop-blur-md"
+                          className="w-44 border-border bg-card font-sans text-xs text-foreground shadow-xl"
                         >
                           <DropdownMenuItem
                             onClick={() => onPreviewOpen(item)}

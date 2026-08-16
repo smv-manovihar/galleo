@@ -23,10 +23,17 @@ interface MediaInfoDialogProps {
   onClose: () => void
 }
 
-export const MediaInfoDialog: React.FC<MediaInfoDialogProps> = ({
-  item,
+const MediaInfoDialogComponent: React.FC<MediaInfoDialogProps> = ({
+  item: propItem,
   onClose,
 }) => {
+  const [lastActiveItem, setLastActiveItem] = React.useState<MediaItem | null>(propItem)
+
+  if (propItem && propItem !== lastActiveItem) {
+    setLastActiveItem(propItem)
+  }
+
+  const item = propItem ?? lastActiveItem
   if (!item) return null
 
   const hasQuality = item.quality !== undefined
@@ -59,24 +66,19 @@ export const MediaInfoDialog: React.FC<MediaInfoDialogProps> = ({
   }
 
   return (
-    <Dialog open={item !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent
-        key={item.id}
-        className="max-w-sm border-border bg-card font-sans text-xs text-foreground"
-        onOpenAutoFocus={(e) => e.preventDefault()}
-      >
-        <DialogHeader className="border-b border-border pb-3">
+    <Dialog open={propItem !== null} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md border-border bg-card p-5 font-sans text-foreground">
+        <DialogHeader className="pb-2">
           <DialogTitle className="flex items-center gap-2 truncate text-sm font-semibold">
-            <FileImage className="h-4 w-4 shrink-0 text-primary" />
-            {item.name}
+            <FileImage className="size-4 shrink-0 text-primary" />
+            <span className="truncate">{item.name}</span>
           </DialogTitle>
-          <DialogDescription className="mt-1 truncate text-xs text-muted-foreground">
-            {item.path}
+          <DialogDescription className="truncate text-xs text-muted-foreground">
+            {parentFolderPath}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-1">
-          {/* Basic file attributes */}
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
               <span className="text-muted-foreground shrink-0">Parent Folder</span>
@@ -226,3 +228,6 @@ export const MediaInfoDialog: React.FC<MediaInfoDialogProps> = ({
     </Dialog>
   )
 }
+
+export const MediaInfoDialog = React.memo(MediaInfoDialogComponent)
+

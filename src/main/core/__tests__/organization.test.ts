@@ -114,4 +114,23 @@ describe("planOrganization", () => {
     expect(plan2.targetPath).toBe("D:\\Target\\2024\\03\\other_1.jpg")
     expect(plan2.conflict).toBe(false)
   })
+
+  it("plans organization without destinationDir for dry-run preview", () => {
+    const item1 = createMockItem(
+      "item1",
+      "2024-03-15T12:00:00.000Z",
+      "photo.jpg"
+    )
+    const plan = planOrganization({
+      items: [item1],
+      destinationDir: "",
+      pattern: "YYYY/MM/",
+      existingFilePaths: new Set(),
+    })
+
+    expect(plan.length).toBe(1)
+    expect(plan[0].relativePath).toBe("2024\\03\\photo.jpg")
+    expect(plan[0].targetPath).toBe("2024\\03\\photo.jpg")
+    expect(plan[0].conflict).toBe(false)
+  })
 })

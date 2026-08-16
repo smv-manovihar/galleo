@@ -127,7 +127,15 @@ export const ZoomControls: React.FC<ZoomControlsProps> = React.memo(
                       type="text"
                       inputMode="numeric"
                       value={inputValue}
-                      onChange={(e) => setInputValue(e.target.value)}
+                      onChange={(e) => {
+                        let val = e.target.value
+                        if (/^0+[1-9]/.test(val)) {
+                          val = val.replace(/^0+/, "")
+                        } else if (/^0+$/.test(val)) {
+                          val = "0"
+                        }
+                        setInputValue(val)
+                      }}
                       onBlur={() => commitValue(inputValue)}
                       onKeyDown={(e) => {
                         e.stopPropagation()

@@ -21,6 +21,8 @@ import { VideoSpeedMenu } from "./VideoSpeedMenu"
 import { VideoZoomRotateMenu } from "./VideoZoomRotateMenu"
 
 interface VideoControlsBarProps {
+  src?: string
+  poster?: string
   showControls: boolean
   isPlaying: boolean
   isNarrow: boolean
@@ -51,10 +53,15 @@ interface VideoControlsBarProps {
   onRotateLeft?: (e?: React.MouseEvent) => void
   onRotateRight?: (e?: React.MouseEvent) => void
   onRotateReset?: (e?: React.MouseEvent) => void
+  onMouseEnterControls?: () => void
+  onMouseLeaveControls?: () => void
+  onUserInteraction?: () => void
 }
 
 export const VideoControlsBar: React.FC<VideoControlsBarProps> = React.memo(
   ({
+    src,
+    poster,
     showControls,
     isPlaying,
     isNarrow,
@@ -84,6 +91,9 @@ export const VideoControlsBar: React.FC<VideoControlsBarProps> = React.memo(
     onRotateLeft,
     onRotateRight,
     onRotateReset,
+    onMouseEnterControls,
+    onMouseLeaveControls,
+    onUserInteraction,
   }) => {
     const btnClass = isNarrow
       ? "w-7 h-7 rounded-full text-white hover:bg-white/10 cursor-pointer shrink-0"
@@ -105,10 +115,24 @@ export const VideoControlsBar: React.FC<VideoControlsBarProps> = React.memo(
     return (
       <div
         className={`absolute right-0 bottom-0 left-0 z-20 transition-opacity duration-300 ${showControls ? "opacity-100" : "pointer-events-none opacity-0"}`}
-        onClick={(e) => e.stopPropagation()}
-        onPointerDown={(e) => e.stopPropagation()}
-        onPointerUp={(e) => e.stopPropagation()}
-        onPointerMove={(e) => e.stopPropagation()}
+        onMouseEnter={onMouseEnterControls}
+        onMouseLeave={onMouseLeaveControls}
+        onClick={(e) => {
+          e.stopPropagation()
+          onUserInteraction?.()
+        }}
+        onPointerDown={(e) => {
+          e.stopPropagation()
+          onUserInteraction?.()
+        }}
+        onPointerUp={(e) => {
+          e.stopPropagation()
+          onUserInteraction?.()
+        }}
+        onPointerMove={(e) => {
+          e.stopPropagation()
+          onUserInteraction?.()
+        }}
       >
         {/* Gradient fade */}
         <div className="pointer-events-none absolute inset-0 bg-linear-to-t from-black/80 via-black/30 to-transparent" />
@@ -120,6 +144,8 @@ export const VideoControlsBar: React.FC<VideoControlsBarProps> = React.memo(
         >
           {/* Scrubber */}
           <VideoScrubber
+            src={src}
+            poster={poster}
             initialDuration={initialDuration}
             subscribeTimeUpdate={subscribeTimeUpdate}
             onSeek={onSeek}

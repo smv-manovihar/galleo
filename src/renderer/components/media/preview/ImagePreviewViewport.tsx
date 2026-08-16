@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react"
 
 interface ImagePreviewViewportProps {
   src: string
+  thumbnailSrc?: string
   alt: string
   rotation: number
   itemWidth?: number
@@ -12,37 +13,20 @@ interface ImagePreviewViewportProps {
 export const ImagePreviewViewport: React.FC<ImagePreviewViewportProps> = React.memo(
   ({
     src,
+    thumbnailSrc,
     alt,
     rotation,
     itemWidth,
     itemHeight,
     transformRef,
   }) => {
-    const [loadedDimensions, setLoadedDimensions] = useState<{
-      width: number
-      height: number
-    } | null>(null)
-    const [containerSize, setContainerSize] = useState<{
-      width: number
-      height: number
-    }>({ width: 0, height: 0 })
-    const [enableTransition, setEnableTransition] = useState(false)
-    const prevSrcRef = useRef(src)
+    const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null)
+    const [containerSize, setContainerSize] = useState<{ width: number; height: number }>({
+      width: 0,
+      height: 0,
+    })
 
     const viewportRef = useRef<HTMLDivElement>(null)
-
-    // Reset dimensions and disable transition when src changes
-    useEffect(() => {
-      setLoadedDimensions(null)
-      if (prevSrcRef.current !== src) {
-        prevSrcRef.current = src
-        setEnableTransition(false)
-      }
-      const timer = setTimeout(() => {
-        setEnableTransition(true)
-      }, 50)
-      return () => clearTimeout(timer)
-    }, [src])
 
     // Observe local viewport size for 90deg aspect scale calculation
     useEffect(() => {
@@ -65,8 +49,8 @@ export const ImagePreviewViewport: React.FC<ImagePreviewViewportProps> = React.m
       const isRotated90 = Math.abs((rotation / 90) % 2) === 1
       if (!isRotated90) return 1
 
-      const natW = loadedDimensions?.width || itemWidth
-      const natH = loadedDimensions?.height || itemHeight
+      const natW = itemWidth || naturalSize?.width
+      const natH = itemHeight || naturalSize?.height
       const cW = containerSize.width
       const cH = containerSize.height
 
@@ -76,34 +60,48 @@ export const ImagePreviewViewport: React.FC<ImagePreviewViewportProps> = React.m
         return rotatedScale / normalScale
       }
       return 1
-    }, [rotation, loadedDimensions, itemWidth, itemHeight, containerSize])
+    }, [rotation, itemWidth, itemHeight, naturalSize, containerSize])
 
     return (
       <div
         ref={viewportRef}
-        className="relative flex h-full w-full items-center justify-center overflow-hidden"
+        className="pointer-events-none relative flex h-full w-full items-center justify-center overflow-hidden"
       >
         <div
           ref={transformRef}
           className="pointer-events-none flex h-full w-full items-center justify-center transition-transform ease-out"
         >
-          <div className="pointer-events-auto flex h-full w-full max-h-full max-w-full items-center justify-center">
+          <div className="pointer-events-none relative flex h-full w-full max-h-full max-w-full items-center justify-center">
+            {/* Low-res thumbnail fallback behind main image */}
+            {thumbnailSrc && thumbnailSrc !== src && (
+              <img
+                src={thumbnailSrc}
+                alt=""
+                aria-hidden="true"
+                style={{
+                  transform: `rotate(${rotation}deg) scale(${imgFitScale})`,
+                }}
+                className="pointer-events-none absolute max-h-full max-w-full object-contain select-none opacity-50"
+              />
+            )}
+
+            {/* High-res Main Image */}
             <img
               src={src}
               alt={alt}
               onLoad={(e) => {
                 const img = e.currentTarget
-                setLoadedDimensions({
-                  width: img.naturalWidth,
-                  height: img.naturalHeight,
-                })
+                if (!itemWidth || !itemHeight) {
+                  setNaturalSize({
+                    width: img.naturalWidth,
+                    height: img.naturalHeight,
+                  })
+                }
               }}
               style={{
                 transform: `rotate(${rotation}deg) scale(${imgFitScale})`,
               }}
-              className={`pointer-events-none max-h-full max-w-full object-contain shadow-lg select-none ${
-                enableTransition ? "transition-transform duration-200" : ""
-              }`}
+              className="pointer-events-none relative z-10 max-h-full max-w-full object-contain shadow-lg select-none transition-transform duration-200 ease-out"
             />
           </div>
         </div>
@@ -113,3 +111,4 @@ export const ImagePreviewViewport: React.FC<ImagePreviewViewportProps> = React.m
 )
 
 ImagePreviewViewport.displayName = "ImagePreviewViewport"
+

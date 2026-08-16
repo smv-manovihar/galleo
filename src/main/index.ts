@@ -100,9 +100,56 @@ function getMimeType(filePath: string): string {
   return mimeTypes[ext] || "application/octet-stream"
 }
 
+interface CachedMediaStat {
+  size: number
+  mtimeMs: number
+  etag: string
+  lastModified: string
+  mimeType: string
+  cachedAt: number
+}
+
+const mediaStatCache = new Map<string, CachedMediaStat>()
+const MAX_MEDIA_STAT_CACHE = 2000
+const MEDIA_STAT_CACHE_TTL_MS = 60_000
+
+async function getMediaFileStat(filePath: string): Promise<CachedMediaStat | null> {
+  const now = Date.now()
+  const cached = mediaStatCache.get(filePath)
+  if (cached && now - cached.cachedAt < MEDIA_STAT_CACHE_TTL_MS) {
+    return cached
+  }
+
+  try {
+    const stats = await fs.promises.stat(filePath)
+    if (!stats.isFile()) return null
+    const fileSize = stats.size
+    const mimeType = getMimeType(filePath)
+    const etag = `"${stats.mtimeMs.toString(36)}-${fileSize.toString(36)}"`
+    const lastModified = stats.mtime.toUTCString()
+    const entry: CachedMediaStat = {
+      size: fileSize,
+      mtimeMs: stats.mtimeMs,
+      etag,
+      lastModified,
+      mimeType,
+      cachedAt: now,
+    }
+
+    if (mediaStatCache.size >= MAX_MEDIA_STAT_CACHE) {
+      const oldestKey = mediaStatCache.keys().next().value
+      if (oldestKey) mediaStatCache.delete(oldestKey)
+    }
+    mediaStatCache.set(filePath, entry)
+    return entry
+  } catch {
+    return null
+  }
+}
+
 app.whenReady().then(() => {
-  // Handle media:/// requests by fetching from local file system
-  protocol.handle("media", (request) => {
+  // Handle media:/// requests by fetching from local file system asynchronously
+  protocol.handle("media", async (request) => {
     try {
       const url = new URL(request.url)
       let resolvedPath: string
@@ -130,14 +177,36 @@ app.whenReady().then(() => {
         resolvedPath = resolvedPath.slice(1)
       }
 
-      // Check if file exists
-      if (!fs.existsSync(resolvedPath)) {
+      const mediaStat = await getMediaFileStat(resolvedPath)
+      if (!mediaStat) {
         return new Response("Not Found", { status: 404 })
       }
 
-      const stats = fs.statSync(resolvedPath)
-      const fileSize = stats.size
-      const mimeType = getMimeType(resolvedPath)
+      const fileSize = mediaStat.size
+      const mimeType = mediaStat.mimeType
+      const etag = mediaStat.etag
+      const lastModified = mediaStat.lastModified
+
+      // Handle conditional validation for instant 304 Not Modified cache hits
+      const ifNoneMatch = request.headers.get("if-none-match")
+      const ifModifiedSince = request.headers.get("if-modified-since")
+
+      if (
+        ifNoneMatch === etag ||
+        (ifModifiedSince &&
+          !isNaN(Date.parse(ifModifiedSince)) &&
+          new Date(ifModifiedSince).getTime() >=
+            Math.floor(mediaStat.mtimeMs / 1000) * 1000)
+      ) {
+        return new Response(null, {
+          status: 304,
+          headers: {
+            "ETag": etag,
+            "Last-Modified": lastModified,
+            "Cache-Control": "public, max-age=31536000, immutable",
+          },
+        })
+      }
 
       // Support Range request for video seeking
       const range = request.headers.get("range")
@@ -171,6 +240,9 @@ app.whenReady().then(() => {
             "Accept-Ranges": "bytes",
             "Content-Length": chunksize.toString(),
             "Content-Type": mimeType,
+            "ETag": etag,
+            "Last-Modified": lastModified,
+            "Cache-Control": "public, max-age=31536000, immutable",
           },
         })
       } else {
@@ -186,6 +258,10 @@ app.whenReady().then(() => {
           headers: {
             "Content-Length": fileSize.toString(),
             "Content-Type": mimeType,
+            "Accept-Ranges": "bytes",
+            "ETag": etag,
+            "Last-Modified": lastModified,
+            "Cache-Control": "public, max-age=31536000, immutable",
           },
         })
       }

@@ -150,7 +150,15 @@ export const VideoZoomRotateMenu: React.FC<VideoZoomRotateMenuProps> = React.mem
                       type="text"
                       inputMode="numeric"
                       value={inputValue}
-                      onChange={(e) => setInputValue(e.target.value)}
+                      onChange={(e) => {
+                        let val = e.target.value
+                        if (/^0+[1-9]/.test(val)) {
+                          val = val.replace(/^0+/, "")
+                        } else if (/^0+$/.test(val)) {
+                          val = "0"
+                        }
+                        setInputValue(val)
+                      }}
                       onBlur={() => commitValue(inputValue)}
                       onKeyDown={(e) => {
                         e.stopPropagation()
@@ -170,13 +178,15 @@ export const VideoZoomRotateMenu: React.FC<VideoZoomRotateMenuProps> = React.mem
                 ) : (
                   <Tooltip open={isEditing ? false : undefined}>
                     <TooltipTrigger asChild>
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
+                        size="sm"
                         onClick={handleStartEditing}
-                        className="flex h-7 min-w-16 cursor-pointer items-center justify-center rounded px-2 font-mono text-xs font-semibold text-white transition-colors hover:bg-white/15"
+                        className="h-7 min-w-16 cursor-pointer rounded px-2 font-mono text-xs font-semibold text-white hover:bg-white/15"
                       >
                         {zoomPercent}%
-                      </button>
+                      </Button>
                     </TooltipTrigger>
                     <TooltipContent side="top" container={containerElement ?? undefined}>
                       Click to set custom zoom (100% - 600%)

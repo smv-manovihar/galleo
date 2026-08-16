@@ -24,6 +24,8 @@ interface MediaCullingControlsProps {
     decision: "keep" | "delete"
   ) => Promise<void>
   disabled?: boolean
+  isHistoryOpen?: boolean
+  onHistoryOpenChange?: (open: boolean) => void
 }
 
 export const MediaCullingControls: React.FC<MediaCullingControlsProps> = ({
@@ -34,8 +36,15 @@ export const MediaCullingControls: React.FC<MediaCullingControlsProps> = ({
   onKeep,
   onBulkChangeDecisions,
   disabled = false,
+  isHistoryOpen: controlledHistoryOpen,
+  onHistoryOpenChange,
 }) => {
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false)
+  const [internalHistoryOpen, setInternalHistoryOpen] = useState(false)
+  const isHistoryOpen =
+    controlledHistoryOpen !== undefined
+      ? controlledHistoryOpen
+      : internalHistoryOpen
+  const setIsHistoryOpen = onHistoryOpenChange ?? setInternalHistoryOpen
 
   // Filter to culling-source actions only — the shared undoStack also contains
   // duplicate-audit and browse decisions which must not appear here.
@@ -58,6 +67,7 @@ export const MediaCullingControls: React.FC<MediaCullingControlsProps> = ({
           path: item?.path ?? "",
           currentDecision: (action.type === "mark-keep" ? "keep" : "delete") as
             "keep" | "delete",
+          mediaItem: item,
         }
       })
   }, [undoStack, allItems])
@@ -105,7 +115,7 @@ export const MediaCullingControls: React.FC<MediaCullingControlsProps> = ({
                 <History className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="top">Decision History</TooltipContent>
+            <TooltipContent side="top">History (H)</TooltipContent>
           </Tooltip>
 
           <MediaCullingHistoryDialog
@@ -153,13 +163,15 @@ export const MediaCullingControls: React.FC<MediaCullingControlsProps> = ({
       <p className="shrink-0 text-center text-xs text-muted-foreground">
         Swipe or use{" "}
         <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono font-bold">←</kbd>{" "}
-        Delete —{" "}
+        Delete ·{" "}
         <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono font-bold">→</kbd>{" "}
-        Keep —{" "}
+        Keep ·{" "}
         <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono font-bold">↑</kbd>{" "}
-        Preview —{" "}
+        Preview ·{" "}
         <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono font-bold">↓</kbd>{" "}
-        Undo
+        Undo ·{" "}
+        <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono font-bold">H</kbd>{" "}
+        History
       </p>
     </>
   )

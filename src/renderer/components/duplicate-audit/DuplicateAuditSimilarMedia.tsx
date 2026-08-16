@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback, useEffect } from "react"
+import React, { useMemo, useState, useCallback, useEffect, useRef } from "react"
 import type { MediaItem } from "../../../shared/types/media"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -9,6 +9,10 @@ import {
   Undo2,
   ChevronLeft,
   ChevronRight,
+  Rewind,
+  FastForward,
+  Trash2,
+  Bookmark,
 } from "lucide-react"
 import {
   Tooltip,
@@ -17,16 +21,21 @@ import {
 } from "@/components/ui/tooltip"
 import { MediaPreview } from "../media/MediaPreview"
 import { MediaInfoDialog } from "../media/MediaInfoDialog"
-import { Progress } from "@/components/ui/progress"
+import {
+  MediaContextMenu,
+  type MediaContextMenuState,
+} from "../media/MediaContextMenu"
 import { useSessionStore } from "../../stores/session-store"
 import {
   DuplicateAuditHistoryDialog,
   type DuplicateAuditHistoryDialogItem,
 } from "./DuplicateAuditHistoryDialog"
 import { DuplicateAuditCard } from "./DuplicateAuditCard"
+import { DuplicateAuditProgressSeeker } from "./DuplicateAuditProgressSeeker"
 
 interface DuplicateAuditSimilarMediaProps {
-  items: MediaItem[]
+  groups?: MediaItem[][]
+  items?: MediaItem[]
   onComplete?: () => void
   activeGroupIndex: number
   onGroupIndexChange: (
@@ -34,9 +43,61 @@ interface DuplicateAuditSimilarMediaProps {
   ) => void
 }
 
-export const DuplicateAuditSimilarMedia: React.FC<
+function getItemAspectRatioClass(item: MediaItem): string {
+  let w = item.width
+  let h = item.height
+
+  if (!w || !h || w <= 0 || h <= 0) {
+    return "aspect-4/3"
+  }
+
+  if (item.orientation === 90 || item.orientation === 270) {
+    const temp = w
+    w = h
+    h = temp
+  }
+
+  const ratio = w / h
+
+  if (ratio >= 0.9 && ratio <= 1.1) {
+    return "aspect-square"
+  }
+  if (ratio > 1.1) {
+    return "aspect-4/3"
+  }
+  return "aspect-3/4"
+}
+
+function compareMediaQuality(a: MediaItem, b: MediaItem): number {
+  const scoreA = a.quality?.compositeScore ?? 0
+  const scoreB = b.quality?.compositeScore ?? 0
+  if (scoreB !== scoreA) {
+    return scoreB - scoreA
+  }
+
+  const blurA = a.quality?.blurScore ?? 0
+  const blurB = b.quality?.blurScore ?? 0
+  if (blurB !== blurA) {
+    return blurB - blurA
+  }
+
+  const resA = (a.width ?? 0) * (a.height ?? 0)
+  const resB = (b.width ?? 0) * (b.height ?? 0)
+  if (resB !== resA) {
+    return resB - resA
+  }
+
+  if (b.size !== a.size) {
+    return b.size - a.size
+  }
+
+  return (b.dateTarget || b.dateAdded || "").localeCompare(a.dateTarget || a.dateAdded || "")
+}
+
+export const DuplicateAuditSimilarMedia = React.memo<
   DuplicateAuditSimilarMediaProps
-> = ({
+>(({
+  groups: groupsProp,
   items,
   onComplete,
   activeGroupIndex,
@@ -44,22 +105,37 @@ export const DuplicateAuditSimilarMedia: React.FC<
 }) => {
   const [slideDirection, setSlideDirection] = useState<"left" | "right">("right")
   const [focusedCardIndex, setFocusedCardIndex] = useState<number | null>(null)
-  // Extract and group duplicates
+
+  // Extract and group duplicates, sorting items in each group from best to worst
   const duplicateGroups = useMemo(() => {
-    const groups: Record<string, MediaItem[]> = {}
-    for (const item of items) {
-      if (item.isDuplicate && item.duplicateGroupId) {
-        if (!groups[item.duplicateGroupId]) {
-          groups[item.duplicateGroupId] = []
+    let rawGroups: MediaItem[][]
+    if (groupsProp && groupsProp.length > 0) {
+      rawGroups = groupsProp
+    } else {
+      const groups: Record<string, MediaItem[]> = {}
+      for (const item of items ?? []) {
+        if (item.isDuplicate && item.duplicateGroupId) {
+          if (!groups[item.duplicateGroupId]) {
+            groups[item.duplicateGroupId] = []
+          }
+          groups[item.duplicateGroupId].push(item)
         }
-        groups[item.duplicateGroupId].push(item)
       }
+      rawGroups = Object.keys(groups)
+        .sort((a, b) => {
+          const countDiff = groups[b].length - groups[a].length
+          if (countDiff !== 0) return countDiff
+          const sizeB = groups[b].reduce((sum, item) => sum + item.size, 0)
+          const sizeA = groups[a].reduce((sum, item) => sum + item.size, 0)
+          if (sizeB !== sizeA) return sizeB - sizeA
+          return a.localeCompare(b)
+        })
+        .map((k) => groups[k])
+        .filter((g) => g.length > 1)
     }
-    return Object.keys(groups)
-      .sort()
-      .map((k) => groups[k])
-      .filter((g) => g.length > 1)
-  }, [items])
+
+    return rawGroups.map((group) => [...group].sort(compareMediaQuality))
+  }, [groupsProp, items])
 
   const currentGroup =
     activeGroupIndex < duplicateGroups.length
@@ -69,6 +145,23 @@ export const DuplicateAuditSimilarMedia: React.FC<
   const [previewItem, setPreviewItem] = useState<MediaItem | null>(null)
   const [infoItem, setInfoItem] = useState<MediaItem | null>(null)
   const [autoPlay, setAutoPlay] = useState(false)
+  const [activeContextMenu, setActiveContextMenu] =
+    useState<MediaContextMenuState | null>(null)
+
+  const handleContextMenu = useCallback(
+    (item: MediaItem, e: React.MouseEvent) => {
+      setActiveContextMenu({
+        item,
+        x: e.clientX,
+        y: e.clientY,
+      })
+    },
+    []
+  )
+
+  const handleCloseContextMenu = useCallback(() => {
+    setActiveContextMenu(null)
+  }, [])
 
   const decisions = useSessionStore((state) => state.decisions)
   const undoStack = useSessionStore((state) => state.undoStack)
@@ -79,104 +172,87 @@ export const DuplicateAuditSimilarMedia: React.FC<
   )
 
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
-  const [temporaryDecisions, setTemporaryDecisions] = useState<
-    Record<string, "keep" | "delete">
-  >({})
-  const [isCurrentGroupCommitted, setIsCurrentGroupCommitted] = useState(false)
+  const [isFilterUnreviewedOnly, setIsFilterUnreviewedOnly] = useState(false)
 
-  // Dynamically resolve the best item in a similar media group based on quality/resolution/size
-  const determineBestItem = useCallback((group: MediaItem[]) => {
-    if (group.length === 0) return null
-    let best = group[0]
-    for (let k = 1; k < group.length; k++) {
-      const item = group[k]
-      const itemScore = item.quality?.compositeScore ?? 0
-      const bestScore = best.quality?.compositeScore ?? 0
+  const currentGroupBest = useMemo(() => {
+    if (!currentGroup || currentGroup.length === 0) return null
+    return currentGroup[0]
+  }, [currentGroup])
 
-      if (itemScore > bestScore) {
-        best = item
-      } else if (itemScore === bestScore) {
-        const itemRes = (item.width ?? 0) * (item.height ?? 0)
-        const bestRes = (best.width ?? 0) * (best.height ?? 0)
-
-        if (itemRes > bestRes) {
-          best = item
-        } else if (itemRes === bestRes) {
-          if (item.size > best.size) {
-            best = item
-          }
-        }
+  const isCurrentGroupDecided = useMemo(() => {
+    if (!currentGroup || currentGroup.length === 0) return true
+    for (let i = 0; i < currentGroup.length; i++) {
+      const dec = decisions[currentGroup[i].id]
+      if (dec !== "keep" && dec !== "delete") {
+        return false
       }
     }
-    return best
-  }, [])
-
-  // Stable id string — used as render-phase dep to detect group changes
-  const currentGroupId = useMemo(
-    () => (currentGroup ? currentGroup.map((i) => i.id).join(",") : null),
-    [currentGroup]
-  )
-
-  const isAllReviewed = useMemo(() => {
-    if (duplicateGroups.length === 0) return false
-    return duplicateGroups.every((group) =>
-      group.every(
-        (item) =>
-          decisions[item.id] === "keep" || decisions[item.id] === "delete"
-      )
-    )
-  }, [duplicateGroups, decisions])
-
-  // Render-phase derived state: when the active group changes, re-initialise
-  // the local decision scratch-pad. React immediately discards the current
-  // render and re-runs with the new state — no DOM frame is painted in between.
-  // (useEffect with setState is blocked by react-hooks/set-state-in-effect.)
-  const [prevGroupId, setPrevGroupId] = useState<string | null>(null)
-  if (currentGroupId !== prevGroupId) {
-    setPrevGroupId(currentGroupId)
-    if (!currentGroup) {
-      setTemporaryDecisions({})
-      setIsCurrentGroupCommitted(false)
-    } else {
-      const hasCommitted = currentGroup.every(
-        (item) =>
-          decisions[item.id] === "keep" || decisions[item.id] === "delete"
-      )
-      if (hasCommitted) {
-        setTemporaryDecisions({})
-        setIsCurrentGroupCommitted(true)
-      } else {
-        const bestItem = determineBestItem(currentGroup) || currentGroup[0]
-        const temps: Record<string, "keep" | "delete"> = {}
-        for (const item of currentGroup) {
-          temps[item.id] = item.id === bestItem.id ? "keep" : "delete"
-        }
-        setTemporaryDecisions(temps)
-        setIsCurrentGroupCommitted(false)
-      }
-    }
-  }
+    return true
+  }, [currentGroup, decisions])
 
   const getItemReviewState = useCallback(
-    (item: MediaItem) => {
-      // 1. Check committed decisions first
-      const committed = useSessionStore.getState().decisions[item.id]
-      if (committed) return committed
-
-      // 2. Fall back to temporary recommendations if it belongs to the current group
-      if (currentGroup && currentGroup.some((i) => i.id === item.id)) {
-        return temporaryDecisions[item.id] ?? "pending"
+    (item: MediaItem): "keep" | "delete" | "pending" => {
+      const committed = decisions[item.id]
+      if (committed === "keep" || committed === "delete") return committed
+      if (item.reviewState === "keep" || item.reviewState === "delete") return item.reviewState
+      if (currentGroupBest) {
+        return item.id === currentGroupBest.id ? "keep" : "delete"
       }
-
-      return item.reviewState ?? "pending"
+      return "pending"
     },
-    [currentGroup, temporaryDecisions]
+    [decisions, currentGroupBest]
   )
 
-  // Map duplicateUndoStack directly to HistoryDialog format
+  // Single-pass bitset calculation for group decision tracking
+  const { totalDecidedCount, decidedArray } = useMemo(() => {
+    let count = 0
+    const total = duplicateGroups.length
+    const arr = new Uint8Array(total)
+
+    for (let i = 0; i < total; i++) {
+      const g = duplicateGroups[i]
+      let isDecided = g.length > 0
+      for (let j = 0; j < g.length; j++) {
+        const dec = decisions[g[j].id]
+        if (dec !== "keep" && dec !== "delete") {
+          isDecided = false
+          break
+        }
+      }
+      if (isDecided) {
+        arr[i] = 1
+        count++
+      }
+    }
+
+    return { totalDecidedCount: count, decidedArray: arr }
+  }, [duplicateGroups, decisions])
+
+  const isAllReviewed = totalDecidedCount === duplicateGroups.length && duplicateGroups.length > 0
+
+  const unreviewedIndices = useMemo(() => {
+    if (!isFilterUnreviewedOnly) return []
+    const indices: number[] = []
+    for (let i = 0; i < decidedArray.length; i++) {
+      if (decidedArray[i] === 0) {
+        indices.push(i)
+      }
+    }
+    return indices
+  }, [isFilterUnreviewedOnly, decidedArray])
+
+  // Defer history calculation until history dialog is opened
   const historyItems = useMemo<DuplicateAuditHistoryDialogItem[]>(() => {
+    if (!isHistoryOpen || duplicateUndoStack.length === 0) return []
+
+    const idMap = new Map<string, MediaItem>()
+    const itemsList = items && items.length > 0 ? items : duplicateGroups.flat()
+    for (let i = 0; i < itemsList.length; i++) {
+      idMap.set(itemsList[i].id, itemsList[i])
+    }
+
     return duplicateUndoStack.map((action, idx) => {
-      const item = items.find((i) => i.id === action.mediaId)
+      const item = idMap.get(action.mediaId)
       const currentDecision = (decisions[action.mediaId] ?? "pending") as
         | "keep"
         | "delete"
@@ -188,9 +264,10 @@ export const DuplicateAuditSimilarMedia: React.FC<
         thumbnailPath: item?.thumbnailPath,
         path: item?.path ?? "",
         currentDecision,
+        mediaItem: item,
       }
     })
-  }, [duplicateUndoStack, items, decisions])
+  }, [isHistoryOpen, duplicateUndoStack, items, duplicateGroups, decisions])
 
   const handleUndo = useCallback(async () => {
     const store = useSessionStore.getState()
@@ -199,7 +276,6 @@ export const DuplicateAuditSimilarMedia: React.FC<
     )
     if (dupActions.length === 0) return
 
-    // Find the target group index associated with the most recent duplicate action
     const lastAction = dupActions[dupActions.length - 1]
     const targetGroupIndex = duplicateGroups.findIndex((group) =>
       group.some((item) => item.id === lastAction.mediaId)
@@ -215,31 +291,18 @@ export const DuplicateAuditSimilarMedia: React.FC<
     }
   }, [duplicateGroups, activeGroupIndex, onGroupIndexChange])
 
-  const commitGroupDecisions = useCallback(
-    async (
-      decisionsToCommit: Record<string, "keep" | "delete">,
-      batchId: string
-    ) => {
-      const store = useSessionStore.getState()
-      const updates = Object.entries(decisionsToCommit).map(
-        ([mediaId, decision]) => {
-          const currentDecision = (store.decisions[mediaId] ?? "pending") as
-            | "keep"
-            | "delete"
-            | "pending"
-          return {
-            mediaId,
-            state: decision,
-            prevState: currentDecision,
-          }
-        }
-      )
-
-      await store.submitBatchDecisions(updates, "duplicates", batchId)
-      setIsCurrentGroupCommitted(true)
-    },
-    []
-  )
+  const ensureCurrentGroupCommitted = useCallback(async () => {
+    if (!currentGroup || currentGroup.length === 0 || isCurrentGroupDecided) return
+    const bestId = currentGroupBest?.id ?? currentGroup[0].id
+    const batchId = `auto_recommend_${Date.now()}`
+    const store = useSessionStore.getState()
+    const updates = currentGroup.map((item) => {
+      const state: "keep" | "delete" = item.id === bestId ? "keep" : "delete"
+      const prevState = (store.decisions[item.id] ?? "pending") as "keep" | "delete" | "pending"
+      return { mediaId: item.id, state, prevState }
+    })
+    await store.submitBatchDecisions(updates, "duplicates", batchId)
+  }, [currentGroup, isCurrentGroupDecided, currentGroupBest])
 
   const handleBulkChangeDecisions = useCallback(
     async (mediaIds: string[], newDecision: "keep" | "delete") => {
@@ -270,100 +333,154 @@ export const DuplicateAuditSimilarMedia: React.FC<
   )
 
   const handleKeepBest = useCallback(async () => {
-    if (!currentGroup) return
+    if (!currentGroup || currentGroup.length === 0) return
     setSlideDirection("right")
+    const bestId = currentGroupBest?.id ?? currentGroup[0].id
     const batchId = `manual_keep_best_${Date.now()}`
-    const bestItem = determineBestItem(currentGroup) || currentGroup[0]
-
-    const newDecisions: Record<string, "keep" | "delete"> = {}
-    for (const item of currentGroup) {
-      newDecisions[item.id] = item.id === bestItem.id ? "keep" : "delete"
-    }
-
-    await commitGroupDecisions(newDecisions, batchId)
-    onGroupIndexChange((prev) =>
-      Math.min(duplicateGroups.length, prev + 1)
-    )
-  }, [
-    currentGroup,
-    determineBestItem,
-    commitGroupDecisions,
-    onGroupIndexChange,
-    duplicateGroups.length,
-  ])
+    const store = useSessionStore.getState()
+    const updates = currentGroup.map((item) => ({
+      mediaId: item.id,
+      state: (item.id === bestId ? "keep" : "delete") as "keep" | "delete",
+      prevState: (store.decisions[item.id] ?? "pending") as "keep" | "delete" | "pending",
+    }))
+    await store.submitBatchDecisions(updates, "duplicates", batchId)
+    onGroupIndexChange((prev) => Math.min(duplicateGroups.length, prev + 1))
+  }, [currentGroup, currentGroupBest, onGroupIndexChange, duplicateGroups.length])
 
   const handleKeepAll = useCallback(async () => {
-    if (!currentGroup) return
+    if (!currentGroup || currentGroup.length === 0) return
     setSlideDirection("right")
     const batchId = `manual_keep_all_${Date.now()}`
-
-    const newDecisions: Record<string, "keep" | "delete"> = {}
-    for (const item of currentGroup) {
-      newDecisions[item.id] = "keep"
-    }
-
-    await commitGroupDecisions(newDecisions, batchId)
-    onGroupIndexChange((prev) =>
-      Math.min(duplicateGroups.length, prev + 1)
-    )
-  }, [
-    currentGroup,
-    commitGroupDecisions,
-    onGroupIndexChange,
-    duplicateGroups.length,
-  ])
+    const store = useSessionStore.getState()
+    const updates = currentGroup.map((item) => ({
+      mediaId: item.id,
+      state: "keep" as "keep" | "delete",
+      prevState: (store.decisions[item.id] ?? "pending") as "keep" | "delete" | "pending",
+    }))
+    await store.submitBatchDecisions(updates, "duplicates", batchId)
+    onGroupIndexChange((prev) => Math.min(duplicateGroups.length, prev + 1))
+  }, [currentGroup, onGroupIndexChange, duplicateGroups.length])
 
   const handleDeleteAll = useCallback(async () => {
-    if (!currentGroup) return
+    if (!currentGroup || currentGroup.length === 0) return
     setSlideDirection("right")
     const batchId = `manual_delete_all_${Date.now()}`
+    const store = useSessionStore.getState()
+    const updates = currentGroup.map((item) => ({
+      mediaId: item.id,
+      state: "delete" as "keep" | "delete",
+      prevState: (store.decisions[item.id] ?? "pending") as "keep" | "delete" | "pending",
+    }))
+    await store.submitBatchDecisions(updates, "duplicates", batchId)
+    onGroupIndexChange((prev) => Math.min(duplicateGroups.length, prev + 1))
+  }, [currentGroup, onGroupIndexChange, duplicateGroups.length])
 
-    const newDecisions: Record<string, "keep" | "delete"> = {}
-    for (const item of currentGroup) {
-      newDecisions[item.id] = "delete"
+  const jumpToNextPending = useCallback(async () => {
+    if (duplicateGroups.length === 0) return
+    await ensureCurrentGroupCommitted()
+
+    // 1. Search forward from activeGroupIndex + 1
+    for (let i = activeGroupIndex + 1; i < decidedArray.length; i++) {
+      if (decidedArray[i] === 0) {
+        setSlideDirection("right")
+        onGroupIndexChange(i)
+        return
+      }
     }
 
-    await commitGroupDecisions(newDecisions, batchId)
-    onGroupIndexChange((prev) =>
-      Math.min(duplicateGroups.length, prev + 1)
-    )
+    // 2. Wrap around from 0 to activeGroupIndex
+    for (let i = 0; i < activeGroupIndex; i++) {
+      if (decidedArray[i] === 0) {
+        setSlideDirection("right")
+        onGroupIndexChange(i)
+        return
+      }
+    }
   }, [
-    currentGroup,
-    commitGroupDecisions,
-    onGroupIndexChange,
     duplicateGroups.length,
+    ensureCurrentGroupCommitted,
+    activeGroupIndex,
+    decidedArray,
+    onGroupIndexChange,
+  ])
+
+  const jumpToPrevPending = useCallback(async () => {
+    if (duplicateGroups.length === 0) return
+    await ensureCurrentGroupCommitted()
+
+    // 1. Search backward from activeGroupIndex - 1
+    for (let i = activeGroupIndex - 1; i >= 0; i--) {
+      if (decidedArray[i] === 0) {
+        setSlideDirection("left")
+        onGroupIndexChange(i)
+        return
+      }
+    }
+
+    // 2. Wrap around from end down to activeGroupIndex
+    for (let i = decidedArray.length - 1; i > activeGroupIndex; i--) {
+      if (decidedArray[i] === 0) {
+        setSlideDirection("left")
+        onGroupIndexChange(i)
+        return
+      }
+    }
+  }, [
+    duplicateGroups.length,
+    ensureCurrentGroupCommitted,
+    activeGroupIndex,
+    decidedArray,
+    onGroupIndexChange,
   ])
 
   const nextGroup = useCallback(async () => {
     setSlideDirection("right")
-    if (currentGroup && !isCurrentGroupCommitted) {
-      const batchId = `auto_recommend_${Date.now()}`
-      await commitGroupDecisions(temporaryDecisions, batchId)
+    await ensureCurrentGroupCommitted()
+
+    if (isFilterUnreviewedOnly && unreviewedIndices.length > 0) {
+      const nextIdx = unreviewedIndices.find((idx) => idx > activeGroupIndex)
+      if (nextIdx !== undefined) {
+        onGroupIndexChange(nextIdx)
+        return
+      }
+      onGroupIndexChange(unreviewedIndices[0])
+      return
     }
+
     onGroupIndexChange((prev) =>
       Math.min(duplicateGroups.length, prev + 1)
     )
   }, [
-    currentGroup,
-    isCurrentGroupCommitted,
-    temporaryDecisions,
-    commitGroupDecisions,
+    ensureCurrentGroupCommitted,
+    isFilterUnreviewedOnly,
+    unreviewedIndices,
+    activeGroupIndex,
     onGroupIndexChange,
     duplicateGroups.length,
   ])
 
   const prevGroup = useCallback(async () => {
     setSlideDirection("left")
-    if (currentGroup && !isCurrentGroupCommitted) {
-      const batchId = `auto_recommend_${Date.now()}`
-      await commitGroupDecisions(temporaryDecisions, batchId)
+    await ensureCurrentGroupCommitted()
+
+    if (isFilterUnreviewedOnly && unreviewedIndices.length > 0) {
+      const prevIdx = [...unreviewedIndices]
+        .reverse()
+        .find((idx) => idx < activeGroupIndex)
+      if (prevIdx !== undefined) {
+        onGroupIndexChange(prevIdx)
+        return
+      }
+      onGroupIndexChange(unreviewedIndices[unreviewedIndices.length - 1])
+      return
     }
+
     onGroupIndexChange((prev) => Math.max(0, prev - 1))
   }, [
-    currentGroup,
-    isCurrentGroupCommitted,
-    temporaryDecisions,
-    commitGroupDecisions,
+    ensureCurrentGroupCommitted,
+    isFilterUnreviewedOnly,
+    unreviewedIndices,
+    activeGroupIndex,
     onGroupIndexChange,
   ])
 
@@ -371,28 +488,49 @@ export const DuplicateAuditSimilarMedia: React.FC<
     async (itemId: string) => {
       if (!currentGroup) return
 
-      const item = currentGroup.find((i) => i.id === itemId)
-      if (!item) return
-      const currentDecision = getItemReviewState(item)
-      const newDecision: "keep" | "delete" =
-        currentDecision === "keep" ? "delete" : "keep"
+      const store = useSessionStore.getState()
+      const currentDecisions = store.decisions
+      const bestId = currentGroupBest?.id ?? currentGroup[0].id
 
-      const newDecisions: Record<string, "keep" | "delete"> = {}
-      for (const gItem of currentGroup) {
-        if (gItem.id === itemId) {
-          newDecisions[gItem.id] = newDecision
-        } else {
-          const existing = getItemReviewState(gItem)
-          newDecisions[gItem.id] = (
-            existing === "pending" ? "keep" : existing
-          ) as "keep" | "delete"
-        }
-      }
+      const targetItem = currentGroup.find((i) => i.id === itemId)
+      if (!targetItem) return
+
+      const existingDec = currentDecisions[itemId]
+      const currentItemDecision: "keep" | "delete" =
+        existingDec === "keep" || existingDec === "delete"
+          ? existingDec
+          : targetItem.reviewState === "keep" || targetItem.reviewState === "delete"
+            ? targetItem.reviewState
+            : itemId === bestId
+              ? "keep"
+              : "delete"
+
+      const newTargetDecision: "keep" | "delete" =
+        currentItemDecision === "keep" ? "delete" : "keep"
 
       const batchId = `manual_toggle_${Date.now()}`
-      await commitGroupDecisions(newDecisions, batchId)
+      const updates = currentGroup.map((gItem) => {
+        const isTarget = gItem.id === itemId
+        const existing = currentDecisions[gItem.id]
+        const state: "keep" | "delete" = isTarget
+          ? newTargetDecision
+          : existing === "keep" || existing === "delete"
+            ? existing
+            : gItem.reviewState === "keep" || gItem.reviewState === "delete"
+              ? gItem.reviewState
+              : gItem.id === bestId
+                ? "keep"
+                : "delete"
+        const prevState = (currentDecisions[gItem.id] ?? "pending") as
+          | "keep"
+          | "delete"
+          | "pending"
+        return { mediaId: gItem.id, state, prevState }
+      })
+
+      await store.submitBatchDecisions(updates, "duplicates", batchId)
     },
-    [currentGroup, getItemReviewState, commitGroupDecisions]
+    [currentGroup, currentGroupBest]
   )
 
   const openPreview = useCallback((item: MediaItem, withAutoPlay = false) => {
@@ -400,26 +538,91 @@ export const DuplicateAuditSimilarMedia: React.FC<
     setPreviewItem(item)
   }, [])
 
+  // Stable ref for keyboard events to eliminate listener churn
+  const keydownStateRef = useRef({
+    currentGroup,
+    focusedCardIndex,
+    previewItem,
+    infoItem,
+    isHistoryOpen,
+    duplicateUndoStackLength: duplicateUndoStack.length,
+    setIsHistoryOpen,
+    currentGroupBest,
+    handleUndo,
+    jumpToNextPending,
+    jumpToPrevPending,
+    prevGroup,
+    nextGroup,
+    handleKeepAll,
+    handleDeleteAll,
+    handleKeepBest,
+    handleToggleKeep,
+    openPreview,
+  })
+
+  useEffect(() => {
+    keydownStateRef.current = {
+      currentGroup,
+      focusedCardIndex,
+      previewItem,
+      infoItem,
+      isHistoryOpen,
+      duplicateUndoStackLength: duplicateUndoStack.length,
+      setIsHistoryOpen,
+      currentGroupBest,
+      handleUndo,
+      jumpToNextPending,
+      jumpToPrevPending,
+      prevGroup,
+      nextGroup,
+      handleKeepAll,
+      handleDeleteAll,
+      handleKeepBest,
+      handleToggleKeep,
+      openPreview,
+    }
+  }, [
+    currentGroup,
+    focusedCardIndex,
+    previewItem,
+    infoItem,
+    isHistoryOpen,
+    duplicateUndoStack.length,
+    setIsHistoryOpen,
+    currentGroupBest,
+    handleUndo,
+    jumpToNextPending,
+    jumpToPrevPending,
+    prevGroup,
+    nextGroup,
+    handleKeepAll,
+    handleDeleteAll,
+    handleKeepBest,
+    handleToggleKeep,
+    openPreview,
+  ])
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const state = keydownStateRef.current
       if (
         document.activeElement?.tagName === "INPUT" ||
         document.activeElement?.tagName === "TEXTAREA" ||
         document.activeElement?.getAttribute("contenteditable") === "true" ||
-        previewItem !== null ||
-        infoItem !== null ||
-        isHistoryOpen
+        state.previewItem !== null ||
+        state.infoItem !== null ||
+        state.isHistoryOpen
       ) {
         return
       }
 
       const key = e.key.toLowerCase()
-      const isFocusMode = focusedCardIndex !== null
+      const isFocusMode = state.focusedCardIndex !== null
       const cols = 3
 
       // ── Focus mode ─────────────────────────────────────────────────────────
-      if (isFocusMode && currentGroup) {
-        const len = currentGroup.length
+      if (isFocusMode && state.currentGroup) {
+        const len = state.currentGroup.length
 
         // Exit focus mode: Esc or F
         if (e.key === "Escape" || key === "f") {
@@ -474,25 +677,26 @@ export const DuplicateAuditSimilarMedia: React.FC<
         // Toggle focused card: Space / Enter
         if (e.key === " " || e.key === "Enter") {
           e.preventDefault()
-          handleToggleKeep(currentGroup[focusedCardIndex].id)
+          if (state.currentGroup[state.focusedCardIndex!]) {
+            void state.handleToggleKeep(state.currentGroup[state.focusedCardIndex!].id)
+          }
           return
         }
 
         // Undo: Ctrl+Z / Backspace
         if ((e.ctrlKey && key === "z") || e.key === "Backspace") {
           e.preventDefault()
-          handleUndo()
+          void state.handleUndo()
           return
         }
 
-        // Absorb other keys while in focus mode so they don't accidentally trigger global actions
         return
       }
 
       // ── Normal mode ────────────────────────────────────────────────────────
 
       // Enter focus mode: F
-      if (key === "f" && currentGroup) {
+      if (key === "f" && state.currentGroup) {
         e.preventDefault()
         setFocusedCardIndex(0)
         return
@@ -506,16 +710,15 @@ export const DuplicateAuditSimilarMedia: React.FC<
         e.key === "Backspace"
       ) {
         e.preventDefault()
-        handleUndo()
+        void state.handleUndo()
         return
       }
 
       // Preview best: ↑ / W
       if (e.key === "ArrowUp" || key === "w") {
         e.preventDefault()
-        if (currentGroup) {
-          const best = determineBestItem(currentGroup)
-          if (best) openPreview(best)
+        if (state.currentGroupBest) {
+          state.openPreview(state.currentGroupBest)
         }
         return
       }
@@ -523,35 +726,56 @@ export const DuplicateAuditSimilarMedia: React.FC<
       // Previous group: ← / A
       if (e.key === "ArrowLeft" || key === "a") {
         e.preventDefault()
-        prevGroup()
+        void state.prevGroup()
+        return
+      }
+
+      // Jump to previous unreviewed: Shift+Tab / Shift+N / P
+      if ((e.shiftKey && (e.key === "Tab" || key === "n")) || key === "p") {
+        e.preventDefault()
+        void state.jumpToPrevPending()
+        return
+      }
+
+      // Jump to next unreviewed: Tab / N
+      if (e.key === "Tab" || key === "n") {
+        e.preventDefault()
+        void state.jumpToNextPending()
         return
       }
 
       // Next group: → / D
       if (e.key === "ArrowRight" || key === "d") {
         e.preventDefault()
-        nextGroup()
+        void state.nextGroup()
         return
       }
 
       // Auto-Keep Best: Space / Enter
       if (e.key === " " || e.key === "Enter") {
         e.preventDefault()
-        handleKeepBest()
+        void state.handleKeepBest()
         return
       }
 
       // Keep All: C
       if (key === "c") {
         e.preventDefault()
-        handleKeepAll()
+        void state.handleKeepAll()
         return
       }
 
       // Delete All: Del / X
       if (e.key === "Delete" || key === "x") {
         e.preventDefault()
-        handleDeleteAll()
+        void state.handleDeleteAll()
+        return
+      }
+
+      // History: H
+      if (key === "h" && state.duplicateUndoStackLength > 0) {
+        e.preventDefault()
+        state.setIsHistoryOpen((prev) => !prev)
         return
       }
     }
@@ -560,28 +784,24 @@ export const DuplicateAuditSimilarMedia: React.FC<
     return () => {
       window.removeEventListener("keydown", handleKeyDown)
     }
-  }, [
-    currentGroup,
-    focusedCardIndex,
-    previewItem,
-    infoItem,
-    isHistoryOpen,
-    handleUndo,
-    prevGroup,
-    nextGroup,
-    handleKeepAll,
-    handleDeleteAll,
-    handleKeepBest,
-    handleToggleKeep,
-    determineBestItem,
-    openPreview,
-  ])
+  }, [])
 
   useEffect(() => {
     if (!currentGroup && duplicateGroups.length > 0 && onComplete) {
       onComplete()
     }
   }, [currentGroup, duplicateGroups.length, onComplete])
+
+  const handleReviewAction = useCallback(
+    async (id: string, state: "keep" | "delete") => {
+      if (!currentGroup) return
+      const currentDecision = useSessionStore.getState().decisions[id]
+      if (currentDecision !== state) {
+        await handleToggleKeep(id)
+      }
+    },
+    [currentGroup, handleToggleKeep]
+  )
 
   if (duplicateGroups.length === 0) {
     return (
@@ -596,194 +816,246 @@ export const DuplicateAuditSimilarMedia: React.FC<
     return null
   }
 
+  const groupLength = currentGroup.length
+  const isSingleRowLayout = groupLength <= 3
+
+  const gridLayoutClass =
+    groupLength === 1
+      ? "grid-cols-1 grid-rows-1 h-full"
+      : groupLength === 2
+        ? "grid-cols-2 grid-rows-1 h-full"
+        : "grid-cols-1 sm:grid-cols-3 grid-rows-1 h-full"
+
   return (
-    <div className="flex h-full min-h-0 w-full flex-col gap-3 font-sans text-xs select-none">
-      {/* Progress */}
-      <div className="flex -mt-3 shrink-0 items-center gap-3">
-        <span className="text-xs whitespace-nowrap text-muted-foreground">
-          Group{" "}
-          <span className="font-semibold text-foreground">
-            {activeGroupIndex + 1}
-          </span>{" "}
-          of {duplicateGroups.length}
-        </span>
-        <Progress
-          value={((activeGroupIndex + 1) / duplicateGroups.length) * 100}
-          className="h-1 flex-1 bg-muted"
+    <div className="relative flex h-full min-h-0 w-full flex-col font-sans text-xs select-none pt-14">
+      {/* Progress Seeker */}
+      <div className="shrink-0">
+        <DuplicateAuditProgressSeeker
+          groups={duplicateGroups}
+          activeGroupIndex={activeGroupIndex}
+          decisions={decisions}
+          onSeek={(idx) => onGroupIndexChange(idx)}
+          onComplete={onComplete}
+          isAllReviewed={isAllReviewed}
+          isFilterUnreviewedOnly={isFilterUnreviewedOnly}
+          onToggleFilterUnreviewedOnly={setIsFilterUnreviewedOnly}
         />
-        {onComplete && isAllReviewed && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onComplete}
-            className="h-5 cursor-pointer px-2 text-xs font-semibold hover:bg-accent"
-          >
-            View Summary
-          </Button>
-        )}
       </div>
 
       {/* Cards Grid */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-visible">
+      <div
+        className={cn(
+          "flex min-h-0 flex-1 flex-col",
+          isSingleRowLayout ? "pb-17 overflow-hidden" : "overflow-y-auto"
+        )}
+      >
         <div
           key={activeGroupIndex}
           className={cn(
-            "grid min-h-0 flex-1 gap-3 p-2 overflow-y-auto duration-200 ease-out animate-in fade-in-0",
+            "grid gap-3 p-2 duration-200 ease-out animate-in fade-in-0",
+            isSingleRowLayout
+              ? cn("min-h-0 flex-1", gridLayoutClass)
+              : "grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 content-start items-start pb-24",
             slideDirection === "right"
               ? "slide-in-from-right-6"
               : "slide-in-from-left-6"
           )}
-          style={{
-            gridTemplateColumns: `repeat(${Math.min(3, currentGroup.length)}, minmax(0, 1fr))`,
-          }}
         >
-          {(() => {
-            // Hoist outside .map() — determineBestItem is O(N) and calling
-            // it inside the loop makes the block O(N²) per render.
-            const dynamicBest = determineBestItem(currentGroup)
-            return currentGroup.map((item, idx) => {
-              const isBest = dynamicBest && item.id === dynamicBest.id
-              const reviewState = getItemReviewState(item)
-              return (
-                <DuplicateAuditCard
-                  key={item.id}
-                  item={item}
-                  isBest={!!isBest}
-                  reviewState={reviewState}
-                  isFocused={focusedCardIndex === idx}
-                  onClick={() => handleToggleKeep(item.id)}
-                  onPreview={(withAutoPlay) => openPreview(item, withAutoPlay)}
-                  onInfoOpen={(item) => setInfoItem(item)}
-                  onReviewAction={(id, state) => {
-                    const currentState = getItemReviewState(item)
-                    if (currentState !== state) {
-                      handleToggleKeep(id)
-                    }
-                  }}
-                />
-              )
-            })
-          })()}
+          {currentGroup.map((item, idx) => {
+            const isBest = currentGroupBest && item.id === currentGroupBest.id
+            const reviewState = getItemReviewState(item)
+            return (
+              <DuplicateAuditCard
+                key={item.id}
+                item={item}
+                isBest={!!isBest}
+                reviewState={reviewState}
+                isFocused={focusedCardIndex === idx}
+                className={
+                  isSingleRowLayout
+                    ? "h-full min-h-0 w-full min-w-0"
+                    : cn("w-full min-w-0", getItemAspectRatioClass(item))
+                }
+                onClick={handleToggleKeep}
+                onPreview={openPreview}
+                onContextMenu={handleContextMenu}
+              />
+            )
+          })}
         </div>
       </div>
 
-      {/* Control Toolbar */}
-      <div className="flex h-12 shrink-0 items-center justify-between gap-4 rounded-lg border border-border bg-card/60 px-3 backdrop-blur-sm">
-        {/* Left: Undo Controls */}
-        <div className="flex items-center gap-2">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-lg"
-                className="text-muted-foreground hover:text-foreground"
-                onClick={handleUndo}
-                disabled={duplicateUndoStack.length === 0}
-              >
-                <Undo2 />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">Undo (↓ / S / Ctrl+Z / Backspace)</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-lg"
-                className="text-muted-foreground hover:text-foreground"
-                onClick={() => setIsHistoryOpen(true)}
-                disabled={duplicateUndoStack.length === 0}
-              >
-                <History />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">History</TooltipContent>
-          </Tooltip>
-          <DuplicateAuditHistoryDialog
-            isOpen={isHistoryOpen}
-            onOpenChange={setIsHistoryOpen}
-            items={historyItems}
-            onBulkAction={handleBulkChangeDecisions}
-            onSingleAction={handleSingleAction}
-          />
-        </div>
+      {/* Floating Control Toolbar */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-4 z-30 flex justify-center px-4">
+        <div className="pointer-events-auto flex h-11 items-center gap-2 rounded-xl border border-border/80 bg-card/60 px-2.5 shadow-xl backdrop-blur-xl ring-1 ring-foreground/5">
+          {/* Left: Undo Controls */}
+          <div className="flex items-center gap-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-lg"
+                  className="text-muted-foreground hover:text-foreground cursor-pointer"
+                  onClick={handleUndo}
+                  disabled={duplicateUndoStack.length === 0}
+                >
+                  <Undo2 className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">Undo (↓ / S / Ctrl+Z / Backspace)</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-lg"
+                  className="text-muted-foreground hover:text-foreground cursor-pointer"
+                  onClick={() => setIsHistoryOpen(true)}
+                  disabled={duplicateUndoStack.length === 0}
+                >
+                  <History className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">History (H)</TooltipContent>
+            </Tooltip>
+            <DuplicateAuditHistoryDialog
+              isOpen={isHistoryOpen}
+              onOpenChange={setIsHistoryOpen}
+              items={historyItems}
+              onBulkAction={handleBulkChangeDecisions}
+              onSingleAction={handleSingleAction}
+            />
+          </div>
 
-        {/* Divider */}
-        <div className="h-5 w-px bg-border" />
+          {/* Divider */}
+          <div className="h-5 w-px bg-border" />
 
-        {/* Center: Smart Actions */}
-        <div className="flex flex-1 items-center justify-center gap-2">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="destructive" size="lg" onClick={handleDeleteAll}>
-                Delete All
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">Delete All (Del / X)</TooltipContent>
-          </Tooltip>
+          {/* Center: Smart Actions */}
+          <div className="flex items-center gap-1.5">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={handleDeleteAll}
+                  className="cursor-pointer gap-1.5 px-2.5 sm:px-3 text-red-600 hover:text-red-700 hover:bg-red-500/10 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-500/15"
+                >
+                  <Trash2 className="size-4 shrink-0" />
+                  <span className="hidden sm:inline">Delete All</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                <span className="sm:hidden">Delete All (Del / X)</span>
+                <span className="hidden sm:inline">Del / X</span>
+              </TooltipContent>
+            </Tooltip>
 
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="outline" size="lg" onClick={handleKeepAll}>
-                Keep All
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">Keep All (C)</TooltipContent>
-          </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={handleKeepAll}
+                  className="cursor-pointer gap-1.5 px-2.5 sm:px-3 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-400 dark:hover:text-emerald-300 dark:hover:bg-emerald-500/15"
+                >
+                  <Bookmark className="size-4 shrink-0" />
+                  <span className="hidden sm:inline">Keep All</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                <span className="sm:hidden">Keep All (C)</span>
+                <span className="hidden sm:inline">C</span>
+              </TooltipContent>
+            </Tooltip>
 
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="default"
-                size="lg"
-                className="gap-2"
-                onClick={handleKeepBest}
-              >
-                <Sparkles className="size-4" />
-                Auto-Keep Best
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">Auto-Keep Best (Space / Enter)</TooltipContent>
-          </Tooltip>
-        </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="default"
+                  size="lg"
+                  className="cursor-pointer gap-1.5 px-2.5 sm:px-3"
+                  onClick={handleKeepBest}
+                >
+                  <Sparkles className="size-4 shrink-0" />
+                  <span className="hidden sm:inline">Auto-Keep Best</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                <span className="sm:hidden">Auto-Keep Best (Space / Enter)</span>
+                <span className="hidden sm:inline">Space / Enter</span>
+              </TooltipContent>
+            </Tooltip>
+          </div>
 
-        {/* Divider */}
-        <div className="h-5 w-px bg-border" />
+          {/* Divider */}
+          <div className="h-5 w-px bg-border" />
 
-        {/* Right: Navigation */}
-        <div className="flex items-center gap-2">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-lg"
-                className="text-muted-foreground hover:text-foreground"
-                onClick={prevGroup}
-                disabled={activeGroupIndex === 0}
-              >
-                <ChevronLeft />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">Previous Group (← / A)</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-lg"
-                className="text-muted-foreground hover:text-foreground"
-                onClick={nextGroup}
-                disabled={activeGroupIndex >= duplicateGroups.length}
-              >
-                <ChevronRight />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">
-              {activeGroupIndex === duplicateGroups.length - 1
-                ? "Finish & View Summary"
-                : "Next Group (→ / D)"}
-            </TooltipContent>
-          </Tooltip>
+          {/* Right: Navigation */}
+          <div className="flex items-center gap-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-lg"
+                  className="text-primary hover:text-primary/80 hover:bg-primary/10 cursor-pointer"
+                  onClick={jumpToPrevPending}
+                  disabled={duplicateGroups.length === 0 || totalDecidedCount === duplicateGroups.length}
+                >
+                  <Rewind className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">Jump to previous unreviewed (Shift+Tab / P)</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-lg"
+                  className="text-muted-foreground hover:text-foreground cursor-pointer"
+                  onClick={prevGroup}
+                  disabled={activeGroupIndex === 0}
+                >
+                  <ChevronLeft className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">Previous Group (← / A)</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-lg"
+                  className="text-muted-foreground hover:text-foreground cursor-pointer"
+                  onClick={nextGroup}
+                  disabled={activeGroupIndex >= duplicateGroups.length}
+                >
+                  <ChevronRight className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                {activeGroupIndex === duplicateGroups.length - 1
+                  ? "Finish & View Summary"
+                  : "Next Group (→ / D)"}
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-lg"
+                  className="text-primary hover:text-primary/80 hover:bg-primary/10 cursor-pointer"
+                  onClick={jumpToNextPending}
+                  disabled={duplicateGroups.length === 0 || totalDecidedCount === duplicateGroups.length}
+                >
+                  <FastForward className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">Jump to next unreviewed (Tab / N)</TooltipContent>
+            </Tooltip>
+          </div>
         </div>
       </div>
 
@@ -802,6 +1074,18 @@ export const DuplicateAuditSimilarMedia: React.FC<
         item={infoItem}
         onClose={() => setInfoItem(null)}
       />
+
+      <MediaContextMenu
+        contextMenu={activeContextMenu}
+        onClose={handleCloseContextMenu}
+        onPreviewOpen={(item) => openPreview(item, false)}
+        onInfoOpen={setInfoItem}
+        onReviewAction={handleReviewAction}
+      />
     </div>
   )
-}
+})
+
+DuplicateAuditSimilarMedia.displayName = "DuplicateAuditSimilarMedia"
+
+

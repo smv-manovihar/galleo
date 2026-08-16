@@ -1,278 +1,26 @@
-import React, { useMemo, useState, useCallback, useEffect } from "react"
+import React, {
+  useMemo,
+  useState,
+  useRef,
+  useCallback,
+  useEffect,
+  useDeferredValue,
+} from "react"
 import { useSessionStore } from "../../stores/session-store"
+import { CheckCircle2, Check, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import {
-  Loader2,
-  Trash2,
-  CheckCircle2,
-  Bookmark,
-  ArrowLeftRight,
-  X,
-  Eye,
-} from "lucide-react"
 import { formatBytes } from "../../lib/format"
 import type { MediaItem } from "../../../shared/types/media"
 import type { DuplicateStrategy } from "../../../shared/types/settings"
-import {
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-} from "@/components/ui/tooltip"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { MediaPreview } from "../media/MediaPreview"
+import { MediaContextMenu, type MediaContextMenuState } from "../media/MediaContextMenu"
 
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-  PopoverHeader,
-  PopoverTitle,
-  PopoverDescription,
-} from "@/components/ui/popover"
-import { Folder, Search, SlidersHorizontal, Info } from "lucide-react"
-
-const STRATEGY_OPTIONS: {
-  value: DuplicateStrategy
-  label: string
-  description: string
-}[] = [
-  {
-    value: "keep_oldest",
-    label: "Oldest",
-    description: "Keep earliest capture date",
-  },
-  {
-    value: "keep_newest",
-    label: "Newest",
-    description: "Keep latest capture date",
-  },
-  {
-    value: "keep_most_grouped",
-    label: "Most Grouped",
-    description: "Keep copy in folder with most photos",
-  },
-  {
-    value: "keep_shortest_path",
-    label: "Shortest Path",
-    description: "Keep shortest file path",
-  },
-]
-
-interface DuplicateAuditGroupCardProps {
-  group: {
-    keep: MediaItem
-    deletes: MediaItem[]
-    groupIdx: number
-  }
-  hasOverride: boolean
-  onSwapKeep: (groupIdx: number, newKeepId: string) => void
-  onResetOverride: (groupIdx: number) => void
-  onPreviewItem: (item: MediaItem, groupItems: MediaItem[]) => void
-  measureRef: (el: HTMLElement | null) => void
-  style: React.CSSProperties
-  index: number
-}
-
-const getDirPath = (filePath: string) => {
-  return filePath.replace(/\\/g, "/").split("/").slice(0, -1).join("/")
-}
-
-const areEqual = (
-  prevProps: DuplicateAuditGroupCardProps,
-  nextProps: DuplicateAuditGroupCardProps
-) => {
-  return (
-    prevProps.index === nextProps.index &&
-    prevProps.hasOverride === nextProps.hasOverride &&
-    prevProps.group.keep.id === nextProps.group.keep.id &&
-    prevProps.group.deletes.length === nextProps.group.deletes.length &&
-    prevProps.group.deletes.every(
-      (item, i) => item.id === nextProps.group.deletes[i]?.id
-    ) &&
-    prevProps.style.transform === nextProps.style.transform &&
-    prevProps.style.height === nextProps.style.height
-  )
-}
-
-const DuplicateAuditGroupCard = React.memo<DuplicateAuditGroupCardProps>(
-  ({
-    group,
-    hasOverride,
-    onSwapKeep,
-    onResetOverride,
-    onPreviewItem,
-    measureRef,
-    style,
-    index,
-  }) => {
-    const groupReclaimSize = group.deletes.reduce(
-      (acc, item) => acc + item.size,
-      0
-    )
-    const allGroupItems = useMemo(
-      () => [group.keep, ...group.deletes],
-      [group.keep, group.deletes]
-    )
-
-    return (
-      <div ref={measureRef} data-index={index} style={style}>
-        <div className="overflow-hidden rounded-md border border-border bg-card text-sm shadow-sm">
-          {/* Slim Header */}
-          <div className="flex items-center justify-between border-b border-border bg-muted/30 px-3 py-2">
-            <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-              Group {group.groupIdx + 1}
-              {hasOverride && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onResetOverride(group.groupIdx)
-                      }}
-                      className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-600 transition-colors hover:bg-amber-500/20 dark:text-amber-400"
-                    >
-                      <span>Manual selection</span>
-                      <X className="size-3" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">
-                    Click to reset to default strategy selection
-                  </TooltipContent>
-                </Tooltip>
-              )}
-            </span>
-            <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-600 select-text dark:bg-amber-500/20 dark:text-amber-400">
-              Reclaiming {formatBytes(groupReclaimSize)}
-            </span>
-          </div>
-
-          {/* Flat List */}
-          <div className="flex flex-col divide-y divide-border/40">
-            {/* Keep Row */}
-            <div className="relative flex items-center gap-3 bg-green-500/5 px-3 py-2">
-              <div className="absolute inset-y-0 left-0 w-1 bg-green-500/70" />
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-green-500/20 text-green-700 dark:text-green-400">
-                    <Bookmark className="h-3 w-3" strokeWidth={3} />
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent side="right">
-                  This copy will be kept
-                </TooltipContent>
-              </Tooltip>
-              <div className="flex min-w-0 flex-1 flex-col leading-tight">
-                <span className="truncate font-medium text-foreground">
-                  {group.keep.name}
-                </span>
-                <span className="truncate text-xs text-muted-foreground">
-                  {getDirPath(group.keep.path)}
-                </span>
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <span className="text-xs text-muted-foreground tabular-nums">
-                  {formatBytes(group.keep.size)}
-                </span>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 cursor-pointer rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onPreviewItem(group.keep, allGroupItems)
-                      }}
-                    >
-                      <Eye className="size-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">Preview file</TooltipContent>
-                </Tooltip>
-              </div>
-            </div>
-
-            {/* Delete Rows */}
-            {group.deletes.map((item) => (
-              <div
-                key={item.id}
-                onClick={() => onSwapKeep(group.groupIdx, item.id)}
-                className="group/deleterow relative flex cursor-pointer items-center gap-3 bg-destructive/5 px-3 py-2 transition-all select-none hover:bg-amber-500/5"
-              >
-                <div className="absolute inset-y-0 left-0 w-1 bg-destructive/60 transition-colors group-hover/deleterow:bg-amber-500/60" />
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-destructive/15 text-destructive transition-colors group-hover/deleterow:bg-amber-500/20 group-hover/deleterow:text-amber-600">
-                      <Trash2
-                        className="block size-3 group-hover/deleterow:hidden"
-                        strokeWidth={2.5}
-                      />
-                      <ArrowLeftRight
-                        className="hidden size-3 group-hover/deleterow:block"
-                        strokeWidth={2.5}
-                      />
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent side="right">
-                    To be trashed (click to keep this copy instead)
-                  </TooltipContent>
-                </Tooltip>
-                <div className="flex min-w-0 flex-1 flex-col leading-tight">
-                  <span className="truncate text-foreground opacity-90 transition-colors group-hover/deleterow:text-amber-700 dark:group-hover/deleterow:text-amber-400">
-                    {item.name}
-                  </span>
-                  <span className="truncate text-xs text-muted-foreground">
-                    {getDirPath(item.path)}
-                  </span>
-                </div>
-
-                {/* Centered Keep Indicator */}
-                <div className="pointer-events-none absolute top-1/2 left-1/2 z-10 -translate-x-1/2 -translate-y-1/2 opacity-0 transition-opacity group-hover/deleterow:opacity-100">
-                  <span className="flex items-center gap-2 rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-0.5 text-xs font-semibold text-amber-600 shadow-sm backdrop-blur-xs dark:bg-amber-500/20 dark:text-amber-400">
-                    <ArrowLeftRight className="h-3 w-3" />
-                    Keep this copy instead
-                  </span>
-                </div>
-
-                <div className="flex shrink-0 items-center gap-2">
-                  <span className="text-xs text-muted-foreground tabular-nums">
-                    {formatBytes(item.size)}
-                  </span>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 cursor-pointer rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onPreviewItem(item, allGroupItems)
-                        }}
-                      >
-                        <Eye className="size-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">Preview file</TooltipContent>
-                  </Tooltip>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    )
-  },
-  areEqual
-)
+import type { ExactDuplicateGroup } from "./exact-duplicates/types"
+import { getDirPath } from "./exact-duplicates/types"
+import { DuplicateAuditExactGroupCard } from "./exact-duplicates/DuplicateAuditExactGroupCard"
+import { DuplicateAuditExactBottomBar } from "./exact-duplicates/DuplicateAuditExactBottomBar"
+import { DuplicateAuditFolderRulesDialog } from "./exact-duplicates/DuplicateAuditFolderRulesDialog"
 
 interface DuplicateAuditExactDuplicatesProps {
   exactDupsToDelete: MediaItem[]
@@ -288,9 +36,9 @@ interface DuplicateAuditExactDuplicatesProps {
   ) => void
 }
 
-export const DuplicateAuditExactDuplicates: React.FC<
+export const DuplicateAuditExactDuplicates = React.memo<
   DuplicateAuditExactDuplicatesProps
-> = ({
+>(({
   exactDupsToDelete,
   exactDupsToKeep,
   duplicateGroups,
@@ -305,152 +53,213 @@ export const DuplicateAuditExactDuplicates: React.FC<
   const [isCleaning, setIsCleaning] = useState(false)
   const [cleanSuccess, setCleanSuccess] = useState<string | null>(null)
 
+  // Media Preview modal state
   const [previewItem, setPreviewItem] = useState<MediaItem | null>(null)
-  const [previewGroupItems, setPreviewGroupItems] = useState<MediaItem[] | undefined>(undefined)
+  const [previewGroupItems, setPreviewGroupItems] = useState<
+    MediaItem[] | undefined
+  >(undefined)
 
-  const handlePreviewItem = useCallback((item: MediaItem, groupItems: MediaItem[]) => {
-    setPreviewItem(item)
-    setPreviewGroupItems(groupItems)
+  const handlePreviewItem = useCallback(
+    (item: MediaItem, groupItems: MediaItem[]) => {
+      setPreviewItem(item)
+      setPreviewGroupItems(groupItems)
+    },
+    []
+  )
+
+  const handleClosePreview = useCallback(() => {
+    setPreviewItem(null)
+    setPreviewGroupItems(undefined)
   }, [])
 
-  const [scrollElement, setScrollElementState] =
-    useState<HTMLDivElement | null>(null)
+  // Virtualizer scroll container ref (useRef eliminates initial mount re-render cycle)
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
 
-  const setScrollElement = useCallback((node: HTMLDivElement | null) => {
-    setScrollElementState(node)
-  }, [])
-
-  const [isFolderDialogOpen, setIsFolderDialogOpen] = useState(false)
-  type RuleType = "keep" | "delete" | "off"
-  const [folderRules, setFolderRules] = useState<Record<string, RuleType>>({})
-  const [activeFilter, setActiveFilter] = useState<
-    "all" | "keep" | "delete" | "off"
-  >("all")
+  // Search & Filter state
   const [searchQuery, setSearchQuery] = useState("")
+  const deferredSearchQuery = useDeferredValue(searchQuery)
+  const [showOverridesOnly, setShowOverridesOnly] = useState(false)
 
+  // Folder Rules Dialog state
+  const [isFolderDialogOpen, setIsFolderDialogOpen] = useState(false)
+
+  // Context Menu state
+  const [contextMenu, setContextMenu] = useState<MediaContextMenuState | null>(null)
+
+  const handleContextMenu = useCallback(
+    (item: MediaItem, e: React.MouseEvent) => {
+      setContextMenu({ item, x: e.clientX, y: e.clientY })
+    },
+    []
+  )
+
+  // Per-group manual overrides: groupIdx -> chosen keep MediaItem ID
+  const [overrides, setOverrides] = useState<Map<number, string>>(new Map())
+
+  // Optimistic tracking for trashed items - subscribe only to boolean active state
+  const [trashedIds, setTrashedIds] = useState<Set<string>>(new Set())
+  const isTrashingActive = useSessionStore(
+    (s) => Boolean(s.trashingProgress?.isActive)
+  )
+
+  useEffect(() => {
+    if (!isTrashingActive) {
+      setTrashedIds(new Set())
+    }
+  }, [isTrashingActive])
+
+  // Pre-index keep IDs for O(1) group keep resolution
+  const exactDupsToKeepIdSet = useMemo(
+    () => new Set(exactDupsToKeep.map((k) => k.id)),
+    [exactDupsToKeep]
+  )
+
+  // Compute folder statistics lazily only when folder rules dialog is open
   const { availableFolders, folderItemCounts } = useMemo(() => {
+    if (!isFolderDialogOpen) {
+      return { availableFolders: [] as string[], folderItemCounts: new Map<string, number>() }
+    }
     const counts = new Map<string, number>()
-    for (const group of duplicateGroups) {
-      for (const item of group) {
-        const dir = getDirPath(item.path)
+    for (let gIdx = 0; gIdx < duplicateGroups.length; gIdx++) {
+      const group = duplicateGroups[gIdx]
+      for (let i = 0; i < group.length; i++) {
+        const dir = getDirPath(group[i].path)
         counts.set(dir, (counts.get(dir) ?? 0) + 1)
       }
     }
     const folders = Array.from(counts.keys()).sort()
     return { availableFolders: folders, folderItemCounts: counts }
-  }, [duplicateGroups])
+  }, [duplicateGroups, isFolderDialogOpen])
 
-  const ruleCounts = useMemo(() => {
-    let keep = 0
-    let del = 0
-    for (const rule of Object.values(folderRules)) {
-      if (rule === "keep") keep++
-      if (rule === "delete") del++
-    }
-    const off = availableFolders.length - (keep + del)
-    return { keep, del, off, total: availableFolders.length }
-  }, [folderRules, availableFolders])
+  // Resolve active duplicate groups and accumulate totals in a single unified pass
+  const { resolvedGroups, totalDeleteCount, totalReclaimSize } = useMemo(() => {
+    const result: ExactDuplicateGroup[] = []
+    let totalDeleteCount = 0
+    let totalReclaimSize = 0
+    const hasOverrides = overrides.size > 0
+    const hasTrashed = trashedIds.size > 0
 
-  const filteredFolders = useMemo(() => {
-    return availableFolders.filter((f) => {
-      if (searchQuery.trim()) {
-        if (!f.toLowerCase().includes(searchQuery.toLowerCase())) return false
+    for (let idx = 0; idx < duplicateGroups.length; idx++) {
+      const group = duplicateGroups[idx]
+
+      // Fast path: No optimistic trashes and no manual overrides (typical initial render)
+      if (!hasTrashed && !hasOverrides) {
+        if (group.length < 2) continue
+
+        let keep: MediaItem | undefined
+        let bestCandidate: MediaItem | undefined
+
+        for (let i = 0; i < group.length; i++) {
+          const item = group[i]
+          if (exactDupsToKeepIdSet.has(item.id)) {
+            keep = item
+            break
+          }
+          if (!bestCandidate && item.isBestInDuplicateGroup) {
+            bestCandidate = item
+          }
+        }
+
+        const selectedKeep = keep ?? bestCandidate ?? group[0]
+        const deletes: MediaItem[] = []
+
+        for (let i = 0; i < group.length; i++) {
+          const item = group[i]
+          if (item.id !== selectedKeep.id) {
+            deletes.push(item)
+            totalReclaimSize += item.size || 0
+          }
+        }
+
+        if (deletes.length > 0) {
+          totalDeleteCount += deletes.length
+          result.push({ keep: selectedKeep, deletes, groupIdx: idx })
+        }
+        continue
       }
-      const rule = folderRules[f] ?? "off"
-      if (activeFilter === "keep") return rule === "keep"
-      if (activeFilter === "delete") return rule === "delete"
-      if (activeFilter === "off") return rule === "off"
-      return true
-    })
-  }, [availableFolders, searchQuery, folderRules, activeFilter])
 
-  const handleOpenDialog = () => {
-    const rules: Record<string, RuleType> = {}
-    for (const f of preferredKeepFolderPaths ?? []) {
-      rules[f] = "keep"
-    }
-    for (const f of preferredDeleteFolderPaths ?? []) {
-      rules[f] = "delete"
-    }
-    setFolderRules(rules)
-    setSearchQuery("")
-    setActiveFilter("all")
-    setIsFolderDialogOpen(true)
-  }
-
-  const setSingleFolderRule = (folder: string, rule: RuleType) => {
-    setFolderRules((prev) => {
-      const next = { ...prev }
-      if (rule === "off") {
-        delete next[folder]
-      } else {
-        next[folder] = rule
-      }
-      return next
-    })
-  }
-
-  const handleApplyRules = () => {
-    setIsFolderDialogOpen(false)
-    const keepPaths: string[] = []
-    const deletePaths: string[] = []
-    for (const [folder, rule] of Object.entries(folderRules)) {
-      if (rule === "keep") keepPaths.push(folder)
-      if (rule === "delete") deletePaths.push(folder)
-    }
-    onStrategyChange("folder_rules", keepPaths, deletePaths)
-  }
-
-  // Per-group overrides: groupIndex -> overrideKeepId chosen by the user
-  const [overrides, setOverrides] = useState<Map<number, string>>(new Map())
-
-  // Optimistically tracks IDs that have been trashed so they disappear immediately
-  const [trashedIds, setTrashedIds] = useState<Set<string>>(new Set())
-  const trashingProgress = useSessionStore((s) => s.trashingProgress)
-
-  useEffect(() => {
-    if (!trashingProgress || !trashingProgress.isActive) {
-      setTrashedIds(new Set())
-    }
-  }, [trashingProgress])
-
-  const groups = useMemo(() => {
-    return duplicateGroups
-      .map((group, idx) => {
-        // Optimistically hide any group that has already been trashed
-        const visibleGroup = trashedIds.size > 0
-          ? group.filter((i) => !trashedIds.has(i.id))
+      // General path: handle trashed items and user overrides
+      const visibleGroup =
+        hasTrashed
+          ? group.filter((item) => !trashedIds.has(item.id))
           : group
-        if (visibleGroup.length < 2) return null
 
-        const overrideKeepId = overrides.get(idx)
+      if (visibleGroup.length < 2) continue
 
-        const keep = overrideKeepId
-          ? (visibleGroup.find((i) => i.id === overrideKeepId) ?? visibleGroup[0])
-          : exactDupsToKeep.find((k) => visibleGroup.some((i) => i.id === k.id)) ||
-            visibleGroup.find((i) => i.isBestInDuplicateGroup) ||
-            visibleGroup[0]
+      const overrideKeepId = hasOverrides ? overrides.get(idx) : undefined
 
-        const deletes = visibleGroup.filter((i) => i.id !== keep.id)
-        if (!deletes.length) return null
+      const keep = overrideKeepId
+        ? (visibleGroup.find((i) => i.id === overrideKeepId) ?? visibleGroup[0])
+        : visibleGroup.find((i) => exactDupsToKeepIdSet.has(i.id)) ||
+          visibleGroup.find((i) => i.isBestInDuplicateGroup) ||
+          visibleGroup[0]
 
-        return { keep, deletes, groupIdx: idx }
-      })
-      .filter(Boolean) as {
-      keep: MediaItem
-      deletes: MediaItem[]
-      groupIdx: number
-    }[]
-  }, [duplicateGroups, exactDupsToKeep, overrides, trashedIds])
+      const deletes: MediaItem[] = []
+      for (let i = 0; i < visibleGroup.length; i++) {
+        const item = visibleGroup[i]
+        if (item.id !== keep.id) {
+          deletes.push(item)
+          totalReclaimSize += item.size || 0
+        }
+      }
 
-  // eslint-disable-next-line react-hooks/incompatible-library
+      if (deletes.length > 0) {
+        totalDeleteCount += deletes.length
+        result.push({ keep, deletes, groupIdx: idx })
+      }
+    }
+
+    return { resolvedGroups: result, totalDeleteCount, totalReclaimSize }
+  }, [duplicateGroups, exactDupsToKeepIdSet, overrides, trashedIds])
+
+  // Filter groups by search query and override status (with fast path for initial/unfiltered render)
+  const filteredGroups = useMemo(() => {
+    const q = deferredSearchQuery.trim().toLowerCase()
+
+    if (!q && !showOverridesOnly) {
+      return resolvedGroups
+    }
+
+    return resolvedGroups.filter((g) => {
+      if (showOverridesOnly && !overrides.has(g.groupIdx)) {
+        return false
+      }
+
+      if (!q) return true
+
+      const keepMatches =
+        g.keep.name.toLowerCase().includes(q) ||
+        g.keep.path.toLowerCase().includes(q)
+
+      if (keepMatches) return true
+
+      return g.deletes.some(
+        (d) =>
+          d.name.toLowerCase().includes(q) || d.path.toLowerCase().includes(q)
+      )
+    })
+  }, [resolvedGroups, deferredSearchQuery, showOverridesOnly, overrides])
+
+  // Sizing estimate: header (38px) + (keep row + deletes) * 60px + margin (12px)
+  const estimateItemSize = useCallback(
+    (index: number) => {
+      const group = filteredGroups[index]
+      if (!group) return 160
+      const rowCount = 1 + group.deletes.length
+      return 38 + rowCount * 60 + 12
+    },
+    [filteredGroups]
+  )
+
   const rowVirtualizer = useVirtualizer({
-    count: groups.length,
-    getScrollElement: () => scrollElement,
-    estimateSize: () => 140,
-    overscan: 5,
+    count: filteredGroups.length,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: estimateItemSize,
+    getItemKey: (index) => filteredGroups[index]?.groupIdx ?? index,
+    overscan: 3,
   })
 
+  // Callback to swap keep target in a group
   const handleSwapKeep = useCallback((groupIdx: number, newKeepId: string) => {
     setOverrides((prev) => {
       const next = new Map(prev)
@@ -459,6 +268,7 @@ export const DuplicateAuditExactDuplicates: React.FC<
     })
   }, [])
 
+  // Callback to reset a group's override
   const handleResetOverride = useCallback((groupIdx: number) => {
     setOverrides((prev) => {
       const next = new Map(prev)
@@ -467,8 +277,72 @@ export const DuplicateAuditExactDuplicates: React.FC<
     })
   }, [])
 
-  const handleAutoCleanup = async () => {
-    if (groups.length === 0 || isCleaning) return
+  // Review action callback for context menu (Keep / Delete promotion)
+  const handleReviewAction = useCallback(
+    (id: string, state: "keep" | "delete") => {
+      for (let i = 0; i < resolvedGroups.length; i++) {
+        const group = resolvedGroups[i]
+        const isCurrentKeep = group.keep.id === id
+        const isCurrentDelete = group.deletes.some((d) => d.id === id)
+
+        if (isCurrentKeep || isCurrentDelete) {
+          if (state === "keep" && !isCurrentKeep) {
+            handleSwapKeep(group.groupIdx, id)
+          } else if (state === "delete" && isCurrentKeep) {
+            if (group.deletes.length > 0) {
+              handleSwapKeep(group.groupIdx, group.deletes[0].id)
+            }
+          }
+          break
+        }
+      }
+    },
+    [resolvedGroups, handleSwapKeep]
+  )
+
+  // Folder rules modal apply
+  const handleApplyFolderRules = useCallback(
+    (keepPaths: string[], deletePaths: string[]) => {
+      onStrategyChange("folder_rules", keepPaths, deletePaths)
+    },
+    [onStrategyChange]
+  )
+
+  // Strategy change
+  const handleStrategySelect = useCallback(
+    (newStrategy: DuplicateStrategy) => {
+      onStrategyChange(newStrategy)
+    },
+    [onStrategyChange]
+  )
+
+  const handleOpenFolderRules = useCallback(() => {
+    setIsFolderDialogOpen(true)
+  }, [])
+
+  const handleToggleOverridesOnly = useCallback(() => {
+    setShowOverridesOnly((prev) => !prev)
+  }, [])
+
+  const handleClearFilters = useCallback(() => {
+    setSearchQuery("")
+    setShowOverridesOnly(false)
+  }, [])
+
+  const handleResetContextMenu = useCallback(() => {
+    setContextMenu(null)
+  }, [])
+
+  const handleContextPreviewOpen = useCallback(
+    (item: MediaItem) => {
+      handlePreviewItem(item, [item])
+    },
+    [handlePreviewItem]
+  )
+
+  // Auto cleanup (Trash All)
+  const handleAutoCleanup = useCallback(async () => {
+    if (resolvedGroups.length === 0 || isCleaning) return
 
     setIsCleaning(true)
     setCleanSuccess(null)
@@ -482,10 +356,9 @@ export const DuplicateAuditExactDuplicates: React.FC<
       const reviewsToUpdate: { mediaId: string; state: "keep" | "delete" }[] =
         []
 
-      // Build keep/delete sets from the (possibly overridden) resolved groups
-      const resolvedKeepIds = new Set(groups.map((g) => g.keep.id))
+      const resolvedKeepIds = new Set(resolvedGroups.map((g) => g.keep.id))
       const resolvedDeleteIds = new Set(
-        groups.flatMap((g) => g.deletes.map((d) => d.id))
+        resolvedGroups.flatMap((g) => g.deletes.map((d) => d.id))
       )
 
       for (const id of resolvedDeleteIds) {
@@ -512,12 +385,11 @@ export const DuplicateAuditExactDuplicates: React.FC<
       await window.api.updateReviews(checkpoint.sessionId, reviewsToUpdate)
 
       const specificIds = [...resolvedDeleteIds, ...resolvedKeepIds]
-      const reclaimedSize = groups.reduce(
-        (acc, g) => acc + g.deletes.reduce((s, d) => s + d.size, 0),
+      const reclaimedSize = resolvedGroups.reduce(
+        (acc, g) => acc + g.deletes.reduce((s, d) => s + (d.size || 0), 0),
         0
       )
 
-      // Immediately hide trashed items from the list before the store re-propagates
       setTrashedIds(resolvedDeleteIds)
       setOverrides(new Map())
 
@@ -525,38 +397,43 @@ export const DuplicateAuditExactDuplicates: React.FC<
         `Trashing ${resolvedDeleteIds.size} files in background (${formatBytes(reclaimedSize)} reclaimed).`
       )
 
-      void startTrashingInBackground(specificIds, "Trashing duplicates...")
+      void startTrashingInBackground(specificIds, "Trashing exact duplicates...")
     } catch (e) {
       console.error("Auto cleanup failed:", e)
     } finally {
       setIsCleaning(false)
     }
-  }
+  }, [resolvedGroups, isCleaning, startTrashingInBackground])
 
-  if (exactDupsToDelete.length === 0) {
+  // Empty state when all duplicates are resolved or folder has no duplicates
+  if (exactDupsToDelete.length === 0 || resolvedGroups.length === 0) {
     return (
       <div className="flex h-full min-h-0 flex-col items-center justify-center p-6 text-center select-none font-sans animate-in fade-in duration-300">
         <div className="w-full max-w-md space-y-4">
-          <div className="flex flex-col items-center gap-4 rounded-2xl border border-border bg-card p-6 text-center shadow-sm">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-green-500/30 bg-green-500/10">
-              <CheckCircle2 className="h-7 w-7 text-green-500" />
+          <div className="flex flex-col items-center gap-4 rounded-2xl border border-border bg-card p-6 text-center shadow-2xs">
+            <div className="flex size-14 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="size-7" />
             </div>
             <div className="space-y-1">
-              <h3 className="font-heading text-sm font-bold tracking-tight text-foreground">
+              <h3 className="text-sm font-bold tracking-tight text-foreground">
                 Exact Duplicates Cleaned
               </h3>
               <p className="text-xs text-muted-foreground">
-                No exact file matches remaining in this folder.
+                No identical file copies remaining in this folder.
               </p>
             </div>
 
             {cleanSuccess ? (
-              <div className="w-full rounded-lg border border-green-500/30 bg-green-500/10 px-3.5 py-2.5 text-xs font-medium text-green-700 dark:text-green-400">
+              <div className="w-full rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
                 {cleanSuccess}
               </div>
             ) : (
-              <div className="w-full rounded-lg border border-border bg-muted/20 px-3.5 py-2.5 text-xs text-muted-foreground">
-                All exact file copies have been processed or resolved. You can switch to the <strong className="font-semibold text-foreground">Similar Media</strong> tab to review photos with visual differences.
+              <div className="w-full rounded-lg border border-border/80 bg-muted/20 px-3.5 py-2.5 text-xs text-muted-foreground">
+                All identical file copies have been processed or resolved. You can switch to the{" "}
+                <strong className="font-semibold text-foreground">
+                  Similar Media
+                </strong>{" "}
+                tab to review photos with visual differences.
               </div>
             )}
           </div>
@@ -565,456 +442,134 @@ export const DuplicateAuditExactDuplicates: React.FC<
     )
   }
 
-  const totalReclaimSize = groups.reduce(
-    (acc, g) => acc + g.deletes.reduce((s, d) => s + d.size, 0),
-    0
-  )
-  const totalDeleteCount = groups.reduce((acc, g) => acc + g.deletes.length, 0)
-
   return (
     <div className="relative flex h-full min-h-0 flex-col select-none">
-      {/* Strategy pill selector */}
-      <div className="-mt-3 mb-3 flex shrink-0 flex-wrap items-center gap-2 border-b border-border pb-3">
-        <span className="text-xs font-medium text-muted-foreground">
-          Auto-keep:
-        </span>
-        {STRATEGY_OPTIONS.map((opt) => (
-          <Tooltip key={opt.value}>
-            <TooltipTrigger asChild>
-              <button
-                onClick={() => onStrategyChange(opt.value)}
-                className={`cursor-pointer rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${
-                  strategy === opt.value
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
-              >
-                {opt.label}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="top">{opt.description}</TooltipContent>
-          </Tooltip>
-        ))}
-
-        {availableFolders.length > 0 &&
-          (() => {
-            const keepCount = preferredKeepFolderPaths?.length ?? 0
-            const deleteCount = preferredDeleteFolderPaths?.length ?? 0
-            const totalRuleCount = keepCount + deleteCount
-            const hasActiveFolderRules =
-              strategy === "folder_rules" ||
-              strategy === "keep_preferred_folder" ||
-              strategy === "delete_preferred_folder" ||
-              totalRuleCount > 0
-
-            return (
-              <>
-                <div className="mx-1 h-4 w-px bg-border" />
-
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      onClick={handleOpenDialog}
-                      className={`group flex cursor-pointer items-center gap-2 rounded-full border px-3 py-0.5 text-xs font-medium transition-all duration-200 select-none ${
-                        hasActiveFolderRules
-                          ? "border-primary/40 bg-primary/10 text-foreground shadow-2xs hover:border-primary/50 hover:bg-primary/15"
-                          : "border-border/80 bg-muted/40 text-muted-foreground hover:border-border hover:bg-muted hover:text-foreground"
-                      }`}
-                    >
-                      <SlidersHorizontal
-                        className={`h-3 w-3 transition-transform duration-200 group-hover:scale-110 ${
-                          hasActiveFolderRules
-                            ? "text-primary"
-                            : "text-muted-foreground"
-                        }`}
-                      />
-                      <span>Folder Rules</span>
-
-                      {totalRuleCount > 0 && (
-                        <div className="ml-1 flex items-center gap-1">
-                          {keepCount > 0 && (
-                            <span className="inline-flex items-center rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                              {keepCount}
-                            </span>
-                          )}
-                          {deleteCount > 0 && (
-                            <span className="inline-flex items-center rounded-full bg-destructive/15 px-2 py-0.5 text-xs font-bold text-destructive">
-                              {deleteCount}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">
-                    Configure automated keep and delete rules by target folder
-                  </TooltipContent>
-                </Tooltip>
-              </>
-            )
-          })()}
-      </div>
-
-      <Dialog open={isFolderDialogOpen} onOpenChange={setIsFolderDialogOpen}>
-        <DialogContent
-          width="lg"
-          height="lg"
-          className="flex flex-col gap-0 overflow-hidden p-0"
-        >
-          <DialogHeader className="border-b border-border px-5 pt-4 pb-3">
-            <div className="flex items-center gap-2">
-              <SlidersHorizontal className="h-4 w-4 text-primary" />
-              <DialogTitle className="text-sm font-semibold">
-                Configure Folder Priority Rules
-              </DialogTitle>
-
-              {/* Popover "i" Info Trigger Button */}
-              <Popover>
-                <PopoverTrigger asChild>
-                  <button
-                    type="button"
-                    className="cursor-pointer text-muted-foreground hover:text-foreground"
-                  >
-                    <Info className="size-4" />
-                    <span className="sr-only">Folder rules info</span>
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent
-                  side="bottom"
-                  align="start"
-                  className="w-80 space-y-2 p-4 select-none"
-                >
-                  <PopoverHeader>
-                    <PopoverTitle className="flex items-center gap-2 text-xs font-semibold text-foreground">
-                      <Info className="size-4 text-sky-500" />
-                      <span>How Folder Rules Work</span>
-                    </PopoverTitle>
-                    <PopoverDescription className="text-xs text-muted-foreground">
-                      Assign rules to folders to control automated duplicate
-                      cleanup.
-                    </PopoverDescription>
-                  </PopoverHeader>
-
-                  <div className="space-y-2 border-t border-border/50 pt-2 text-xs">
-                    <div className="flex items-start gap-2">
-                      <span className="mt-1 inline-block h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
-                      <div>
-                        <strong className="font-semibold text-foreground">
-                           Keep:
-                        </strong>{" "}
-                        Always preserves photos in this folder.
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <span className="mt-1 inline-block h-2 w-2 shrink-0 rounded-full bg-destructive" />
-                      <div>
-                        <strong className="font-semibold text-foreground">
-                          Delete:
-                        </strong>{" "}
-                        Always trashes photos in this folder.
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <span className="mt-1 inline-block h-2 w-2 shrink-0 rounded-full bg-muted-foreground/50" />
-                      <div>
-                        <strong className="font-semibold text-foreground">
-                          Default:
-                        </strong>{" "}
-                        Follows baseline strategy (Oldest, Newest, Most
-                        Grouped).
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="border-t border-border/40 pt-2 text-xs font-medium text-muted-foreground">
-                    Priority:{" "}
-                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                      Keep
-                    </span>{" "}
-                    &gt;{" "}
-                    <span className="font-semibold text-destructive">
-                      Delete
-                    </span>{" "}
-                    &gt;{" "}
-                    <span className="font-semibold text-foreground">
-                      Baseline
-                    </span>
-                  </div>
-                </PopoverContent>
-              </Popover>
-            </div>
-            <DialogDescription className="text-xs text-muted-foreground">
-              Set automatic Keep or Delete rules per folder. Folders set to
-              Default will follow the baseline strategy.
-            </DialogDescription>
-          </DialogHeader>
-
-
-
-          {/* Quick Filter Bar & Search */}
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/20 px-5 py-2">
-            <div className="flex items-center gap-1 rounded-lg border border-border/80 bg-muted/50 p-0.5">
-              <button
-                type="button"
-                onClick={() => setActiveFilter("all")}
-                className={`cursor-pointer rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
-                  activeFilter === "all"
-                    ? "border border-border bg-background text-foreground shadow-2xs"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                All ({ruleCounts.total})
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveFilter("keep")}
-                className={`flex cursor-pointer items-center gap-1 rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
-                  activeFilter === "keep"
-                    ? "border border-emerald-500/30 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 shadow-2xs"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Bookmark className="h-3 w-3 text-emerald-500" />
-                <span>Keep ({ruleCounts.keep})</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveFilter("delete")}
-                className={`flex cursor-pointer items-center gap-1 rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
-                  activeFilter === "delete"
-                    ? "border border-destructive/30 bg-destructive/15 text-destructive shadow-2xs"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Trash2 className="h-3 w-3 text-destructive" />
-                <span>Delete ({ruleCounts.del})</span>
-              </button>
-            </div>
-
-            <div className="relative w-48">
-              <Search className="absolute top-1/2 left-2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search folders..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-7 pl-7 text-xs"
-              />
-            </div>
-          </div>
-
-          {/* Scrollable Folder Rules List */}
-          <div className="flex-1 scrollbar-thin space-y-2 overflow-y-auto p-4">
-            {filteredFolders.length === 0 ? (
-              <div className="flex h-32 flex-col items-center justify-center text-xs text-muted-foreground">
-                No matching folders found.
-              </div>
-            ) : (
-              filteredFolders.map((folder) => {
-                const rule = folderRules[folder] ?? "off"
-                const count = folderItemCounts.get(folder) ?? 0
-
-                return (
-                  <div
-                    key={folder}
-                    className={`flex items-center justify-between gap-3 rounded-lg border p-3 text-xs transition-colors select-none ${
-                      rule === "keep"
-                        ? "border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10"
-                        : rule === "delete"
-                          ? "border-destructive/30 bg-destructive/5 dark:bg-destructive/10"
-                          : "border-border/60 bg-card hover:bg-muted/40"
-                    }`}
-                  >
-                    <div className="flex min-w-0 flex-1 items-center gap-3">
-                      <Folder
-                        className={`h-4 w-4 shrink-0 ${
-                          rule === "keep"
-                            ? "text-emerald-500"
-                            : rule === "delete"
-                              ? "text-destructive"
-                              : "text-muted-foreground"
-                        }`}
-                      />
-                      <div className="flex min-w-0 flex-col leading-tight">
-                        <span className="truncate font-medium text-foreground">
-                          {folder}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {count}{" "}
-                          {count === 1 ? "duplicate file" : "duplicate files"}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* 3-way segmented action selector */}
-                    <div className="flex shrink-0 items-center rounded-lg border border-border/80 bg-muted/40 p-0.5">
-                      <button
-                        type="button"
-                        onClick={() => setSingleFolderRule(folder, "keep")}
-                        className={`flex cursor-pointer items-center gap-1 rounded-md px-3 py-1 text-xs font-semibold transition-all ${
-                          rule === "keep"
-                            ? "border border-emerald-500/40 bg-emerald-500/15 text-emerald-700 shadow-2xs dark:text-emerald-300"
-                            : "text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        <Bookmark className="size-3 text-emerald-600 dark:text-emerald-400" />
-                        <span>Keep</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setSingleFolderRule(folder, "delete")}
-                        className={`flex cursor-pointer items-center gap-1 rounded-md px-3 py-1 text-xs font-semibold transition-all ${
-                          rule === "delete"
-                            ? "border border-destructive/40 bg-destructive/15 text-destructive shadow-2xs"
-                            : "text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        <Trash2 className="size-3 text-destructive" />
-                        <span>Delete</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setSingleFolderRule(folder, "off")}
-                        className={`cursor-pointer rounded-md px-2 py-1 text-xs font-medium transition-all ${
-                          rule === "off"
-                            ? "border border-border bg-background text-foreground shadow-2xs"
-                            : "text-muted-foreground/70 hover:text-foreground"
-                        }`}
-                      >
-                        Default
-                      </button>
-                    </div>
-                  </div>
-                )
-              })
-            )}
-          </div>
-
-          {/* Dialog Footer */}
-          <DialogFooter className="flex items-center justify-between border-t border-border px-5 py-3">
-            <button
-              type="button"
-              onClick={() => setFolderRules({})}
-              className="cursor-pointer text-xs text-muted-foreground underline hover:text-foreground"
-            >
-              Clear all folder rules
-            </button>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsFolderDialogOpen(false)}
-                className="h-8 text-xs"
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleApplyRules}
-                className="h-8 bg-primary text-xs font-medium text-primary-foreground"
-              >
-                Apply Folder Rules
-              </Button>
-            </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
+      {/* Success Notification */}
       {cleanSuccess && (
-        <div className="mb-3 rounded-md border border-green-500/30 bg-green-500/10 px-3 py-2 text-xs text-green-700 dark:text-green-400">
+        <div className="mt-14 mb-2 shrink-0 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2 text-xs text-emerald-700 dark:text-emerald-400">
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            <Check className="size-4 shrink-0" />
             <span className="font-medium">{cleanSuccess}</span>
           </div>
         </div>
       )}
 
+      {/* Virtualized Duplicate Groups List */}
       <div
-        ref={setScrollElement}
-        className="relative min-h-0 flex-1 scrollbar-thin overflow-y-auto pr-3"
+        ref={scrollContainerRef}
+        className={`relative min-h-0 flex-1 scrollbar-thin overflow-y-auto pr-2 pb-24 ${
+          cleanSuccess ? "pt-2" : "pt-14"
+        }`}
       >
-        <div
-          className="relative w-full"
-          style={{
-            height: `${rowVirtualizer.getTotalSize() + 80}px`,
-          }}
-        >
-          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-            const group = groups[virtualRow.index]
-            if (!group) return null
-            const hasOverride = overrides.has(group.groupIdx)
-
-            return (
-              <DuplicateAuditGroupCard
-                key={virtualRow.key}
-                index={virtualRow.index}
-                group={group}
-                hasOverride={hasOverride}
-                onSwapKeep={handleSwapKeep}
-                onResetOverride={handleResetOverride}
-                onPreviewItem={handlePreviewItem}
-                measureRef={rowVirtualizer.measureElement}
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  transform: `translateY(${virtualRow.start}px)`,
-                  paddingBottom: "12px",
-                }}
-              />
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Slim Action Bar */}
-      <div className="absolute bottom-4 left-1/2 z-50 -translate-x-1/2">
-        <div className="flex items-center gap-3 rounded-full border border-border bg-background/95 px-4 py-2 shadow-lg backdrop-blur-md">
-          <div className="flex flex-col text-center leading-tight">
-            <span className="text-sm font-semibold text-foreground">
-              {totalDeleteCount} files
-            </span>
-            <span className="text-xs tracking-wide text-muted-foreground uppercase">
-              {formatBytes(totalReclaimSize)} total
-            </span>
+        {filteredGroups.length === 0 ? (
+          <div className="flex h-48 flex-col items-center justify-center gap-2 text-center text-xs text-muted-foreground">
+            <Search className="size-6 text-muted-foreground/60" />
+            <p className="font-medium">No matching duplicate groups found</p>
+            <p className="text-xs text-muted-foreground">
+              Try adjusting your search query or clear the active filter
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleClearFilters}
+              className="mt-2 h-7 text-xs"
+            >
+              Clear filters
+            </Button>
           </div>
-
-          <div className="h-6 w-px bg-border" />
-
-          <Button
-            onClick={handleAutoCleanup}
-            disabled={isCleaning || totalDeleteCount === 0}
-            size="sm"
-            className="h-8 rounded-full bg-green-600 px-5 text-xs font-semibold text-white hover:bg-green-700"
+        ) : (
+          <div
+            className="relative w-full"
+            style={{
+              height: `${rowVirtualizer.getTotalSize()}px`,
+            }}
           >
-            {isCleaning ? (
-              <>
-                <Loader2 className="mr-2 size-4 animate-spin" />
-                Trashing...
-              </>
-            ) : (
-              <>
-                <Trash2 className="mr-2 size-4" />
-                Trash All
-              </>
-            )}
-          </Button>
-        </div>
+            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+              const group = filteredGroups[virtualRow.index]
+              if (!group) return null
+              const hasOverride = overrides.has(group.groupIdx)
+
+              return (
+                <DuplicateAuditExactGroupCard
+                  key={virtualRow.key}
+                  index={virtualRow.index}
+                  group={group}
+                  hasOverride={hasOverride}
+                  onSwapKeep={handleSwapKeep}
+                  onResetOverride={handleResetOverride}
+                  onPreviewItem={handlePreviewItem}
+                  onContextMenu={handleContextMenu}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    transform: `translateY(${virtualRow.start}px)`,
+                    paddingBottom: "12px",
+                  }}
+                />
+              )
+            })}
+          </div>
+        )}
       </div>
 
-      <MediaPreview
-        item={previewItem}
-        onClose={() => {
-          setPreviewItem(null)
-          setPreviewGroupItems(undefined)
-        }}
-        items={previewGroupItems}
-        onItemChange={(item) => setPreviewItem(item)}
-        autoPlay={true}
+      {/* Floating Bottom Control Bar */}
+      <DuplicateAuditExactBottomBar
+        strategy={strategy}
+        onStrategyChange={handleStrategySelect}
+        onOpenFolderRules={handleOpenFolderRules}
+        keepFolderCount={preferredKeepFolderPaths?.length ?? 0}
+        deleteFolderCount={preferredDeleteFolderPaths?.length ?? 0}
+        totalDeleteCount={totalDeleteCount}
+        totalReclaimSize={totalReclaimSize}
+        isCleaning={isCleaning}
+        onTrashAll={handleAutoCleanup}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        showOverridesOnly={showOverridesOnly}
+        onToggleOverridesOnly={handleToggleOverridesOnly}
+        overridesCount={overrides.size}
+        totalGroupsCount={resolvedGroups.length}
+        filteredGroupsCount={filteredGroups.length}
       />
+
+      {/* Folder Rules Configuration Dialog */}
+      {isFolderDialogOpen && (
+        <DuplicateAuditFolderRulesDialog
+          open={isFolderDialogOpen}
+          onOpenChange={setIsFolderDialogOpen}
+          availableFolders={availableFolders}
+          folderItemCounts={folderItemCounts}
+          preferredKeepFolderPaths={preferredKeepFolderPaths}
+          preferredDeleteFolderPaths={preferredDeleteFolderPaths}
+          onApplyRules={handleApplyFolderRules}
+        />
+      )}
+
+      {/* Context Menu on Right Click */}
+      {contextMenu && (
+        <MediaContextMenu
+          contextMenu={contextMenu}
+          onClose={handleResetContextMenu}
+          onPreviewOpen={handleContextPreviewOpen}
+          onReviewAction={handleReviewAction}
+        />
+      )}
+
+      {/* Full Resolution Media Preview Modal */}
+      {previewItem && (
+        <MediaPreview
+          item={previewItem}
+          onClose={handleClosePreview}
+          items={previewGroupItems}
+          onItemChange={setPreviewItem}
+          autoPlay={true}
+        />
+      )}
     </div>
   )
-}
+})
+
+DuplicateAuditExactDuplicates.displayName = "DuplicateAuditExactDuplicates"
 

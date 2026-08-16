@@ -122,20 +122,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       height: 0,
     })
     const [internalZoomScale, setInternalZoomScale] = useState(1)
-    const [enableTransition, setEnableTransition] = useState(false)
     const [feedback, setFeedback] = useState<FeedbackPayload | null>(null)
-    const prevSrcRef = useRef(src)
-
-    useEffect(() => {
-      if (prevSrcRef.current !== src) {
-        prevSrcRef.current = src
-        setEnableTransition(false)
-      }
-      const timer = setTimeout(() => {
-        setEnableTransition(true)
-      }, 50)
-      return () => clearTimeout(timer)
-    }, [src])
 
     // 2. Refs
     const videoRef = useRef<HTMLVideoElement>(null)
@@ -181,19 +168,25 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
     // Update Direct DOM Transform for zoom/pan
     const updateTransform = useCallback((animated = false) => {
       const el = localTransformRef.current
+      const container = containerRef.current
       if (!el) return
       const s = scaleRef.current
       const pos = positionRef.current
       const panning = isPanningRef.current
+      const cursorStyle = s > 1 ? (panning ? "grabbing" : "grab") : ""
 
       if (s > 1) {
         el.style.transform = `translate(${pos.x}px, ${pos.y}px) scale(${s})`
         el.style.transitionDuration = panning || !animated ? "0s" : "0.15s"
-        el.style.cursor = panning ? "grabbing" : "grab"
+        el.style.cursor = cursorStyle
       } else {
         el.style.transform = ""
         el.style.transitionDuration = animated ? "0.15s" : "0s"
-        el.style.cursor = "default"
+        el.style.cursor = ""
+      }
+
+      if (container) {
+        container.style.cursor = cursorStyle
       }
     }, [])
 
@@ -332,13 +325,54 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       return () => observer.disconnect()
     }, [])
 
+    const isHoveringControlsRef = useRef(false)
+
     // 6. Auto-hide timer for controls
     const resetHideTimer = useCallback(() => {
       setShowControls(true)
-      if (hideTimeout.current) clearTimeout(hideTimeout.current)
-      hideTimeout.current = setTimeout(() => {
-        setShowControls(false)
-      }, 2500)
+      if (hideTimeout.current) {
+        clearTimeout(hideTimeout.current)
+        hideTimeout.current = null
+      }
+      if (isHoveringControlsRef.current) {
+        return
+      }
+      if (stateRef.current.isPlaying) {
+        hideTimeout.current = setTimeout(() => {
+          if (!isHoveringControlsRef.current) {
+            setShowControls(false)
+          }
+        }, 2500)
+      }
+    }, [])
+
+    const handleControlsMouseEnter = useCallback(() => {
+      isHoveringControlsRef.current = true
+      setShowControls(true)
+      if (hideTimeout.current) {
+        clearTimeout(hideTimeout.current)
+        hideTimeout.current = null
+      }
+    }, [])
+
+    const handleControlsMouseLeave = useCallback(() => {
+      isHoveringControlsRef.current = false
+      resetHideTimer()
+    }, [resetHideTimer])
+
+    const handleControlsUserInteraction = useCallback(() => {
+      setShowControls(true)
+      if (hideTimeout.current) {
+        clearTimeout(hideTimeout.current)
+        hideTimeout.current = null
+      }
+      if (!isHoveringControlsRef.current && stateRef.current.isPlaying) {
+        hideTimeout.current = setTimeout(() => {
+          if (!isHoveringControlsRef.current) {
+            setShowControls(false)
+          }
+        }, 2500)
+      }
     }, [])
 
     // 7. Fullscreen & Playback Controls
@@ -969,7 +1003,11 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
         onMouseMove={() => {
           resetHideTimer()
         }}
-        onMouseLeave={() => isPlaying && setShowControls(false)}
+        onMouseLeave={() => {
+          if (!isHoveringControlsRef.current && isPlaying) {
+            setShowControls(false)
+          }
+        }}
         onWheel={(e) => {
           handleWheel(e)
           resetHideTimer()
@@ -1009,9 +1047,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
                 width: `${visualDimensions.videoDomW}px`,
                 height: `${visualDimensions.videoDomH}px`,
                 transform: `rotate(${rotation}deg)`,
-                transition: enableTransition
-                  ? "transform 300ms cubic-bezier(0.4, 0, 0.2, 1)"
-                  : "none",
+                transition: "transform 300ms cubic-bezier(0.4, 0, 0.2, 1)",
                 touchAction: "manipulation",
               }}
               className={`max-h-none max-w-none shadow-lg select-none ${
@@ -1057,7 +1093,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
         {/* Subtle top-center value change HUD */}
         <VideoFeedbackOverlay feedback={feedback} />
 
-        {/* Large center play button */}
+        {/* Large center play/pause button */}
         <VideoCenterPlayButton
           isPlaying={isPlaying}
           showControls={showControls}
@@ -1066,6 +1102,8 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
 
         {/* Controls bar */}
         <VideoControlsBar
+          src={safeSrc}
+          poster={safePoster}
           showControls={showControls}
           isPlaying={isPlaying}
           isNarrow={isNarrow}
@@ -1095,6 +1133,9 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
           onRotateRight={rotateRight}
           onRotateLeft={rotateLeft}
           onRotateReset={rotateReset}
+          onMouseEnterControls={handleControlsMouseEnter}
+          onMouseLeaveControls={handleControlsMouseLeave}
+          onUserInteraction={handleControlsUserInteraction}
         />
       </div>
     )

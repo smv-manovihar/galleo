@@ -60,8 +60,8 @@ export function getUserDataDir(): string {
 
   // 2. Development mode -> isolate storage inside project-local .data directory
   if (isDevEnvironment()) {
-    const devDir = path.join(process.cwd(), ".data")
-    // const devDir = app.getPath("userData")
+    // const devDir = path.join(process.cwd(), ".data")
+    const devDir = app.getPath("userData")
     ensureDirExists(devDir)
     return devDir
   }

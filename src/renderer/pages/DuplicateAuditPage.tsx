@@ -187,18 +187,12 @@ export const DuplicateAuditPage: React.FC = () => {
 
     for (let gIdx = 0; gIdx < duplicateGroups.length; gIdx++) {
       const rawGroup = duplicateGroups[gIdx]
-
-      // Filter out items already marked for deletion in session decisions or reviewState
-      const group = rawGroup.filter((item) => {
-        const dec = decisions[item.id]
-        return dec !== "delete" && item.reviewState !== "delete"
-      })
-      if (group.length < 2) continue
+      if (rawGroup.length < 2) continue
 
       // Group items in this perceptual group by their exact duplicates key: (normalizedFilenameBase, size)
       const exactSubGroupsMap = new Map<string, MediaItem[]>()
-      for (let i = 0; i < group.length; i++) {
-        const item = group[i]
+      for (let i = 0; i < rawGroup.length; i++) {
+        const item = rawGroup[i]
         const key = `${getNormalizedFilenameBase(item.name).toLowerCase()}_${item.size}`
         let arr = exactSubGroupsMap.get(key)
         if (!arr) {
@@ -207,8 +201,6 @@ export const DuplicateAuditPage: React.FC = () => {
         }
         arr.push(item)
       }
-
-      const similarCandidates: MediaItem[] = []
 
       for (const subGroup of exactSubGroupsMap.values()) {
         if (subGroup.length > 1) {
@@ -220,15 +212,11 @@ export const DuplicateAuditPage: React.FC = () => {
             }
           }
           exactGroups.push(subGroup)
-          similarCandidates.push(bestInSubGroup)
-        } else {
-          similarCandidates.push(subGroup[0])
         }
       }
 
-      if (similarCandidates.length > 1) {
-        manualGroups.push(similarCandidates)
-      }
+      // Include all items in the perceptual group in Similar Media so all similar items are presented
+      manualGroups.push(rawGroup)
     }
 
     // Fast O(N) pre-pass for sorting groups without re-running O(M) .reduce() in O(N log N) comparisons
@@ -263,7 +251,6 @@ export const DuplicateAuditPage: React.FC = () => {
     preferredKeepFolderPaths,
     preferredDeleteFolderPaths,
     folderSiblingCount,
-    decisions,
   ])
 
   const manualReviewItems = useMemo(() => {

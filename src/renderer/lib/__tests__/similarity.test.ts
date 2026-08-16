@@ -4,6 +4,7 @@ import {
   getItemSetFingerprint,
   sortBySimilarity,
   getSimilaritySortedItems,
+  findSimilarPerceptual,
   similaritySortedIdCache,
 } from "../similarity"
 import type { MediaItem } from "../../../shared/types/media"
@@ -98,6 +99,42 @@ describe("Similarity utilities", () => {
 
       const result = getSimilaritySortedItems(items)
       expect(result.map((i) => i.id)).toEqual(["2", "3", "1"])
+    })
+  })
+
+  describe("findSimilarPerceptual", () => {
+    it("matches items within perceptual hash distance and orders by distance", () => {
+      const target = mockItem("target", "00000000")
+      const closeMatch = mockItem("close", "00000001") // 1 bit diff
+      const mediumMatch = mockItem("med", "00000007") // 3 bits diff
+      const distant = mockItem("far", "ffffffff") // 32 bits diff
+      const all = [closeMatch, distant, target, mediumMatch]
+
+      const results = findSimilarPerceptual(target, all, 16)
+      expect(results.map((i) => i.id)).toEqual(["target", "close", "med"])
+    })
+
+    it("matches items with matching exactHash or duplicateGroupId", () => {
+      const target: MediaItem = {
+        ...mockItem("t"),
+        exactHash: "hash_abc",
+        duplicateGroupId: "group_1",
+      }
+      const exactMatch: MediaItem = {
+        ...mockItem("exact"),
+        exactHash: "hash_abc",
+      }
+      const groupMatch: MediaItem = {
+        ...mockItem("group"),
+        duplicateGroupId: "group_1",
+      }
+      const unrelated: MediaItem = mockItem("unrelated")
+
+      const results = findSimilarPerceptual(target, [target, exactMatch, groupMatch, unrelated], 16)
+      expect(results.map((i) => i.id)).toContain("t")
+      expect(results.map((i) => i.id)).toContain("exact")
+      expect(results.map((i) => i.id)).toContain("group")
+      expect(results.map((i) => i.id)).not.toContain("unrelated")
     })
   })
 })

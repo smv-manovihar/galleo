@@ -3,6 +3,8 @@ import type { MediaItem } from "../../shared/types/media"
 import { useSettingsStore } from "./settings-store"
 import { useSessionStore } from "./session-store"
 import { useScanStore } from "./scan-store"
+import { useUIStore } from "./ui-store"
+import { findSimilarPerceptual } from "../lib/similarity"
 
 export interface CachedDashboardMetrics {
   totalFiles: number
@@ -27,6 +29,7 @@ export interface CachedDashboardMetrics {
 export interface FilterAndSortOptions {
   activeRootPath: string | null
   searchQuery: string
+  similarTargetItem?: MediaItem | null
   filterType: "all" | "photo" | "video"
   filterReviewState: "all" | "pending" | "kept" | "trash"
   filterQuality:
@@ -54,21 +57,27 @@ export function filterAndSortItems(
   const {
     activeRootPath,
     searchQuery,
+    similarTargetItem,
     filterType,
     filterReviewState,
     filterQuality,
     sortBy,
     decisions,
   } = opts
+
+  const baseItems = similarTargetItem
+    ? findSimilarPerceptual(similarTargetItem, items)
+    : items
+
   const normRoot =
     activeRootPath && activeRootPath !== "all"
       ? activeRootPath.replace(/\\/g, "/").toLowerCase().replace(/\/+$/, "")
       : null
   const q = searchQuery.trim().length > 0 ? searchQuery.toLowerCase() : null
 
-  const result = items.filter((item) => {
-    // 0. Active Root Path Filter
-    if (normRoot) {
+  const result = baseItems.filter((item) => {
+    // 0. Active Root Path Filter (skip if similarTargetItem is active to allow cross-folder similarity)
+    if (normRoot && !similarTargetItem) {
       const itemNorm = item.path.replace(/\\/g, "/").toLowerCase()
       if (itemNorm !== normRoot && !itemNorm.startsWith(normRoot + "/")) {
         return false
@@ -108,6 +117,11 @@ export function filterAndSortItems(
 
     return true
   })
+
+  // When similarTargetItem is active, preserve similarity ranking (closest visual matches first) unless user explicitly chose a non-default sort
+  if (similarTargetItem && sortBy === "date-desc") {
+    return result
+  }
 
   // 5. Fast Sorting logic (avoid expensive Intl.Collator / localeCompare)
   result.sort((a, b) => {
@@ -216,10 +230,13 @@ interface MediaState {
     | "size-desc"
     | "size-asc"
   activeRootPath: string | null
+  similarTargetItem: MediaItem | null
 
   fetchMediaItems: (folderPath: string) => Promise<void>
   setItems: (items: MediaItem[]) => void
   setSearchQuery: (query: string) => void
+  setSimilarTargetItem: (item: MediaItem | null) => void
+  findSimilarVisual: (item: MediaItem) => void
   setFilterType: (type: "all" | "photo" | "video") => void
   setFilterReviewState: (state: "all" | "pending" | "kept" | "trash") => void
   setFilterQuality: (
@@ -421,6 +438,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   filterQuality: "all",
   sortBy: "date-desc",
   activeRootPath: null,
+  similarTargetItem: null,
 
   setItems: (items) => {
     const { activeRootPath } = get()
@@ -525,6 +543,11 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   },
 
   setSearchQuery: (searchQuery) => set({ searchQuery }),
+  setSimilarTargetItem: (similarTargetItem) => set({ similarTargetItem }),
+  findSimilarVisual: (item) => {
+    set({ similarTargetItem: item, searchQuery: "" })
+    useUIStore.getState().setCurrentView("browse")
+  },
   setFilterType: (filterType) => set({ filterType }),
   setFilterReviewState: (filterReviewState) => set({ filterReviewState }),
   setFilterQuality: (filterQuality) => set({ filterQuality }),
@@ -564,6 +587,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       items,
       activeRootPath,
       searchQuery,
+      similarTargetItem,
       filterType,
       filterReviewState,
       filterQuality,
@@ -572,6 +596,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     return filterAndSortItems(items, {
       activeRootPath,
       searchQuery,
+      similarTargetItem,
       filterType,
       filterReviewState,
       filterQuality,

@@ -30,6 +30,7 @@ interface MediaCullingCardProps {
   onFullscreen?: () => void
   onPlayStateChange?: (playing: boolean) => void
   onSwipeComplete?: (action: "keep" | "delete") => void
+  onContextMenu?: (item: MediaItem, e: React.MouseEvent) => void
 }
 
 interface MediaCullingCardInnerProps {
@@ -215,6 +216,7 @@ export const MediaCullingCard: React.FC<MediaCullingCardProps> = ({
   onFullscreen,
   onPlayStateChange,
   onSwipeComplete,
+  onContextMenu,
 }) => {
   const cardRef = useRef<HTMLDivElement>(null)
   const keepOverlayRef = useRef<HTMLDivElement>(null)
@@ -490,6 +492,12 @@ export const MediaCullingCard: React.FC<MediaCullingCardProps> = ({
     }
   }
 
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    onContextMenu?.(item, e)
+  }
+
   return (
     <div
       key={item.id}
@@ -516,6 +524,7 @@ export const MediaCullingCard: React.FC<MediaCullingCardProps> = ({
             onPointerUp: handlePointerUp,
             onPointerCancel: handlePointerCancel,
             onDoubleClick,
+            onContextMenu: handleContextMenu,
           }
         : {})}
     >

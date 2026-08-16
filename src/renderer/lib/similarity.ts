@@ -220,3 +220,83 @@ export function getSimilaritySortedItems(items: MediaItem[]): MediaItem[] {
 
   return result
 }
+
+/**
+ * Finds all media items visually or structurally similar to targetItem.
+ * - Computes Hamming distance against hashed candidates (default maxDistance 16).
+ * - Matches items sharing the same duplicateGroupId or identical exactHash.
+ * - Sorts matches with closest visual distance first and places targetItem at index 0.
+ */
+export function findSimilarPerceptual(
+  targetItem: MediaItem,
+  allItems: MediaItem[],
+  maxDistance = 16
+): MediaItem[] {
+  const targetHash = targetItem.hash
+  const targetExactHash = targetItem.exactHash
+  const targetGroupId = targetItem.duplicateGroupId
+
+  const matches: { item: MediaItem; distance: number }[] = []
+
+  for (const item of allItems) {
+    if (item.id === targetItem.id) {
+      matches.push({ item, distance: 0 })
+      continue
+    }
+
+    // Must be same media type (never group a photo with a video)
+    if (item.mediaType !== targetItem.mediaType) {
+      continue
+    }
+
+    let isMatch = false
+    let dist = Infinity
+
+    // 1. Exact byte hash match
+    if (targetExactHash && item.exactHash && targetExactHash === item.exactHash) {
+      isMatch = true
+      dist = 0
+    }
+
+    // 2. Same duplicate group match
+    if (!isMatch && targetGroupId && item.duplicateGroupId && targetGroupId === item.duplicateGroupId) {
+      isMatch = true
+      dist = 1
+    }
+
+    // 3. Perceptual hash distance comparison
+    if (targetHash && item.hash) {
+      let d = Infinity
+      if (targetHash.length === item.hash.length) {
+        d = hammingDistance(targetHash, item.hash)
+      } else {
+        // Compare primary 64-char segment if lengths differ (e.g. video vs image)
+        const targetPrimary =
+          targetHash.length >= 128
+            ? targetHash.slice(64, 128)
+            : targetHash.slice(0, 64)
+        const itemPrimary =
+          item.hash.length >= 128
+            ? item.hash.slice(64, 128)
+            : item.hash.slice(0, 64)
+        if (targetPrimary.length === itemPrimary.length) {
+          d = hammingDistance(targetPrimary, itemPrimary)
+        }
+      }
+
+      if (d !== -1 && d <= maxDistance) {
+        isMatch = true
+        dist = Math.min(dist, d)
+      }
+    }
+
+    if (isMatch) {
+      matches.push({ item, distance: dist })
+    }
+  }
+
+  // Sort by ascending distance (targetItem is distance 0)
+  matches.sort((a, b) => a.distance - b.distance)
+
+  return matches.map((m) => m.item)
+}

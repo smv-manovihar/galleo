@@ -172,4 +172,17 @@ describe("filterAndSortItems sorting logic", () => {
     expect(sortedAsc[0].id).toBe("small")
     expect(sortedAsc[1].id).toBe("large")
   })
+
+  it("filters items by visual similarity when similarTargetItem is specified", () => {
+    const target = createMockItem("target", { hash: "00000000" })
+    const match1 = createMockItem("match1", { hash: "00000001" })
+    const distant = createMockItem("distant", { hash: "ffffffff" })
+
+    const result = filterAndSortItems([match1, distant, target], {
+      ...baseOptions,
+      similarTargetItem: target,
+    })
+
+    expect(result.map((i) => i.id)).toEqual(["target", "match1"])
+  })
 })

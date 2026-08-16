@@ -47,6 +47,7 @@ export const BrowseMediaPage: React.FC = () => {
   const sortBy = useMediaStore((s) => s.sortBy)
   const setSortBy = useMediaStore((s) => s.setSortBy)
   const searchQuery = useMediaStore((s) => s.searchQuery)
+  const similarTargetItem = useMediaStore((s) => s.similarTargetItem)
   const keptCount = useMediaStore((s) => s.cachedMetrics.keptCount)
   const trashCount = useMediaStore((s) => s.cachedMetrics.trashCount)
 
@@ -171,6 +172,10 @@ export const BrowseMediaPage: React.FC = () => {
     }
   }, [])
 
+  const handleFindSimilarVisual = useCallback((item: MediaItem) => {
+    useMediaStore.getState().findSimilarVisual(item)
+  }, [])
+
   const searchResultsMap = useMemo(() => {
     if (!searchResults) return undefined
     const map = new Map<string, SearchResultItem>()
@@ -193,6 +198,7 @@ export const BrowseMediaPage: React.FC = () => {
       filterAndSortItems(items, {
         activeRootPath,
         searchQuery,
+        similarTargetItem,
         filterType,
         filterReviewState,
         filterQuality,
@@ -203,6 +209,7 @@ export const BrowseMediaPage: React.FC = () => {
       items,
       activeRootPath,
       searchQuery,
+      similarTargetItem,
       filterType,
       filterReviewState,
       filterQuality,
@@ -514,6 +521,7 @@ export const BrowseMediaPage: React.FC = () => {
         onInfoOpen={handleSetInfoItem}
         onReviewAction={handleReviewAction}
         onFindSimilar={onFindSimilarProp}
+        onFindSimilarVisual={handleFindSimilarVisual}
       />
 
       {/* Slide-over Preview dialog modal */}

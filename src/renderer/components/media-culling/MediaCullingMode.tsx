@@ -1,10 +1,15 @@
-import React, { useEffect, useState, useRef, useMemo } from "react"
+import React, { useEffect, useState, useRef, useMemo, useCallback } from "react"
 import { useSessionStore } from "../../stores/session-store"
 import type { MediaItem } from "../../../shared/types/media"
 import { MediaCullingProgress } from "./MediaCullingProgress"
 import { MediaCullingCard } from "./MediaCullingCard"
 import { MediaCullingControls } from "./MediaCullingControls"
 import { MediaPreview } from "../media/MediaPreview"
+import { MediaInfoDialog } from "../media/MediaInfoDialog"
+import {
+  MediaContextMenu,
+  type MediaContextMenuState,
+} from "../media/MediaContextMenu"
 import { getSimilaritySortedItems } from "../../lib/similarity"
 
 interface MediaCullingModeProps {
@@ -29,6 +34,9 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
     "slide-left" | "slide-right" | ""
   >("")
   const [showPreview, setShowPreview] = useState(false)
+  const [infoItem, setInfoItem] = useState<MediaItem | null>(null)
+  const [activeContextMenu, setActiveContextMenu] =
+    useState<MediaContextMenuState | null>(null)
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
   const [restoringItem, setRestoringItem] = useState<{
     id: string
@@ -36,6 +44,21 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
   } | null>(null)
   const [isVideoPlaying, setIsVideoPlaying] = useState(false)
   const videoPlayerRef = useRef<HTMLVideoElement | null>(null)
+
+  const handleContextMenu = useCallback(
+    (item: MediaItem, e: React.MouseEvent) => {
+      setActiveContextMenu({
+        item,
+        x: e.clientX,
+        y: e.clientY,
+      })
+    },
+    []
+  )
+
+  const handleCloseContextMenu = useCallback(() => {
+    setActiveContextMenu(null)
+  }, [])
 
   const [animatingOutId, setAnimatingOutId] = useState<string | null>(null)
   const animationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -324,6 +347,7 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
                 onFullscreen={() => setShowPreview(true)}
                 onPlayStateChange={setIsVideoPlaying}
                 onSwipeComplete={(action) => commitAction(item, action)}
+                onContextMenu={handleContextMenu}
               />
             )
           })}
@@ -345,6 +369,21 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
         onClose={() => setShowPreview(false)}
         items={unreviewedItems}
       />
+
+      <MediaContextMenu
+        contextMenu={activeContextMenu}
+        onClose={handleCloseContextMenu}
+        onPreviewOpen={() => setShowPreview(true)}
+        onInfoOpen={setInfoItem}
+        onReviewAction={(id, state) => {
+          const target = items.find((i) => i.id === id)
+          if (target) {
+            commitAction(target, state)
+          }
+        }}
+      />
+
+      <MediaInfoDialog item={infoItem} onClose={() => setInfoItem(null)} />
     </div>
   )
 }

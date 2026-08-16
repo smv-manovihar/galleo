@@ -10,10 +10,12 @@ import {
   FolderOpen,
   MoreVertical,
   Sparkles,
+  Images,
 } from "lucide-react"
 import { formatBytes } from "../../lib/format"
 import { getFileManagerName } from "../../lib/os"
 import { ENABLE_AI_FEATURES } from "../../../shared/constants"
+import { useMediaStore } from "../../stores/media-store"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -216,13 +218,20 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
             <Info className="size-4" />
             File Info
           </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => useMediaStore.getState().findSimilarVisual(item)}
+            className="cursor-pointer gap-3 text-sky-600 dark:text-sky-400 focus:bg-sky-500/15! focus:text-sky-700! dark:focus:text-sky-300!"
+          >
+            <Images className="size-4 text-sky-600 dark:text-sky-400" />
+            Find Visually Similar
+          </DropdownMenuItem>
           {onFindSimilar && ENABLE_AI_FEATURES && (
             <DropdownMenuItem
               onClick={() => onFindSimilar(item.id)}
               className="cursor-pointer gap-3 text-primary"
             >
               <Sparkles className="size-4" />
-              Find Similar
+              AI Semantic Search
             </DropdownMenuItem>
           )}
           <DropdownMenuSeparator />

@@ -210,29 +210,41 @@ export const DuplicateAuditExactRow = React.memo<DuplicateAuditExactRowProps>(
 
         {/* Quick Actions */}
         <div className="flex shrink-0 items-center gap-1">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={handlePreviewClick}
-            title="Preview file"
-            className="size-7 cursor-pointer text-muted-foreground hover:bg-accent hover:text-foreground"
-          >
-            <Eye className="size-3.5" />
-            <span className="sr-only">Preview</span>
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={handlePreviewClick}
+                className="size-7 cursor-pointer text-muted-foreground hover:bg-accent hover:text-foreground"
+              >
+                <Eye className="size-3.5" />
+                <span className="sr-only">Preview file</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={6} className="text-xs">
+              Preview file
+            </TooltipContent>
+          </Tooltip>
 
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={handleRevealClick}
-            title="Reveal in folder"
-            className="size-7 cursor-pointer text-muted-foreground hover:bg-accent hover:text-foreground"
-          >
-            <FolderOpen className="size-3.5" />
-            <span className="sr-only">Reveal in folder</span>
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={handleRevealClick}
+                className="size-7 cursor-pointer text-muted-foreground hover:bg-accent hover:text-foreground"
+              >
+                <FolderOpen className="size-3.5" />
+                <span className="sr-only">Reveal in folder</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={6} className="text-xs">
+              Reveal in folder
+            </TooltipContent>
+          </Tooltip>
         </div>
       </div>
     )

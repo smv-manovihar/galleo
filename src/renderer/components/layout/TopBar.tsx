@@ -21,6 +21,8 @@ import {
   Sparkles,
   Trash2,
   FolderOutput,
+  Images,
+  X,
 } from "lucide-react"
 import { useSessionStore } from "../../stores/session-store"
 import { useOrganizeStore } from "../../stores/organize-store"
@@ -535,6 +537,8 @@ MultiTaskPill.displayName = "MultiTaskPill"
 const TopBarSearch: React.FC = () => {
   const searchQuery = useMediaStore((state) => state.searchQuery)
   const setSearchQuery = useMediaStore((state) => state.setSearchQuery)
+  const similarTargetItem = useMediaStore((state) => state.similarTargetItem)
+  const setSimilarTargetItem = useMediaStore((state) => state.setSimilarTargetItem)
   const currentView = useUIStore((s) => s.currentView)
   const setCurrentView = useUIStore((s) => s.setCurrentView)
   const aiStatus = useScanStore((state) => state.aiStatus)
@@ -584,6 +588,54 @@ const TopBarSearch: React.FC = () => {
 
   if (currentView !== "browse" && currentView !== "dashboard") {
     return null
+  }
+
+  if (similarTargetItem) {
+    const rawThumbPath = similarTargetItem.thumbnailPath || similarTargetItem.path
+    const thumbSrc = rawThumbPath
+      ? `media:///${rawThumbPath.replace(/\\/g, "/")}`
+      : undefined
+
+    return (
+      <div className="flex h-9 w-full max-w-sm min-w-0 items-center justify-between gap-2 rounded-lg border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-xs text-foreground shadow-xs animate-in fade-in-0 select-none">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          {thumbSrc ? (
+            <img
+              src={thumbSrc}
+              alt=""
+              className="size-5 shrink-0 rounded object-cover border border-sky-500/30 bg-background/50"
+            />
+          ) : (
+            <Images className="size-3.5 shrink-0 text-sky-600 dark:text-sky-400" />
+          )}
+          <div className="flex min-w-0 items-center gap-1.5 truncate">
+            <span className="shrink-0 font-medium text-sky-600/80 dark:text-sky-400/80">Similar:</span>
+            <span
+              className="truncate font-semibold text-sky-950 dark:text-sky-100"
+              title={similarTargetItem.name}
+            >
+              {similarTargetItem.name}
+            </span>
+          </div>
+        </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-5 shrink-0 rounded-md p-0 text-sky-700/70 dark:text-sky-300/70 transition-colors hover:bg-sky-500/20 hover:text-sky-950 dark:hover:text-sky-50 focus-visible:ring-1 focus-visible:ring-sky-500/40"
+              onClick={() => setSimilarTargetItem(null)}
+            >
+              <X className="size-3.5" />
+              <span className="sr-only">Clear similarity filter</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="text-xs">
+            Clear similarity filter
+          </TooltipContent>
+        </Tooltip>
+      </div>
+    )
   }
 
   return (

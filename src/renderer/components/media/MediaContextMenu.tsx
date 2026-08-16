@@ -4,6 +4,7 @@ import type { MediaItem } from "../../../shared/types/media"
 import {
   Eye,
   Info,
+  Images,
   Sparkles,
   Bookmark,
   Trash2,
@@ -13,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { getFileManagerName } from "../../lib/os"
 import { ENABLE_AI_FEATURES } from "../../../shared/constants"
+import { useMediaStore } from "../../stores/media-store"
 
 export interface MediaContextMenuState {
   item: MediaItem
@@ -27,6 +29,7 @@ interface MediaContextMenuProps {
   onInfoOpen?: (item: MediaItem) => void
   onReviewAction: (id: string, state: "keep" | "delete") => void | Promise<void>
   onFindSimilar?: (mediaId: string) => void
+  onFindSimilarVisual?: (item: MediaItem) => void
 }
 
 export const MediaContextMenu: React.FC<MediaContextMenuProps> = ({
@@ -36,6 +39,7 @@ export const MediaContextMenu: React.FC<MediaContextMenuProps> = ({
   onInfoOpen,
   onReviewAction,
   onFindSimilar,
+  onFindSimilarVisual,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -89,6 +93,15 @@ export const MediaContextMenu: React.FC<MediaContextMenuProps> = ({
     await window.api.openFile(item.path)
   }
 
+  const handleFindSimilarVisual = () => {
+    onClose()
+    if (onFindSimilarVisual) {
+      onFindSimilarVisual(item)
+    } else {
+      useMediaStore.getState().findSimilarVisual(item)
+    }
+  }
+
   return createPortal(
     <div
       ref={menuRef}
@@ -128,6 +141,15 @@ export const MediaContextMenu: React.FC<MediaContextMenuProps> = ({
         </Button>
       )}
 
+      <Button
+        variant="ghost"
+        className="h-7.5 w-full justify-start gap-2.5 rounded-md px-2 py-1.5 text-xs font-medium text-sky-600 dark:text-sky-400 transition-colors hover:bg-sky-500/15! hover:text-sky-700! dark:hover:text-sky-300! focus:bg-sky-500/15! focus:text-sky-700! dark:focus:text-sky-300! active:bg-sky-500/25! focus-visible:ring-1 focus-visible:ring-sky-500/40"
+        onClick={handleFindSimilarVisual}
+      >
+        <Images className="size-3.5 shrink-0 text-sky-600 dark:text-sky-400" />
+        <span>Find Visually Similar</span>
+      </Button>
+
       {onFindSimilar && ENABLE_AI_FEATURES && (
         <Button
           variant="ghost"
@@ -138,7 +160,7 @@ export const MediaContextMenu: React.FC<MediaContextMenuProps> = ({
           }}
         >
           <Sparkles className="size-3.5 shrink-0" />
-          <span>Find Similar</span>
+          <span>AI Semantic Search</span>
         </Button>
       )}
 

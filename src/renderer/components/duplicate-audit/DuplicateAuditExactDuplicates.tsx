@@ -14,6 +14,7 @@ import type { MediaItem } from "../../../shared/types/media"
 import type { DuplicateStrategy } from "../../../shared/types/settings"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { MediaPreview } from "../media/MediaPreview"
+import { MediaInfoDialog } from "../media/MediaInfoDialog"
 import { MediaContextMenu, type MediaContextMenuState } from "../media/MediaContextMenu"
 
 import type { ExactDuplicateGroup } from "./exact-duplicates/types"
@@ -58,6 +59,7 @@ export const DuplicateAuditExactDuplicates = React.memo<
   const [previewGroupItems, setPreviewGroupItems] = useState<
     MediaItem[] | undefined
   >(undefined)
+  const [infoItem, setInfoItem] = useState<MediaItem | null>(null)
 
   const handlePreviewItem = useCallback(
     (item: MediaItem, groupItems: MediaItem[]) => {
@@ -553,9 +555,13 @@ export const DuplicateAuditExactDuplicates = React.memo<
           contextMenu={contextMenu}
           onClose={handleResetContextMenu}
           onPreviewOpen={handleContextPreviewOpen}
+          onInfoOpen={setInfoItem}
           onReviewAction={handleReviewAction}
         />
       )}
+
+      {/* Media Info Dialog */}
+      <MediaInfoDialog item={infoItem} onClose={() => setInfoItem(null)} />
 
       {/* Full Resolution Media Preview Modal */}
       {previewItem && (

@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="build/icon.png" width="96" height="96" alt="Galleo Logo" />
+<img src="public/logo.svg" width="96" height="96" alt="Galleo Logo" />
 
 # Galleo
 
@@ -37,11 +37,11 @@
 Get the latest release for your operating system directly from **[GitHub Releases](https://github.com/smv-manovihar/galleo/releases/latest)**:
 
 | Platform | Architecture | Package Format | Direct Download |
-| :--- | :--- | :--- | :--- |
-| <img src="https://cdn.jsdelivr.net/gh/glincker/thesvg@main/public/icons/windows/default.svg" width="16" height="16" alt="Windows" align="middle" style="vertical-align: -3px;" /> **Windows** | 64-bit (`x64`) | NSIS Setup Wizard (`.exe`) | [![Download Windows](https://img.shields.io/badge/Download-Windows_x64-0078D6?style=flat-square&logo=windows11&logoColor=white)](https://github.com/smv-manovihar/galleo/releases/latest) |
-| <img src="https://cdn.jsdelivr.net/gh/glincker/thesvg@main/public/icons/apple/default.svg" width="16" height="16" alt="macOS" align="middle" style="vertical-align: -3px;" /> **macOS** | Apple Silicon (`arm64`) & Intel (`x64`) | Universal Disk Image (`.dmg`) | [![Download macOS](https://img.shields.io/badge/Download-macOS_Universal-000000?style=flat-square&logo=apple&logoColor=white)](https://github.com/smv-manovihar/galleo/releases/latest) |
-| <img src="https://cdn.jsdelivr.net/gh/glincker/thesvg@main/public/icons/linux/default.svg" width="16" height="16" alt="Linux" align="middle" style="vertical-align: -3px;" /> **Linux** | 64-bit (`x64` / `amd64`) | Standalone AppImage (`.AppImage`) | [![Download Linux AppImage](https://img.shields.io/badge/Download-Linux_AppImage-FCC624?style=flat-square&logo=linux&logoColor=black)](https://github.com/smv-manovihar/galleo/releases/latest) |
-| <img src="https://cdn.jsdelivr.net/gh/glincker/thesvg@main/public/icons/debian/default.svg" width="16" height="16" alt="Debian" align="middle" style="vertical-align: -3px;" /> **Linux (Debian / Ubuntu)** | Debian / Ubuntu (`amd64`) | Debian Package (`.deb`) | [![Download Debian](https://img.shields.io/badge/Download-Debian_Package-A81D33?style=flat-square&logo=debian&logoColor=white)](https://github.com/smv-manovihar/galleo/releases/latest) |
+| :--- | :---: | :---: | :---: |
+| <img src="https://cdn.jsdelivr.net/gh/glincker/thesvg@main/public/icons/windows/default.svg" width="16" height="16" alt="Windows" style="vertical-align: middle; margin-right: 6px;" /> **Windows** | 64-bit (`x64`) | NSIS Setup Wizard (`.exe`) | [![Download Windows](https://img.shields.io/badge/Download-Windows_x64-0078D6?style=flat-square)](https://github.com/smv-manovihar/galleo/releases/latest) |
+| <img src="https://cdn.jsdelivr.net/gh/glincker/thesvg@main/public/icons/apple/default.svg" width="16" height="16" alt="macOS" style="vertical-align: middle; margin-right: 6px;" /> **macOS** | Apple Silicon (`arm64`) & Intel (`x64`) | Universal Disk Image (`.dmg`) | [![Download macOS](https://img.shields.io/badge/Download-macOS_Universal-000000?style=flat-square)](https://github.com/smv-manovihar/galleo/releases/latest) |
+| <img src="https://cdn.jsdelivr.net/gh/glincker/thesvg@main/public/icons/linux/default.svg" width="16" height="16" alt="Linux" style="vertical-align: middle; margin-right: 6px;" /> **Linux** | 64-bit (`x64` / `amd64`) | Standalone AppImage (`.AppImage`) | [![Download Linux AppImage](https://img.shields.io/badge/Download-Linux_AppImage-FCC624?style=flat-square&labelColor=333333)](https://github.com/smv-manovihar/galleo/releases/latest) |
+| <img src="https://cdn.jsdelivr.net/gh/glincker/thesvg@main/public/icons/debian/default.svg" width="16" height="16" alt="Debian" style="vertical-align: middle; margin-right: 6px;" /> **Linux (Debian / Ubuntu)** | Debian / Ubuntu (`amd64`) | Debian Package (`.deb`) | [![Download Debian](https://img.shields.io/badge/Download-Debian_Package-A81D33?style=flat-square)](https://github.com/smv-manovihar/galleo/releases/latest) |
 
 > **Tip:** Once installed, Galleo automatically checks for new releases and lets you update directly within the app.
 

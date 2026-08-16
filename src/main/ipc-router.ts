@@ -292,6 +292,18 @@ export function registerIpcHandlers(window: BrowserWindow): void {
     return await updateService.checkForUpdates(force)
   })
 
+  ipcMain.handle(
+    IPC_CHANNELS.APP_DOWNLOAD_UPDATE,
+    async (event, downloadUrl: string) => {
+      const win = BrowserWindow.fromWebContents(event.sender) || window
+      return await updateService.downloadUpdate(win, downloadUrl)
+    }
+  )
+
+  ipcMain.handle(IPC_CHANNELS.APP_INSTALL_UPDATE, async () => {
+    return await updateService.installUpdate()
+  })
+
   ipcMain.handle(IPC_CHANNELS.URL_OPEN, (_, url: string) => {
     try {
       if (!url || typeof url !== "string" || !/^https?:\/\//i.test(url.trim())) {

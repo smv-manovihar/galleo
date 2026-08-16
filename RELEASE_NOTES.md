@@ -1,3 +1,24 @@
+# Galleo v1.1.1
+
+## What's New
+
+* **Direct In-App Updates & One-Click Installation:** Galleo can now download release installers directly within the desktop app without sending users to external browser pages. Real-time streaming progress is displayed across the app, and clicking "Install & Restart" applies the update seamlessly.
+* **Non-Blocking Background Updating:** Update downloads run completely in the background, leaving users free to browse, cull media, or organize libraries while the installer downloads. Real-time progress is visible in the sidebar footer and completed downloads trigger an actionable toast notification.
+
+## Improvements
+
+* **Robust SemVer & Architecture Matching:** Upgraded SemVer comparison logic to cleanly handle pre-releases and tag prefixes without numeric comparison bugs, with architecture-aware matching across Windows (x64), macOS (ARM64 Apple Silicon & Intel x64), and Linux (AppImage & DEB).
+* **Sidebar Update Widget & Render Isolation:** Refactored the update footer into an isolated, memoized subcomponent to prevent the main navigation and folder trees from re-rendering on percentage progress updates.
+* **Direct GitHub Releases Documentation:** Added a dedicated Download section with platform-specific installer links in the README.
+
+## Bug Fixes
+
+* **Update Cache Version Synchronization:** Fixed an issue where the update checker returned stale cached versions and false-positive update flags on TTL cache hits and HTTP 304 responses after upgrading.
+* **Sidebar Footer Single-Row Layout:** Fixed layout wrapping in the sidebar footer so update status, download progress, and actions stay strictly on a single row.
+* **Eliminated Duplicate Action Controls:** Streamlined the About settings view to remove redundant secondary action banners.
+
+---
+
 # Galleo v1.1.0
 
 ## What's New

@@ -8,19 +8,28 @@ import {
   CardContent,
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Progress } from "@/components/ui/progress"
 import {
   Loader2,
   RefreshCw,
   AlertCircle,
   CheckCircle2,
-  ExternalLink,
+  Download,
+  Sparkles,
   Info,
 } from "lucide-react"
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 
 export const AboutConfig: React.FC = () => {
-  const { updateInfo, isCheckingUpdate, updateError, checkForUpdates } =
-    useUIStore()
+  const updateInfo = useUIStore((s) => s.updateInfo)
+  const isCheckingUpdate = useUIStore((s) => s.isCheckingUpdate)
+  const isDownloadingUpdate = useUIStore((s) => s.isDownloadingUpdate)
+  const updateDownloadProgress = useUIStore((s) => s.updateDownloadProgress)
+  const isUpdateDownloaded = useUIStore((s) => s.isUpdateDownloaded)
+  const updateError = useUIStore((s) => s.updateError)
+  const checkForUpdates = useUIStore((s) => s.checkForUpdates)
+  const startUpdateDownload = useUIStore((s) => s.startUpdateDownload)
+  const installUpdate = useUIStore((s) => s.installUpdate)
 
   return (
     <div className="space-y-4 font-sans text-xs select-none">
@@ -42,34 +51,55 @@ export const AboutConfig: React.FC = () => {
               </div>
               <div className="text-xs text-muted-foreground">
                 Current Version:{" "}
-                <span className="rounded-md border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-mono font-semibold text-primary">
-                  v{updateInfo?.currentVersion || "1.0.0"}
+                <span className="rounded-md border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-medium tabular-nums text-primary">
+                  v{updateInfo?.currentVersion || "1.1.1"}
                 </span>
               </div>
             </div>
 
             <div className="flex w-full shrink-0 flex-row items-center gap-2 sm:w-auto">
-              {updateInfo?.updateAvailable && (
-                <Button
-                  variant="default"
-                  size="sm"
-                  className="h-8 flex-1 cursor-pointer bg-emerald-600 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 sm:flex-none dark:bg-emerald-500 dark:hover:bg-emerald-600"
-                  onClick={() =>
-                    window.api.openExternal(updateInfo.downloadUrl)
-                  }
-                >
-                  <ExternalLink className="size-4 shrink-0" />
-                  <span className="sm:hidden">Download</span>
-                  <span className="hidden sm:inline">Download Installer</span>
-                </Button>
-              )}
+              {updateInfo?.updateAvailable &&
+                (isUpdateDownloaded ? (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="h-8 flex-1 cursor-pointer bg-emerald-600 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 sm:flex-none dark:bg-emerald-500 dark:hover:bg-emerald-600"
+                    onClick={() => installUpdate()}
+                  >
+                    <Sparkles className="size-4 shrink-0" />
+                    <span className="sm:hidden">Install</span>
+                    <span className="hidden sm:inline">Install & Restart</span>
+                  </Button>
+                ) : isDownloadingUpdate ? (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    disabled
+                    className="h-8 flex-1 bg-emerald-600/70 text-xs font-semibold text-white sm:flex-none"
+                  >
+                    <Loader2 className="size-4 shrink-0 animate-spin" />
+                    <span className="sm:hidden">Downloading...</span>
+                    <span className="hidden sm:inline">Downloading...</span>
+                  </Button>
+                ) : (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="h-8 flex-1 cursor-pointer bg-emerald-600 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 sm:flex-none dark:bg-emerald-500 dark:hover:bg-emerald-600"
+                    onClick={() => startUpdateDownload()}
+                  >
+                    <Download className="size-4 shrink-0" />
+                    <span className="sm:hidden">Download</span>
+                    <span className="hidden sm:inline">Download & Install</span>
+                  </Button>
+                ))}
 
               <Button
                 variant="outline"
                 size="sm"
                 className="h-8 flex-1 cursor-pointer text-xs font-semibold sm:flex-none"
                 onClick={() => checkForUpdates(true)}
-                disabled={isCheckingUpdate}
+                disabled={isCheckingUpdate || isDownloadingUpdate}
               >
                 {isCheckingUpdate ? (
                   <>
@@ -88,6 +118,25 @@ export const AboutConfig: React.FC = () => {
             </div>
           </div>
 
+          {/* Live Download Progress Bar */}
+          {isDownloadingUpdate && (
+            <div className="space-y-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 dark:bg-emerald-500/10">
+              <div className="flex items-center justify-between text-xs text-emerald-800 dark:text-emerald-300">
+                <span className="flex items-center gap-2 font-medium">
+                  <Loader2 className="size-3.5 shrink-0 animate-spin" />
+                  Downloading v{updateInfo?.latestVersion} installer...
+                </span>
+                <span className="font-semibold tabular-nums">
+                  {updateDownloadProgress}%
+                </span>
+              </div>
+              <Progress
+                value={updateDownloadProgress}
+                className="h-1.5 bg-emerald-500/20"
+              />
+            </div>
+          )}
+
           <div className="my-4 h-px bg-border" />
 
           {/* Update Status Display */}
@@ -101,15 +150,21 @@ export const AboutConfig: React.FC = () => {
           ) : updateError ? (
             <div className="flex items-center gap-2 rounded-lg border border-destructive/10 bg-destructive/5 p-3 text-xs text-destructive">
               <AlertCircle className="h-4 w-4 shrink-0" />
-              <span>Failed to check for updates: {updateError}</span>
+              <span>Failed to check or download updates: {updateError}</span>
             </div>
           ) : updateInfo ? (
             updateInfo.updateAvailable ? (
               <div className="space-y-3 rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-4 dark:bg-emerald-500/10">
                 <div className="flex items-center gap-3">
-                  <span className="flex h-2 w-2 shrink-0 animate-pulse rounded-full bg-emerald-500" />
+                  {isUpdateDownloaded ? (
+                    <CheckCircle2 className="size-4 shrink-0 text-emerald-500" />
+                  ) : (
+                    <span className="flex h-2 w-2 shrink-0 animate-pulse rounded-full bg-emerald-500" />
+                  )}
                   <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
-                    New Update Available (v{updateInfo.latestVersion})
+                    {isUpdateDownloaded
+                      ? `Update v${updateInfo.latestVersion} Ready to Install`
+                      : `New Update Available (v${updateInfo.latestVersion})`}
                   </span>
                 </div>
 

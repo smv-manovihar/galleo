@@ -136,6 +136,20 @@ const api: GalleoAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.MEDIA_CLEAR_INDEX, folderPath),
   checkForUpdates: (force?: boolean) =>
     ipcRenderer.invoke(IPC_CHANNELS.APP_CHECK_UPDATE, force),
+  downloadUpdate: (downloadUrl: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.APP_DOWNLOAD_UPDATE, downloadUrl),
+  installUpdate: () => ipcRenderer.invoke(IPC_CHANNELS.APP_INSTALL_UPDATE),
+  onUpdateDownloadProgress: (callback) => {
+    const listener = (_event: IpcRendererEvent, progress: number) =>
+      callback(progress)
+    ipcRenderer.on(IPC_CHANNELS.APP_DOWNLOAD_UPDATE_PROGRESS, listener)
+    return () => {
+      ipcRenderer.removeListener(
+        IPC_CHANNELS.APP_DOWNLOAD_UPDATE_PROGRESS,
+        listener
+      )
+    }
+  },
   openExternal: (url) => ipcRenderer.invoke(IPC_CHANNELS.URL_OPEN, url),
   checkScanInterrupted: () => ipcRenderer.invoke(IPC_CHANNELS.SCAN_INTERRUPTED_CHECK),
   getScanStatus: () => ipcRenderer.invoke(IPC_CHANNELS.SCAN_GET_STATUS),

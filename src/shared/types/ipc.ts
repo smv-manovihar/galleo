@@ -35,6 +35,9 @@ export const IPC_CHANNELS = {
   APP_STORAGE_USAGE: "app:storage-usage",
   MEDIA_CLEAR_INDEX: "media:clear-index",
   APP_CHECK_UPDATE: "app:check-update",
+  APP_DOWNLOAD_UPDATE: "app:download-update",
+  APP_DOWNLOAD_UPDATE_PROGRESS: "app:download-update-progress",
+  APP_INSTALL_UPDATE: "app:install-update",
   URL_OPEN: "url:open",
   SEARCH_SEMANTIC: "search:semantic",
   SEARCH_FIND_SIMILAR: "search:find-similar",
@@ -202,6 +205,11 @@ export interface GalleoAPI {
   getStorageUsage: (force?: boolean) => Promise<AppStorageUsage>
   clearFolderIndex: (folderPath: string) => Promise<Result<void>>
   checkForUpdates: (force?: boolean) => Promise<Result<UpdateCheckResult>>
+  downloadUpdate: (downloadUrl: string) => Promise<Result<string>>
+  installUpdate: () => Promise<Result<void>>
+  onUpdateDownloadProgress: (
+    callback: (progress: number) => void
+  ) => () => void
   openExternal: (url: string) => Promise<Result<void>>
 
   // AI Visual Search APIs

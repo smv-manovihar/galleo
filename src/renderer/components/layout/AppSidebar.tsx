@@ -19,7 +19,10 @@ import {
   Library,
   ScanSearch,
   X,
+  Loader2,
+  Sparkles,
 } from "lucide-react"
+import { Progress } from "@/components/ui/progress"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -57,6 +60,120 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar"
 
+const SidebarUpdateBanner: React.FC = React.memo(() => {
+  const updateInfo = useUIStore((s) => s.updateInfo)
+  const dismissedVersion = useUIStore((s) => s.dismissedVersion)
+  const dismissUpdate = useUIStore((s) => s.dismissUpdate)
+  const isDownloadingUpdate = useUIStore((s) => s.isDownloadingUpdate)
+  const updateDownloadProgress = useUIStore((s) => s.updateDownloadProgress)
+  const isUpdateDownloaded = useUIStore((s) => s.isUpdateDownloaded)
+  const startUpdateDownload = useUIStore((s) => s.startUpdateDownload)
+  const installUpdate = useUIStore((s) => s.installUpdate)
+  const setCurrentView = useUIStore((s) => s.setCurrentView)
+  const setActiveSettingsTab = useUIStore((s) => s.setActiveSettingsTab)
+
+  if (
+    !updateInfo?.updateAvailable ||
+    updateInfo.latestVersion === dismissedVersion
+  ) {
+    return null
+  }
+
+  return (
+    <SidebarFooter className="p-3 pt-0">
+      <div
+        onClick={() => {
+          if (isUpdateDownloaded) {
+            installUpdate()
+          } else if (!isDownloadingUpdate) {
+            startUpdateDownload()
+          }
+        }}
+        className="group/update relative flex cursor-pointer flex-col gap-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs transition-all select-none hover:bg-emerald-500/10 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/15"
+      >
+        <div className="flex items-center justify-between gap-2 min-w-0">
+          <span
+            className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-300 min-w-0 truncate whitespace-nowrap"
+            title={
+              isUpdateDownloaded
+                ? "Click to install update and restart"
+                : isDownloadingUpdate
+                  ? `Downloading installer (${updateDownloadProgress}%)`
+                  : "Click to download update"
+            }
+          >
+            {isUpdateDownloaded ? (
+              <Sparkles className="size-3.5 shrink-0 text-emerald-500" />
+            ) : isDownloadingUpdate ? (
+              <Loader2 className="size-3.5 shrink-0 animate-spin text-emerald-500" />
+            ) : (
+              <span className="size-2 shrink-0 animate-pulse rounded-full bg-emerald-500" />
+            )}
+            <span className="truncate">
+              {isUpdateDownloaded
+                ? "Update Ready"
+                : isDownloadingUpdate
+                  ? "Downloading..."
+                  : `Update v${updateInfo.latestVersion}`}
+            </span>
+          </span>
+
+          <div className="flex items-center gap-1.5 shrink-0 whitespace-nowrap text-xs">
+            {isDownloadingUpdate ? (
+              <span className="font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
+                {updateDownloadProgress}%
+              </span>
+            ) : (
+              <>
+                <span
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setActiveSettingsTab("about")
+                    setCurrentView("settings")
+                  }}
+                  className="font-semibold text-muted-foreground transition-colors hover:text-foreground hover:underline cursor-pointer"
+                  title="View release notes in Settings"
+                >
+                  Notes
+                </span>
+                <span className="h-3 w-px bg-border/40" />
+                <span
+                  className="font-semibold text-emerald-600 group-hover/update:underline dark:text-emerald-400 cursor-pointer"
+                  title={
+                    isUpdateDownloaded
+                      ? "Install and restart application"
+                      : "Download installer directly"
+                  }
+                >
+                  {isUpdateDownloaded ? "Restart" : "Download"}
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+
+        {isDownloadingUpdate && (
+          <Progress
+            value={updateDownloadProgress}
+            className="h-1 bg-emerald-500/20"
+          />
+        )}
+
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            dismissUpdate()
+          }}
+          className="absolute -top-1 -right-1 cursor-pointer rounded-full border border-border bg-background p-0.5 text-muted-foreground opacity-0 shadow-xs transition-opacity group-hover/update:opacity-100 hover:bg-destructive/10 hover:text-destructive"
+          title="Dismiss update notifier"
+        >
+          <X className="size-3" />
+        </button>
+      </div>
+    </SidebarFooter>
+  )
+})
+
 export const AppSidebar: React.FC = () => {
   const currentView = useUIStore((s) => s.currentView)
   const setCurrentView = useUIStore((s) => s.setCurrentView)
@@ -64,7 +181,6 @@ export const AppSidebar: React.FC = () => {
   const checkForUpdates = useUIStore((s) => s.checkForUpdates)
   const hasRunInitialUpdateCheck = useUIStore((s) => s.hasRunInitialUpdateCheck)
   const dismissedVersion = useUIStore((s) => s.dismissedVersion)
-  const dismissUpdate = useUIStore((s) => s.dismissUpdate)
   const folderRoots = useSettingsStore((s) => s.settings.folders.roots)
   const addRootFolder = useSettingsStore((s) => s.addRootFolder)
   const removeRootFolder = useSettingsStore((s) => s.removeRootFolder)
@@ -367,53 +483,7 @@ export const AppSidebar: React.FC = () => {
         </SidebarGroup>
       </SidebarContent>
 
-      {updateInfo?.updateAvailable &&
-        updateInfo.latestVersion !== dismissedVersion && (
-          <SidebarFooter className="p-3 pt-0">
-            <div
-              onClick={() => window.api.openExternal(updateInfo.downloadUrl)}
-              className="group/update relative flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs transition-all select-none hover:bg-emerald-500/10 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/15"
-            >
-              <span
-                className="flex items-center gap-2 font-medium text-emerald-700 dark:text-emerald-300"
-                title="Click to download new update"
-              >
-                <span className="size-2 shrink-0 animate-pulse rounded-full bg-emerald-500" />
-                Update v{updateInfo.latestVersion}
-              </span>
-              <div className="flex items-center gap-2">
-                <span
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    window.api.openExternal(updateInfo.releaseUrl)
-                  }}
-                  className="font-semibold text-muted-foreground transition-colors hover:text-foreground hover:underline"
-                  title="View release notes"
-                >
-                  Notes
-                </span>
-                <span className="h-3 w-px bg-border/40" />
-                <span
-                  className="font-semibold text-emerald-600 group-hover/update:underline dark:text-emerald-400"
-                  title="Click to download new update"
-                >
-                  Download
-                </span>
-              </div>
-
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  dismissUpdate()
-                }}
-                className="absolute -top-1 -right-1 cursor-pointer rounded-full border border-border bg-background p-0.5 text-muted-foreground opacity-0 shadow-xs transition-opacity group-hover/update:opacity-100 hover:bg-destructive/10 hover:text-destructive"
-                title="Dismiss update notifier"
-              >
-                <X className="size-3" />
-              </button>
-            </div>
-          </SidebarFooter>
-        )}
+      <SidebarUpdateBanner />
 
       {/* Scan prompt — shown when user clicks All Media with no indexed items */}
       <AlertDialog

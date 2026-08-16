@@ -1,8 +1,11 @@
-import { app } from "electron"
+import { app, BrowserWindow, shell } from "electron"
+import { spawn } from "child_process"
 import fs from "fs/promises"
+import { createWriteStream } from "fs"
+import path from "path"
 
 import { type Result, ok, fail } from "../../shared/types/results"
-import type { UpdateCheckResult } from "../../shared/types/ipc"
+import { IPC_CHANNELS, type UpdateCheckResult } from "../../shared/types/ipc"
 import { getUpdateCachePath } from "../infrastructure/app-paths"
 
 const GITHUB_RELEASES_URL =
@@ -31,6 +34,20 @@ interface GitHubRelease {
 
 export class UpdateService {
   private static inMemoryCache: UpdateCache | null = null
+  private downloadedInstallerPath: string | null = null
+  private downloadAbortController: AbortController | null = null
+
+  public static clearInMemoryCache(): void {
+    UpdateService.inMemoryCache = null
+  }
+
+  public getDownloadedInstallerPath(): string | null {
+    return this.downloadedInstallerPath
+  }
+
+  public setDownloadedInstallerPathForTesting(filePath: string | null): void {
+    this.downloadedInstallerPath = filePath
+  }
 
   private getCacheFilePath(): string {
     return getUpdateCachePath()
@@ -76,13 +93,25 @@ export class UpdateService {
   ): Promise<Result<UpdateCheckResult>> {
     const cached = await this.loadCache()
     const now = Date.now()
+    const currentVersion = app.getVersion()
 
     if (!force && cached && now - cached.timestamp < CACHE_TTL_MS) {
-      return ok(cached.data)
+      const synchronizedData: UpdateCheckResult = {
+        ...cached.data,
+        currentVersion,
+        updateAvailable: this.isVersionNewer(
+          currentVersion,
+          cached.data.latestVersion
+        ),
+      }
+      if (cached.data.currentVersion !== currentVersion) {
+        cached.data = synchronizedData
+        this.saveCache(cached).catch(() => {})
+      }
+      return ok(synchronizedData)
     }
 
     try {
-      const currentVersion = app.getVersion()
       const headers: Record<string, string> = {
         "User-Agent": "galleo-update-checker",
         Accept: "application/vnd.github.v3+json",
@@ -99,6 +128,11 @@ export class UpdateService {
 
       if (response.status === 304 && cached) {
         cached.timestamp = now
+        cached.data.currentVersion = currentVersion
+        cached.data.updateAvailable = this.isVersionNewer(
+          currentVersion,
+          cached.data.latestVersion
+        )
         await this.saveCache(cached)
         return ok(cached.data)
       }
@@ -111,7 +145,15 @@ export class UpdateService {
             console.warn(
               "GitHub update check rate limited; serving cached update result."
             )
-            return ok(cached.data)
+            const synchronizedData: UpdateCheckResult = {
+              ...cached.data,
+              currentVersion,
+              updateAvailable: this.isVersionNewer(
+                currentVersion,
+                cached.data.latestVersion
+              ),
+            }
+            return ok(synchronizedData)
           }
           return fail({
             code: "UNKNOWN",
@@ -128,11 +170,23 @@ export class UpdateService {
             releaseUrl: "https://github.com/smv-manovihar/galleo/releases",
             downloadUrl: "https://github.com/smv-manovihar/galleo/releases",
           }
+          await this.saveCache({
+            data: fallbackData,
+            timestamp: now,
+          })
           return ok(fallbackData)
         }
 
         if (cached) {
-          return ok(cached.data)
+          const synchronizedData: UpdateCheckResult = {
+            ...cached.data,
+            currentVersion,
+            updateAvailable: this.isVersionNewer(
+              currentVersion,
+              cached.data.latestVersion
+            ),
+          }
+          return ok(synchronizedData)
         }
 
         return fail({
@@ -143,10 +197,20 @@ export class UpdateService {
 
       const etag = response.headers.get("etag") || undefined
       const releaseInfo = (await response.json()) as GitHubRelease
-      const latestVersion = releaseInfo.tag_name?.replace(/^v/, "") || ""
+      const latestVersion = releaseInfo.tag_name?.replace(/^v/, "").trim() || ""
 
       if (!latestVersion) {
-        if (cached) return ok(cached.data)
+        if (cached) {
+          const synchronizedData: UpdateCheckResult = {
+            ...cached.data,
+            currentVersion,
+            updateAvailable: this.isVersionNewer(
+              currentVersion,
+              cached.data.latestVersion
+            ),
+          }
+          return ok(synchronizedData)
+        }
         return fail({
           code: "UNKNOWN",
           message: "GitHub response is missing tag_name",
@@ -159,10 +223,11 @@ export class UpdateService {
       )
 
       const platform = process.platform
+      const arch = process.arch
       let downloadUrl = releaseInfo.html_url
 
       if (releaseInfo.assets && Array.isArray(releaseInfo.assets)) {
-        const asset = this.findMatchingAsset(releaseInfo.assets, platform)
+        const asset = this.findMatchingAsset(releaseInfo.assets, platform, arch)
         if (asset) {
           downloadUrl = asset.browser_download_url
         }
@@ -187,7 +252,15 @@ export class UpdateService {
       return ok(resultData)
     } catch (e: unknown) {
       if (cached) {
-        return ok(cached.data)
+        const synchronizedData: UpdateCheckResult = {
+          ...cached.data,
+          currentVersion,
+          updateAvailable: this.isVersionNewer(
+            currentVersion,
+            cached.data.latestVersion
+          ),
+        }
+        return ok(synchronizedData)
       }
       const message =
         e instanceof Error ? e.message : "Check for updates failed"
@@ -199,50 +272,279 @@ export class UpdateService {
   }
 
   /**
+   * Downloads the release installer binary to the temporary directory with live progress updates.
+   *
+   * @param {BrowserWindow} window The main Electron browser window for progress event delivery.
+   * @param {string} downloadUrl The direct asset download URL.
+   * @returns {Promise<Result<string>>} The absolute path to the downloaded installer.
+   */
+  public async downloadUpdate(
+    window: BrowserWindow,
+    downloadUrl: string
+  ): Promise<Result<string>> {
+    if (!downloadUrl || !/^https?:\/\//i.test(downloadUrl.trim())) {
+      return fail({
+        code: "UNKNOWN",
+        message: "Invalid update download URL",
+      })
+    }
+
+    try {
+      this.downloadAbortController = new AbortController()
+
+      let filename = "Galleo-Setup.exe"
+      try {
+        const parsedName = path.basename(new URL(downloadUrl).pathname)
+        if (parsedName && parsedName.length > 3) {
+          filename = parsedName
+        }
+      } catch {
+        // Fallback default filename
+      }
+
+      const tempDir = app.getPath("temp")
+      const targetPath = path.join(tempDir, filename)
+
+      const response = await fetch(downloadUrl, {
+        headers: {
+          "User-Agent": "galleo-update-checker",
+          Accept: "application/octet-stream, */*",
+        },
+        signal: this.downloadAbortController.signal,
+      })
+
+      if (!response.ok || !response.body) {
+        return fail({
+          code: "UNKNOWN",
+          message: `Failed to download installer (HTTP ${response.status}: ${response.statusText})`,
+        })
+      }
+
+      const contentLengthHeader = response.headers.get("content-length")
+      const totalBytes = contentLengthHeader
+        ? parseInt(contentLengthHeader, 10)
+        : 0
+      let receivedBytes = 0
+      let lastReportedPercent = -1
+
+      const reader = response.body.getReader()
+      const fileStream = createWriteStream(targetPath)
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          if (value) {
+            receivedBytes += value.length
+            fileStream.write(Buffer.from(value))
+
+            if (totalBytes > 0) {
+              const percent = Math.min(
+                100,
+                Math.floor((receivedBytes / totalBytes) * 100)
+              )
+              if (percent !== lastReportedPercent) {
+                lastReportedPercent = percent
+                if (window && !window.isDestroyed()) {
+                  window.webContents.send(
+                    IPC_CHANNELS.APP_DOWNLOAD_UPDATE_PROGRESS,
+                    percent
+                  )
+                }
+              }
+            }
+          }
+        }
+      } finally {
+        await new Promise<void>((resolve, reject) => {
+          fileStream.end(() => resolve())
+          fileStream.on("error", reject)
+        })
+      }
+
+      this.downloadedInstallerPath = targetPath
+      if (window && !window.isDestroyed()) {
+        window.webContents.send(IPC_CHANNELS.APP_DOWNLOAD_UPDATE_PROGRESS, 100)
+      }
+
+      return ok(targetPath)
+    } catch (e: unknown) {
+      const message =
+        e instanceof Error ? e.message : "Downloading update installer failed"
+      return fail({
+        code: "UNKNOWN",
+        message,
+      })
+    } finally {
+      this.downloadAbortController = null
+    }
+  }
+
+  /**
+   * Spawns the downloaded installer and gracefully exits the application.
+   *
+   * @returns {Promise<Result<void>>}
+   */
+  public async installUpdate(): Promise<Result<void>> {
+    if (!this.downloadedInstallerPath) {
+      return fail({
+        code: "UNKNOWN",
+        message: "No downloaded installer is ready for installation",
+      })
+    }
+
+    const installerPath = this.downloadedInstallerPath
+
+    try {
+      if (process.platform === "win32") {
+        const spawned = spawn(installerPath, [], {
+          detached: true,
+          stdio: "ignore",
+        })
+        spawned.unref()
+        app.quit()
+        return ok(undefined)
+      } else if (process.platform === "darwin") {
+        await shell.openPath(installerPath)
+        app.quit()
+        return ok(undefined)
+      } else if (process.platform === "linux") {
+        if (installerPath.endsWith(".AppImage")) {
+          await fs.chmod(installerPath, 0o755)
+          const spawned = spawn(installerPath, [], {
+            detached: true,
+            stdio: "ignore",
+          })
+          spawned.unref()
+          app.quit()
+          return ok(undefined)
+        } else {
+          await shell.openPath(installerPath)
+          app.quit()
+          return ok(undefined)
+        }
+      } else {
+        await shell.openPath(installerPath)
+        app.quit()
+        return ok(undefined)
+      }
+    } catch (e: unknown) {
+      const message =
+        e instanceof Error ? e.message : "Failed to launch update installer"
+      return fail({
+        code: "UNKNOWN",
+        message,
+      })
+    }
+  }
+
+  /**
    * Compares two SemVer versions to determine if the latest version is newer.
+   * Correctly handles major/minor/patch segments and pre-release identifiers.
    *
    * @param {string} current The current application version.
    * @param {string} latest The latest released version.
    * @returns {boolean} True if latest is newer than current, false otherwise.
    */
-  private isVersionNewer(current: string, latest: string): boolean {
-    const parse = (v: string) => v.replace(/^v/, "").split(".").map(Number)
-    const [cMajor = 0, cMinor = 0, cPatch = 0] = parse(current)
-    const [lMajor = 0, lMinor = 0, lPatch = 0] = parse(latest)
+  public isVersionNewer(current: string, latest: string): boolean {
+    const parseVersion = (v: string) => {
+      const clean = (v || "").trim().replace(/^v/i, "")
+      const [core, prerelease] = clean.split("-")
+      const parts = (core || "").split(".").map((p) => {
+        const num = parseInt(p, 10)
+        return isNaN(num) ? 0 : num
+      })
+      while (parts.length < 3) {
+        parts.push(0)
+      }
+      return { parts, prerelease: prerelease ? prerelease.trim() : null }
+    }
 
-    if (lMajor !== cMajor) {
-      return lMajor > cMajor
+    const curr = parseVersion(current)
+    const lat = parseVersion(latest)
+
+    for (let i = 0; i < Math.max(curr.parts.length, lat.parts.length); i++) {
+      const c = curr.parts[i] ?? 0
+      const l = lat.parts[i] ?? 0
+      if (l !== c) {
+        return l > c
+      }
     }
-    if (lMinor !== cMinor) {
-      return lMinor > cMinor
+
+    // Core versions are equal (e.g. "1.1.0" vs "1.1.0")
+    // Pre-release upgrade: 1.1.0-beta.1 -> 1.1.0 (stable is newer than pre-release)
+    if (curr.prerelease && !lat.prerelease) {
+      return true
     }
-    return lPatch > cPatch
+    // Stable compared against pre-release of same version: 1.1.0 -> 1.1.0-beta.1 (not newer)
+    if (!curr.prerelease && lat.prerelease) {
+      return false
+    }
+    // Both are pre-releases: e.g. beta.1 -> beta.2
+    if (curr.prerelease && lat.prerelease) {
+      return (
+        lat.prerelease.localeCompare(curr.prerelease, undefined, {
+          numeric: true,
+        }) > 0
+      )
+    }
+
+    return false
   }
 
   /**
-   * Finds the best installer asset for the user's platform.
+   * Finds the best installer asset for the user's platform and architecture.
    *
    * @param {GitHubReleaseAsset[]} assets The list of release assets.
    * @param {string} platform The operating system platform.
+   * @param {string} [arch] The operating system CPU architecture.
    * @returns {GitHubReleaseAsset | null} The matching asset object or null.
    */
-  private findMatchingAsset(
+  public findMatchingAsset(
     assets: GitHubReleaseAsset[],
-    platform: string
+    platform: string,
+    arch: string = process.arch
   ): GitHubReleaseAsset | null {
+    const isArm = arch === "arm64" || arch === "arm"
+
+    // Filter out blockmap, yml, and checksum files
+    const validAssets = assets.filter(
+      (a) => !/\.(blockmap|yml|yaml|sha256|md5|sig)$/i.test(a.name)
+    )
+
     let patterns: RegExp[] = []
     if (platform === "win32") {
-      patterns = [/\.exe$/i, /\.msi$/i]
+      patterns = isArm
+        ? [/arm64.*\.exe$/i, /arm64.*\.msi$/i, /\.exe$/i, /\.msi$/i]
+        : [/(setup|x64|win).*\.exe$/i, /\.exe$/i, /\.msi$/i]
     } else if (platform === "darwin") {
-      patterns = [/\.dmg$/i, /\.pkg$/i, /mac\.zip$/i, /darwin\.zip$/i]
+      patterns = isArm
+        ? [
+            /arm64.*\.dmg$/i,
+            /arm64.*\.pkg$/i,
+            /\.dmg$/i,
+            /\.pkg$/i,
+            /mac\.zip$/i,
+          ]
+        : [/(x64|intel).*\.dmg$/i, /\.dmg$/i, /\.pkg$/i, /mac\.zip$/i]
     } else if (platform === "linux") {
-      patterns = [/\.appimage$/i, /\.deb$/i, /\.rpm$/i, /\.tar\.gz$/i]
+      patterns = isArm
+        ? [/arm64.*\.appimage$/i, /arm64.*\.deb$/i, /\.appimage$/i, /\.deb$/i]
+        : [
+            /(amd64|x86_64).*\.appimage$/i,
+            /(amd64|x86_64).*\.deb$/i,
+            /\.appimage$/i,
+            /\.deb$/i,
+            /\.rpm$/i,
+          ]
     }
 
     for (const pattern of patterns) {
-      const match = assets.find((asset) => pattern.test(asset.name))
+      const match = validAssets.find((asset) => pattern.test(asset.name))
       if (match) return match
     }
-    return null
+
+    return validAssets[0] || null
   }
 }

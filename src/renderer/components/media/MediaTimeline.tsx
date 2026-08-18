@@ -17,6 +17,7 @@ interface MediaTimelineProps {
   onPlayOpen?: (item: MediaItem) => void
   onContextMenu?: (item: MediaItem, e: React.MouseEvent) => void
   topOffset?: number
+  footer?: React.ReactNode
 }
 
 const GAP = 16
@@ -32,6 +33,7 @@ const MediaTimelineComponent: React.FC<MediaTimelineProps> = ({
   onPlayOpen,
   onContextMenu,
   topOffset = 64,
+  footer,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
@@ -155,6 +157,16 @@ const MediaTimelineComponent: React.FC<MediaTimelineProps> = ({
   })
 
   if (items.length === 0) {
+    if (footer) {
+      return (
+        <div
+          className="flex h-full w-full flex-1 flex-col items-center justify-center p-4 font-sans text-xs text-muted-foreground select-none"
+          style={{ paddingTop: `${topOffset}px` }}
+        >
+          {footer}
+        </div>
+      )
+    }
     return (
       <div className="flex h-full w-full flex-1 flex-col items-center justify-center py-16 font-sans text-xs text-muted-foreground select-none">
         {!isScanned ? (
@@ -173,6 +185,8 @@ const MediaTimelineComponent: React.FC<MediaTimelineProps> = ({
     )
   }
 
+  const footerExtraHeight = footer ? 220 : 0
+
   return (
     <div
       ref={containerRef}
@@ -181,7 +195,7 @@ const MediaTimelineComponent: React.FC<MediaTimelineProps> = ({
       <div
         className="relative w-full"
         style={{
-          height: `${rowVirtualizer.getTotalSize() + topOffset}px`,
+          height: `${rowVirtualizer.getTotalSize() + topOffset + footerExtraHeight}px`,
         }}
       >
         {rowVirtualizer.getVirtualItems().map((virtualRow) => {
@@ -240,6 +254,16 @@ const MediaTimelineComponent: React.FC<MediaTimelineProps> = ({
             )
           }
         })}
+        {footer && (
+          <div
+            className="absolute left-0 w-full px-2"
+            style={{
+              top: `${rowVirtualizer.getTotalSize() + topOffset + 12}px`,
+            }}
+          >
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   )

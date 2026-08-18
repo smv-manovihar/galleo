@@ -16,7 +16,7 @@ import {
   SelectTrigger,
 } from "@/components/ui/select"
 import {
-  FolderSync,
+  FolderOpen,
   Settings2,
   Eye,
   RefreshCcw,
@@ -51,9 +51,9 @@ export const SettingsPage: React.FC = () => {
   }
 
   const rawTabsData: TabItem[] = [
-    { value: "folders", label: "Allowed Roots", icon: FolderSync },
+    { value: "folders", label: "Allowed Roots", icon: FolderOpen },
     { value: "scan", label: "Scan Rules", icon: Settings2 },
-    { value: "quality", label: "Defect Tresholds", icon: SlidersHorizontal },
+    { value: "quality", label: "Quality Thresholds", icon: SlidersHorizontal },
     { value: "appearance", label: "Theme & Interface", icon: Eye },
     { value: "ai", label: "AI Visual Search", icon: Sparkles },
     { value: "reset", label: "Reset App Data", icon: RefreshCcw },

@@ -136,5 +136,22 @@ describe("Similarity utilities", () => {
       expect(results.map((i) => i.id)).toContain("group")
       expect(results.map((i) => i.id)).not.toContain("unrelated")
     })
+
+    it("expands matches as radius increases", () => {
+      const target = mockItem("target", "00000000")
+      const d4 = mockItem("d4", "0000000f") // 4 bits diff
+      const d10 = mockItem("d10", "000003ff") // 10 bits diff
+      const d20 = mockItem("d20", "000fffff") // 20 bits diff
+      const all = [target, d4, d10, d20]
+
+      const narrowResults = findSimilarPerceptual(target, all, 6)
+      expect(narrowResults.map((i) => i.id)).toEqual(["target", "d4"])
+
+      const standardResults = findSimilarPerceptual(target, all, 12)
+      expect(standardResults.map((i) => i.id)).toEqual(["target", "d4", "d10"])
+
+      const broadResults = findSimilarPerceptual(target, all, 22)
+      expect(broadResults.map((i) => i.id)).toEqual(["target", "d4", "d10", "d20"])
+    })
   })
 })

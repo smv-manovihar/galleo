@@ -1,7 +1,16 @@
 import { create } from "zustand"
 import { toast } from "sonner"
 import type { UpdateCheckResult } from "../../shared/types/ipc"
-import { withViewTransition } from "../lib/view-transition"
+import { withViewTransition, type NavigationDirection } from "../lib/view-transition"
+
+export const VIEW_ORDER: Record<ViewMode, number> = {
+  dashboard: 0,
+  browse: 1,
+  review: 2,
+  duplicates: 3,
+  organize: 4,
+  settings: 5,
+}
 
 type ViewMode =
   | "dashboard"
@@ -35,7 +44,7 @@ interface UIState {
   hasRunInitialUpdateCheck: boolean
   dismissedVersion: string | null
 
-  setCurrentView: (view: ViewMode) => void
+  setCurrentView: (view: ViewMode, direction?: NavigationDirection) => void
   setSidebarOpen: (open: boolean) => void
   setKeyboardShortcutsOpen: (open: boolean) => void
   setPreviewMetaPanelOpen: (open: boolean) => void
@@ -85,11 +94,18 @@ export const useUIStore = create<UIState>((set, get) => ({
       ? localStorage.getItem("galleo_dismissed_update")
       : null,
 
-  setCurrentView: (currentView) => {
-    if (get().currentView === currentView) return
+  setCurrentView: (currentView, forcedDirection) => {
+    const prevView = get().currentView
+    if (prevView === currentView) return
+
+    const prevIndex = VIEW_ORDER[prevView] ?? 0
+    const nextIndex = VIEW_ORDER[currentView] ?? 0
+    const direction: NavigationDirection =
+      forcedDirection ?? (nextIndex >= prevIndex ? "forward" : "back")
+
     withViewTransition(() => {
       set({ currentView })
-    })
+    }, direction)
   },
   setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
   setKeyboardShortcutsOpen: (keyboardShortcutsOpen) =>

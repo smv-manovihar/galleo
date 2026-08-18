@@ -4,11 +4,7 @@ import type { VideoPlayerRef } from "../media/VideoPlayer"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Bookmark,
-  Trash2,
-  Maximize,
-} from "lucide-react"
+import { Bookmark, Trash2, Maximize } from "lucide-react"
 import {
   Tooltip,
   TooltipTrigger,
@@ -180,7 +176,7 @@ const MediaCullingCardInner: React.FC<MediaCullingCardInnerProps> = React.memo(
                   : "opacity-0"
               } ${
                 itemIsVideo
-                  ? "absolute inset-x-4 bottom-16 flex flex-col rounded-xl border border-white/10 bg-black/60 p-3 text-white backdrop-blur-md"
+                  ? "absolute inset-x-4 bottom-20 flex flex-col rounded-xl border border-white/10 bg-black/60 p-3 text-white backdrop-blur-md"
                   : "absolute inset-x-0 bottom-0 flex flex-col bg-linear-to-t from-black/85 via-black/45 to-transparent p-4 pb-3 text-white"
               }`}
             >
@@ -250,7 +246,8 @@ export const MediaCullingCard: React.FC<MediaCullingCardProps> = ({
 
     if (cardRef.current && isTopCard) {
       if (restoringDirection === "left") {
-        cardRef.current.style.transform = "translate(-150%, 60px) rotate(-25deg)"
+        cardRef.current.style.transform =
+          "translate(-150%, 60px) rotate(-25deg)"
         cardRef.current.style.transition = "none"
         cardRef.current.style.opacity = "0"
       } else if (restoringDirection === "right") {
@@ -258,7 +255,8 @@ export const MediaCullingCard: React.FC<MediaCullingCardProps> = ({
         cardRef.current.style.transition = "none"
         cardRef.current.style.opacity = "0"
       } else if (swipeClass === "slide-left") {
-        cardRef.current.style.transform = "translate(-150%, 60px) rotate(-25deg)"
+        cardRef.current.style.transform =
+          "translate(-150%, 60px) rotate(-25deg)"
         cardRef.current.style.transition =
           "transform 400ms cubic-bezier(0.4, 0, 0.2, 1), opacity 350ms ease"
         cardRef.current.style.opacity = "0"
@@ -273,12 +271,14 @@ export const MediaCullingCard: React.FC<MediaCullingCardProps> = ({
           "transform 350ms cubic-bezier(0.4, 0, 0.2, 1), opacity 300ms ease"
         cardRef.current.style.opacity = "0"
       } else if (swipeOutAction === "delete") {
-        cardRef.current.style.transform = "translate(-150%, 60px) rotate(-25deg)"
+        cardRef.current.style.transform =
+          "translate(-150%, 60px) rotate(-25deg)"
         cardRef.current.style.transition =
           "transform 350ms cubic-bezier(0.4, 0, 0.2, 1), opacity 300ms ease"
         cardRef.current.style.opacity = "0"
       } else {
-        cardRef.current.style.transform = "translate(0, 0) rotate(0deg) scale(1)"
+        cardRef.current.style.transform =
+          "translate(0, 0) rotate(0deg) scale(1)"
         cardRef.current.style.transition =
           "transform 300ms cubic-bezier(0.25, 1, 0.5, 1), opacity 300ms ease"
         cardRef.current.style.opacity = "1"
@@ -337,8 +337,10 @@ export const MediaCullingCard: React.FC<MediaCullingCardProps> = ({
       } else if (dx < -20) {
         delOp = Math.min((Math.abs(dx) - 20) / (thresholdX - 20), 1)
       }
-      if (keepOverlayRef.current) keepOverlayRef.current.style.opacity = String(keepOp)
-      if (deleteOverlayRef.current) deleteOverlayRef.current.style.opacity = String(delOp)
+      if (keepOverlayRef.current)
+        keepOverlayRef.current.style.opacity = String(keepOp)
+      if (deleteOverlayRef.current)
+        deleteOverlayRef.current.style.opacity = String(delOp)
     }
   }
 
@@ -358,7 +360,8 @@ export const MediaCullingCard: React.FC<MediaCullingCardProps> = ({
 
       if (dx > thresholdX) {
         if (cardRef.current) {
-          cardRef.current.style.transform = "translate(150%, 60px) rotate(25deg)"
+          cardRef.current.style.transform =
+            "translate(150%, 60px) rotate(25deg)"
           cardRef.current.style.transition =
             "transform 350ms cubic-bezier(0.4, 0, 0.2, 1), opacity 300ms ease"
           cardRef.current.style.opacity = "0"
@@ -371,26 +374,30 @@ export const MediaCullingCard: React.FC<MediaCullingCardProps> = ({
         }, 350)
       } else if (dx < -thresholdX) {
         if (cardRef.current) {
-          cardRef.current.style.transform = "translate(-150%, 60px) rotate(-25deg)"
+          cardRef.current.style.transform =
+            "translate(-150%, 60px) rotate(-25deg)"
           cardRef.current.style.transition =
             "transform 350ms cubic-bezier(0.4, 0, 0.2, 1), opacity 300ms ease"
           cardRef.current.style.opacity = "0"
           cardRef.current.style.cursor = "grabbing"
         }
-        if (deleteOverlayRef.current) deleteOverlayRef.current.style.opacity = "1"
+        if (deleteOverlayRef.current)
+          deleteOverlayRef.current.style.opacity = "1"
         setSwipeOutAction("delete")
         setTimeout(() => {
           onSwipeComplete?.("delete")
         }, 350)
       } else {
         if (cardRef.current) {
-          cardRef.current.style.transform = "translate(0, 0) rotate(0deg) scale(1)"
+          cardRef.current.style.transform =
+            "translate(0, 0) rotate(0deg) scale(1)"
           cardRef.current.style.transition =
             "transform 300ms cubic-bezier(0.25, 1, 0.5, 1), opacity 300ms ease"
           cardRef.current.style.cursor = "grab"
         }
         if (keepOverlayRef.current) keepOverlayRef.current.style.opacity = "0"
-        if (deleteOverlayRef.current) deleteOverlayRef.current.style.opacity = "0"
+        if (deleteOverlayRef.current)
+          deleteOverlayRef.current.style.opacity = "0"
       }
     }
     hasCapturedRef.current = false
@@ -408,7 +415,8 @@ export const MediaCullingCard: React.FC<MediaCullingCardProps> = ({
     }
     if (cardRef.current) {
       cardRef.current.style.transform = "translate(0, 0) rotate(0deg) scale(1)"
-      cardRef.current.style.transition = "transform 300ms cubic-bezier(0.25, 1, 0.5, 1)"
+      cardRef.current.style.transition =
+        "transform 300ms cubic-bezier(0.25, 1, 0.5, 1)"
     }
     if (keepOverlayRef.current) keepOverlayRef.current.style.opacity = "0"
     if (deleteOverlayRef.current) deleteOverlayRef.current.style.opacity = "0"

@@ -183,8 +183,15 @@ export class SearchEngineService {
     if (includeRelatedClusters && hasAI && filteredResults.length > 0) {
       for (const res of filteredResults.slice(0, 5)) {
         const cluster = await this.findSimilar(res.mediaId, 4)
+        const filteredCluster = folderPath
+          ? cluster.filter((c) => {
+              const normFolder = folderPath.replace(/\\/g, "/").toLowerCase().replace(/\/+$/, "")
+              const cNorm = c.item.path.replace(/\\/g, "/").toLowerCase()
+              return cNorm === normFolder || cNorm.startsWith(normFolder + "/")
+            })
+          : cluster
         // Exclude the parent item itself from cluster
-        res.relatedCluster = cluster.filter((c) => c.mediaId !== res.mediaId)
+        res.relatedCluster = filteredCluster.filter((c) => c.mediaId !== res.mediaId)
       }
     }
 

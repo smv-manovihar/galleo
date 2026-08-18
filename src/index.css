@@ -172,6 +172,7 @@ html {
   view-transition-name: page-content;
 }
 
+/* Default & Forward Navigation (Down the sidebar / forward in workflow) */
 ::view-transition-old(page-content) {
   animation: 180ms cubic-bezier(0.16, 1, 0.3, 1) both page-slide-up-fade-out;
   mix-blend-mode: normal;
@@ -182,6 +183,21 @@ html {
   mix-blend-mode: normal;
 }
 
+/* Backward Navigation (Up the sidebar / back in workflow) */
+html[data-nav-direction="back"]::view-transition-old(page-content) {
+  animation: 180ms cubic-bezier(0.16, 1, 0.3, 1) both page-slide-down-fade-out;
+}
+
+html[data-nav-direction="back"]::view-transition-new(page-content) {
+  animation: 220ms cubic-bezier(0.16, 1, 0.3, 1) both page-slide-down-fade-in;
+}
+
+/* Disabled / Instant Navigation */
+html[data-nav-direction="none"]::view-transition-old(page-content),
+html[data-nav-direction="none"]::view-transition-new(page-content) {
+  animation: none !important;
+}
+
 @keyframes page-slide-up-fade-out {
   from {
     opacity: 1;
@@ -189,14 +205,36 @@ html {
   }
   to {
     opacity: 0;
-    transform: translateY(-10px);
+    transform: translateY(-12px);
   }
 }
 
 @keyframes page-slide-up-fade-in {
   from {
     opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes page-slide-down-fade-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
     transform: translateY(12px);
+  }
+}
+
+@keyframes page-slide-down-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-14px);
   }
   to {
     opacity: 1;

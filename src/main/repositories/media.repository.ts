@@ -242,20 +242,26 @@ export class MediaRepository {
       return rows.map((row) => this.rowToMediaItem(row))
     }
 
-    // Escape SQL LIKE wildcards and normalize path
-    const searchPath = folderPath
+    // Normalize path and match exact folder or subpath
+    const normPath = folderPath
       .replace(/\\/g, "/")
       .toLowerCase()
-      .replace(/[!%_]/g, "!$&")
+      .replace(/\/+$/, "")
 
-    // We match any item whose path starts with the folderPath (normalized to forward slashes for cross-platform matching)
+    const exactPath = normPath
+    const subPath = `${normPath.replace(/[!%_]/g, "!$&")}/%`
+
+    // Match exact folder or any items inside folder subdirectories
     const stmt = db.prepare(`
        SELECT * FROM media_items 
-       WHERE REPLACE(path, '\\', '/') COLLATE NOCASE LIKE ? ESCAPE '!'
+       WHERE (
+         REPLACE(path, '\\', '/') COLLATE NOCASE = ?
+         OR REPLACE(path, '\\', '/') COLLATE NOCASE LIKE ? ESCAPE '!'
+       )
        ORDER BY date_target DESC
      `)
 
-    const rows = stmt.all(`${searchPath}%`)
+    const rows = stmt.all(exactPath, subPath)
     return rows.map((row) => this.rowToMediaItem(row))
   }
 
@@ -343,14 +349,20 @@ export class MediaRepository {
       stmt.run()
       return
     }
-    const searchPath = folderPath
+    const normPath = folderPath
       .replace(/\\/g, "/")
       .toLowerCase()
-      .replace(/[!%_]/g, "!$&")
-    const stmt = db.prepare(
-      "DELETE FROM media_items WHERE REPLACE(path, '\\', '/') COLLATE NOCASE LIKE ? ESCAPE '!'"
-    )
-    stmt.run(`${searchPath}%`)
+      .replace(/\/+$/, "")
+    const exactPath = normPath
+    const subPath = `${normPath.replace(/[!%_]/g, "!$&")}/%`
+    const stmt = db.prepare(`
+      DELETE FROM media_items 
+      WHERE (
+        REPLACE(path, '\\', '/') COLLATE NOCASE = ?
+        OR REPLACE(path, '\\', '/') COLLATE NOCASE LIKE ? ESCAPE '!'
+      )
+    `)
+    stmt.run(exactPath, subPath)
   }
 
   /**
@@ -366,16 +378,21 @@ export class MediaRepository {
       stmt.run()
       return
     }
-    const searchPath = folderPath
+    const normPath = folderPath
       .replace(/\\/g, "/")
       .toLowerCase()
-      .replace(/[!%_]/g, "!$&")
+      .replace(/\/+$/, "")
+    const exactPath = normPath
+    const subPath = `${normPath.replace(/[!%_]/g, "!$&")}/%`
     const stmt = db.prepare(`
       UPDATE media_items 
       SET review_state = 'pending', reviewed_at = NULL 
-      WHERE REPLACE(path, '\\', '/') COLLATE NOCASE LIKE ? ESCAPE '!'
+      WHERE (
+        REPLACE(path, '\\', '/') COLLATE NOCASE = ?
+        OR REPLACE(path, '\\', '/') COLLATE NOCASE LIKE ? ESCAPE '!'
+      )
     `)
-    stmt.run(`${searchPath}%`)
+    stmt.run(exactPath, subPath)
   }
 
   /**

@@ -21,6 +21,7 @@ interface MediaGridProps {
   onPlayOpen?: (item: MediaItem) => void
   onContextMenu?: (item: MediaItem, e: React.MouseEvent) => void
   topOffset?: number
+  footer?: React.ReactNode
 }
 
 const GAP = 16
@@ -39,6 +40,7 @@ const MediaGridComponent: React.FC<MediaGridProps> = ({
   onPlayOpen,
   onContextMenu,
   topOffset = 64,
+  footer,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(1000)
@@ -95,6 +97,16 @@ const MediaGridComponent: React.FC<MediaGridProps> = ({
   })
 
   if (items.length === 0) {
+    if (footer) {
+      return (
+        <div
+          className="flex h-full w-full flex-1 flex-col items-center justify-center p-4 font-sans text-xs text-muted-foreground select-none"
+          style={{ paddingTop: `${topOffset}px` }}
+        >
+          {footer}
+        </div>
+      )
+    }
     return (
       <div className="flex h-full w-full flex-1 flex-col items-center justify-center py-16 font-sans text-xs text-muted-foreground select-none">
         {!isScanned ? (
@@ -113,6 +125,8 @@ const MediaGridComponent: React.FC<MediaGridProps> = ({
     )
   }
 
+  const footerExtraHeight = footer ? 220 : 0
+
   return (
     <div
       ref={containerRef}
@@ -121,7 +135,7 @@ const MediaGridComponent: React.FC<MediaGridProps> = ({
       <div
         className="relative w-full"
         style={{
-          height: `${rowVirtualizer.getTotalSize() + topOffset}px`,
+          height: `${rowVirtualizer.getTotalSize() + topOffset + footerExtraHeight}px`,
         }}
       >
         {rowVirtualizer.getVirtualItems().map((virtualRow) => {
@@ -148,7 +162,6 @@ const MediaGridComponent: React.FC<MediaGridProps> = ({
                     onInfoOpen={onInfoOpen}
                     onReviewAction={onReviewAction}
                     matchingFrame={searchMatch?.matchingFrame}
-                    searchScore={searchMatch?.score}
                     onFindSimilar={onFindSimilar}
                     onPlayOpen={onPlayOpen}
                     onContextMenu={onContextMenu}
@@ -158,6 +171,16 @@ const MediaGridComponent: React.FC<MediaGridProps> = ({
             </div>
           )
         })}
+        {footer && (
+          <div
+            className="absolute left-0 w-full px-2"
+            style={{
+              top: `${rowVirtualizer.getTotalSize() + topOffset + 12}px`,
+            }}
+          >
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   )

@@ -185,4 +185,70 @@ describe("filterAndSortItems sorting logic", () => {
 
     expect(result.map((i) => i.id)).toEqual(["target", "match1"])
   })
+
+  it("respects similarRadius when filtering by visual similarity", () => {
+    const target = createMockItem("target", { hash: "00000000" })
+    const close = createMockItem("close", { hash: "00000003" }) // 2 bits diff
+    const medium = createMockItem("medium", { hash: "000000ff" }) // 8 bits diff
+    const distant = createMockItem("distant", { hash: "ffffffff" }) // 32 bits diff
+
+    const strictResult = filterAndSortItems([close, distant, target, medium], {
+      ...baseOptions,
+      similarTargetItem: target,
+      similarRadius: 4,
+    })
+    expect(strictResult.map((i) => i.id)).toEqual(["target", "close"])
+
+    const broadResult = filterAndSortItems([close, distant, target, medium], {
+      ...baseOptions,
+      similarTargetItem: target,
+      similarRadius: 12,
+    })
+    expect(broadResult.map((i) => i.id)).toEqual(["target", "close", "medium"])
+  })
+
+  it("filters search results strictly within activeRootPath folder", () => {
+    const itemInFolder = createMockItem("item_folder", {
+      path: "C:/Photos/Vacation/beach.jpg",
+      name: "beach.jpg",
+    })
+    const itemOutsideFolder = createMockItem("item_outside", {
+      path: "C:/Photos/Other/beach_trip.jpg",
+      name: "beach_trip.jpg",
+    })
+
+    const results = filterAndSortItems([itemInFolder, itemOutsideFolder], {
+      ...baseOptions,
+      activeRootPath: "C:/Photos/Vacation",
+      searchQuery: "beach",
+    })
+
+    expect(results.map((i) => i.id)).toEqual(["item_folder"])
+  })
+
+  it("filters visual similarity results strictly within activeRootPath folder", () => {
+    const target = createMockItem("target", {
+      path: "C:/Photos/Vacation/target.jpg",
+      hash: "00000000",
+    })
+    const similarInFolder = createMockItem("sim_in", {
+      path: "C:/Photos/Vacation/similar.jpg",
+      hash: "00000001",
+    })
+    const similarOutsideFolder = createMockItem("sim_out", {
+      path: "C:/Photos/Other/similar.jpg",
+      hash: "00000001",
+    })
+
+    const results = filterAndSortItems(
+      [target, similarInFolder, similarOutsideFolder],
+      {
+        ...baseOptions,
+        activeRootPath: "C:/Photos/Vacation",
+        similarTargetItem: target,
+      }
+    )
+
+    expect(results.map((i) => i.id)).toEqual(["target", "sim_in"])
+  })
 })

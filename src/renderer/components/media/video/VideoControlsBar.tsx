@@ -114,7 +114,7 @@ export const VideoControlsBar: React.FC<VideoControlsBarProps> = React.memo(
 
     return (
       <div
-        className={`absolute right-0 bottom-0 left-0 z-20 transition-opacity duration-300 ${showControls ? "opacity-100" : "pointer-events-none opacity-0"}`}
+        className={`absolute right-0 bottom-0 left-0 z-30 transition-opacity duration-300 ${showControls ? "opacity-100" : "pointer-events-none opacity-0"}`}
         onMouseEnter={onMouseEnterControls}
         onMouseLeave={onMouseLeaveControls}
         onClick={(e) => {

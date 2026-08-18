@@ -35,6 +35,7 @@ export interface AppSettings {
     blurThreshold: number // 0-100 (below = blurry)
     darknessThreshold: number // 0-255 (below = dark)
     duplicateHashDistance: number // Hamming distance (default: 10)
+    similarityRadius: number // Perceptual distance for visual similarity in Browse (default: 18)
     screenshotDetection: boolean
     minResolution: number // width * height, below = flagged as low res
   }

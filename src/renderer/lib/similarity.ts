@@ -221,16 +221,21 @@ export function getSimilaritySortedItems(items: MediaItem[]): MediaItem[] {
   return result
 }
 
+export const DEFAULT_SIMILARITY_RADIUS = 18
+export const MIN_SIMILARITY_RADIUS = 8
+export const MAX_SIMILARITY_RADIUS = 40
+export const SIMILARITY_RADIUS_STEP = 4
+
 /**
  * Finds all media items visually or structurally similar to targetItem.
- * - Computes Hamming distance against hashed candidates (default maxDistance 16).
+ * - Computes Hamming distance against hashed candidates (default maxDistance DEFAULT_SIMILARITY_RADIUS).
  * - Matches items sharing the same duplicateGroupId or identical exactHash.
  * - Sorts matches with closest visual distance first and places targetItem at index 0.
  */
 export function findSimilarPerceptual(
   targetItem: MediaItem,
   allItems: MediaItem[],
-  maxDistance = 16
+  maxDistance = DEFAULT_SIMILARITY_RADIUS
 ): MediaItem[] {
   const targetHash = targetItem.hash
   const targetExactHash = targetItem.exactHash

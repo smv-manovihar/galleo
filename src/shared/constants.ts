@@ -100,6 +100,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     blurThreshold: 30, // Below 30 is considered blurry
     darknessThreshold: 40, // Average brightness below 40 is considered dark
     duplicateHashDistance: 10, // Hamming distance threshold
+    similarityRadius: 18, // Default visual similarity search radius
     screenshotDetection: true,
     minResolution: 300 * 300, // below 90,000 pixels is considered small
   },

@@ -4,7 +4,7 @@ import { useSettingsStore } from "./settings-store"
 import { useSessionStore } from "./session-store"
 import { useScanStore } from "./scan-store"
 import { useUIStore } from "./ui-store"
-import { findSimilarPerceptual } from "../lib/similarity"
+import { findSimilarPerceptual, DEFAULT_SIMILARITY_RADIUS } from "../lib/similarity"
 
 export interface CachedDashboardMetrics {
   totalFiles: number
@@ -30,6 +30,7 @@ export interface FilterAndSortOptions {
   activeRootPath: string | null
   searchQuery: string
   similarTargetItem?: MediaItem | null
+  similarRadius?: number
   filterType: "all" | "photo" | "video"
   filterReviewState: "all" | "pending" | "kept" | "trash"
   filterQuality:
@@ -58,6 +59,7 @@ export function filterAndSortItems(
     activeRootPath,
     searchQuery,
     similarTargetItem,
+    similarRadius = DEFAULT_SIMILARITY_RADIUS,
     filterType,
     filterReviewState,
     filterQuality,
@@ -66,7 +68,7 @@ export function filterAndSortItems(
   } = opts
 
   const baseItems = similarTargetItem
-    ? findSimilarPerceptual(similarTargetItem, items)
+    ? findSimilarPerceptual(similarTargetItem, items, similarRadius)
     : items
 
   const normRoot =
@@ -76,8 +78,8 @@ export function filterAndSortItems(
   const q = searchQuery.trim().length > 0 ? searchQuery.toLowerCase() : null
 
   const result = baseItems.filter((item) => {
-    // 0. Active Root Path Filter (skip if similarTargetItem is active to allow cross-folder similarity)
-    if (normRoot && !similarTargetItem) {
+    // 0. Active Root Path Filter
+    if (normRoot) {
       const itemNorm = item.path.replace(/\\/g, "/").toLowerCase()
       if (itemNorm !== normRoot && !itemNorm.startsWith(normRoot + "/")) {
         return false
@@ -231,12 +233,14 @@ interface MediaState {
     | "size-asc"
   activeRootPath: string | null
   similarTargetItem: MediaItem | null
+  similarRadius: number
 
   fetchMediaItems: (folderPath: string) => Promise<void>
   setItems: (items: MediaItem[]) => void
   setSearchQuery: (query: string) => void
   setSimilarTargetItem: (item: MediaItem | null) => void
-  findSimilarVisual: (item: MediaItem) => void
+  setSimilarRadius: (radius: number) => void
+  findSimilarVisual: (item: MediaItem, radius?: number) => void
   setFilterType: (type: "all" | "photo" | "video") => void
   setFilterReviewState: (state: "all" | "pending" | "kept" | "trash") => void
   setFilterQuality: (
@@ -439,6 +443,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   sortBy: "date-desc",
   activeRootPath: null,
   similarTargetItem: null,
+  similarRadius: DEFAULT_SIMILARITY_RADIUS,
 
   setItems: (items) => {
     const { activeRootPath } = get()
@@ -544,8 +549,16 @@ export const useMediaStore = create<MediaState>((set, get) => ({
 
   setSearchQuery: (searchQuery) => set({ searchQuery }),
   setSimilarTargetItem: (similarTargetItem) => set({ similarTargetItem }),
-  findSimilarVisual: (item) => {
-    set({ similarTargetItem: item, searchQuery: "" })
+  setSimilarRadius: (similarRadius) => set({ similarRadius }),
+  findSimilarVisual: (item, radius) => {
+    const configuredRadius =
+      useSettingsStore.getState().settings?.quality?.similarityRadius ||
+      DEFAULT_SIMILARITY_RADIUS
+    set({
+      similarTargetItem: item,
+      similarRadius: radius ?? configuredRadius,
+      searchQuery: "",
+    })
     useUIStore.getState().setCurrentView("browse")
   },
   setFilterType: (filterType) => set({ filterType }),
@@ -588,6 +601,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       activeRootPath,
       searchQuery,
       similarTargetItem,
+      similarRadius,
       filterType,
       filterReviewState,
       filterQuality,
@@ -597,6 +611,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       activeRootPath,
       searchQuery,
       similarTargetItem,
+      similarRadius,
       filterType,
       filterReviewState,
       filterQuality,

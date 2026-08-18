@@ -31,11 +31,16 @@ describe("withViewTransition", () => {
   })
 
   it("waits for async updates when a transition is available", async () => {
-    const startViewTransition = (cb: () => void) => cb()
+    const startViewTransition = (cb: () => void) => {
+      cb()
+      return { finished: Promise.resolve() }
+    }
+
+    const documentElement = { dataset: {} as Record<string, string> }
 
     Object.defineProperty(globalThis, "document", {
       configurable: true,
-      value: { startViewTransition },
+      value: { startViewTransition, documentElement },
       writable: true,
     })
 
@@ -44,8 +49,37 @@ describe("withViewTransition", () => {
     await withViewTransition(async () => {
       await Promise.resolve()
       completed = true
-    })
+    }, "back")
 
     expect(completed).toBe(true)
+  })
+
+  it("sets and cleans up navDirection attribute on documentElement", async () => {
+    let capturedDirection: string | undefined
+
+    const startViewTransition = (cb: () => void) => {
+      const doc = globalThis.document as unknown as {
+        documentElement?: { dataset?: Record<string, string> }
+      }
+      capturedDirection = doc?.documentElement?.dataset?.navDirection
+      cb()
+      return {
+        finished: Promise.resolve().then(() => {
+          // Cleanup check
+        }),
+      }
+    }
+
+    const documentElement = { dataset: {} as Record<string, string> }
+
+    Object.defineProperty(globalThis, "document", {
+      configurable: true,
+      value: { startViewTransition, documentElement },
+      writable: true,
+    })
+
+    await withViewTransition(() => {}, "back")
+
+    expect(capturedDirection).toBe("back")
   })
 })

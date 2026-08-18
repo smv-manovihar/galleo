@@ -26,6 +26,7 @@ import {
 } from "../components/browse/BrowseToolbar"
 import { BrowseCommitBanner } from "../components/browse/BrowseCommitBanner"
 import { BrowseBatchBar } from "../components/browse/BrowseBatchBar"
+import { BrowseSimilarityRadiusFooter } from "../components/browse/BrowseSimilarityRadiusFooter"
 import { CommitConfirmDialog } from "../components/browse/CommitConfirmDialog"
 import type { MediaItem } from "../../shared/types/media"
 import type { SearchResultItem } from "../../main/services/search-engine.service"
@@ -36,7 +37,6 @@ import { ENABLE_AI_FEATURES } from "../../shared/constants"
 export const BrowseMediaPage: React.FC = () => {
   const items = useMediaStore((s) => s.items)
   const activeRootPath = useMediaStore((s) => s.activeRootPath)
-  const isLoading = useMediaStore((s) => s.isLoading)
   const isScanning = useScanStore((s) => s.isScanning)
   const filterType = useMediaStore((s) => s.filterType)
   const setFilterType = useMediaStore((s) => s.setFilterType)
@@ -48,6 +48,7 @@ export const BrowseMediaPage: React.FC = () => {
   const setSortBy = useMediaStore((s) => s.setSortBy)
   const searchQuery = useMediaStore((s) => s.searchQuery)
   const similarTargetItem = useMediaStore((s) => s.similarTargetItem)
+  const similarRadius = useMediaStore((s) => s.similarRadius)
   const keptCount = useMediaStore((s) => s.cachedMetrics.keptCount)
   const trashCount = useMediaStore((s) => s.cachedMetrics.trashCount)
 
@@ -199,6 +200,7 @@ export const BrowseMediaPage: React.FC = () => {
         activeRootPath,
         searchQuery,
         similarTargetItem,
+        similarRadius,
         filterType,
         filterReviewState,
         filterQuality,
@@ -210,6 +212,7 @@ export const BrowseMediaPage: React.FC = () => {
       activeRootPath,
       searchQuery,
       similarTargetItem,
+      similarRadius,
       filterType,
       filterReviewState,
       filterQuality,
@@ -226,7 +229,17 @@ export const BrowseMediaPage: React.FC = () => {
   }, [rawFilteredItems, activeSearchIdSet])
 
   const deferredFilteredItems = useDeferredValue(filteredItems)
-  const isPending = isLoading || deferredFilteredItems !== filteredItems
+
+  const similarityFooter = useMemo(() => {
+    if (!similarTargetItem) return undefined
+    return (
+      <BrowseSimilarityRadiusFooter
+        targetItem={similarTargetItem}
+        matchCount={filteredItems.length}
+        totalLibraryCount={items.length}
+      />
+    )
+  }, [similarTargetItem, filteredItems.length, items.length])
 
   const handleSelectToggle = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -458,9 +471,6 @@ export const BrowseMediaPage: React.FC = () => {
 
       {/* Main browser viewport panels */}
       <div className="relative h-full w-full min-h-0 flex-1">
-        {isPending && (
-          <div className="pointer-events-none absolute inset-0 z-20 bg-background/30 backdrop-blur-xs transition-opacity duration-150" />
-        )}
         {layoutMode === "card" && groupMode === "normal" && (
           <div className="h-full w-full px-3">
             <MediaGrid
@@ -476,6 +486,7 @@ export const BrowseMediaPage: React.FC = () => {
               onPlayOpen={handlePlayOpen}
               onContextMenu={handleContextMenu}
               topOffset={topOffset}
+              footer={similarityFooter}
             />
           </div>
         )}
@@ -491,6 +502,7 @@ export const BrowseMediaPage: React.FC = () => {
               onPlayOpen={handlePlayOpen}
               onContextMenu={handleContextMenu}
               topOffset={topOffset}
+              footer={similarityFooter}
             />
           </div>
         )}
@@ -508,6 +520,7 @@ export const BrowseMediaPage: React.FC = () => {
               onPlayOpen={handlePlayOpen}
               onContextMenu={handleContextMenu}
               isGrouped={groupMode === "date"}
+              footer={similarityFooter}
             />
           </div>
         )}

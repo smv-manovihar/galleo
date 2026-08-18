@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/collapsible"
 import {
   Settings,
-  FolderSync,
+  FolderOpen,
   SlidersHorizontal,
   Palette,
   BookOpen,
@@ -62,10 +62,10 @@ export const SettingsHelp: React.FC = () => {
             </div>
             <div className="flex flex-col gap-1 rounded-xl border border-border/60 bg-muted/10 p-3">
               <span className="text-xs font-bold text-foreground">
-                Defect Thresholds
+                Quality Thresholds
               </span>
               <span className="mt-1 text-xs leading-normal text-muted-foreground">
-                Sensitivity cutoffs for blurriness (Laplacian variance), darkness (luminance histogram), and low resolution.
+                Sensitivity cutoffs for blurriness (Laplacian variance), darkness (luminance histogram), and visual similarity radius.
               </span>
             </div>
             <div className="flex flex-col gap-1 rounded-xl border border-border/60 bg-muted/10 p-3">
@@ -87,7 +87,7 @@ export const SettingsHelp: React.FC = () => {
           <div className="divide-y divide-border/40 overflow-hidden rounded-xl border border-border/60 bg-muted/5">
             <div className="flex flex-col items-start gap-1 p-3 text-xs transition-colors hover:bg-muted/10 sm:grid sm:grid-cols-[180px_1fr] sm:items-center sm:gap-4">
               <div className="flex shrink-0 items-center gap-2">
-                <FolderSync className="size-4 shrink-0 text-primary" />
+                <FolderOpen className="size-4 shrink-0 text-primary" />
                 <span className="font-semibold text-foreground">
                   Allowed Roots
                 </span>
@@ -111,11 +111,11 @@ export const SettingsHelp: React.FC = () => {
               <div className="flex shrink-0 items-center gap-2">
                 <SlidersHorizontal className="size-4 shrink-0 text-primary" />
                 <span className="font-semibold text-foreground">
-                  Defect Thresholds
+                  Quality Thresholds
                 </span>
               </div>
               <span className="text-muted-foreground">
-                Fine-tune blur sensitivity, darkness exposure cutoff, and low-resolution limits. Changing thresholds prompts a rescan of quality flags.
+                Fine-tune blur sensitivity, darkness exposure cutoff, and default visual similarity radius.
               </span>
             </div>
             <div className="flex flex-col items-start gap-1 p-3 text-xs transition-colors hover:bg-muted/10 sm:grid sm:grid-cols-[180px_1fr] sm:items-center sm:gap-4">

@@ -272,7 +272,7 @@ export const ResetConfig: React.FC = () => {
                     <span className="truncate">App Configurations</span>
                   </div>
                   <p className="text-xs leading-normal text-muted-foreground">
-                    Reset roots, scan rules, defect thresholds, and themes to defaults.
+                    Reset roots, scan rules, quality thresholds, and themes to defaults.
                   </p>
                 </div>
               </div>

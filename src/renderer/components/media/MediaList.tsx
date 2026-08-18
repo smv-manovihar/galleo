@@ -31,6 +31,7 @@ interface MediaListProps {
   onPlayOpen?: (item: MediaItem) => void
   onContextMenu?: (item: MediaItem, e: React.MouseEvent) => void
   isGrouped?: boolean
+  footer?: React.ReactNode
 }
 
 interface MediaListRowProps {
@@ -274,6 +275,7 @@ const MediaListComponent: React.FC<MediaListProps> = ({
   onPlayOpen,
   onContextMenu,
   isGrouped = false,
+  footer,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -473,6 +475,13 @@ const MediaListComponent: React.FC<MediaListProps> = ({
   }, [settings, activeRootPath])
 
   if (items.length === 0) {
+    if (footer) {
+      return (
+        <div className="flex h-full w-full flex-1 flex-col items-center justify-center p-4 font-sans text-xs text-muted-foreground select-none">
+          {footer}
+        </div>
+      )
+    }
     return (
       <div className="flex h-full w-full flex-1 flex-col items-center justify-center py-16 font-sans text-xs text-muted-foreground select-none">
         {!isScanned ? (
@@ -490,6 +499,8 @@ const MediaListComponent: React.FC<MediaListProps> = ({
       </div>
     )
   }
+
+  const footerExtraHeight = footer ? 220 : 0
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden rounded-xl border border-border/80 bg-card/60 shadow-xs select-none">
@@ -572,7 +583,7 @@ const MediaListComponent: React.FC<MediaListProps> = ({
         <div
           className="relative w-full"
           style={{
-            height: `${rowVirtualizer.getTotalSize()}px`,
+            height: `${rowVirtualizer.getTotalSize() + footerExtraHeight}px`,
           }}
         >
           {rowVirtualizer.getVirtualItems().map((virtualRow) => {
@@ -624,6 +635,16 @@ const MediaListComponent: React.FC<MediaListProps> = ({
               )
             }
           })}
+          {footer && (
+            <div
+              className="absolute left-0 w-full px-4"
+              style={{
+                top: `${rowVirtualizer.getTotalSize() + 12}px`,
+              }}
+            >
+              {footer}
+            </div>
+          )}
         </div>
       </div>
     </div>

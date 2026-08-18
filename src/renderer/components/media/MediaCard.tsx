@@ -42,7 +42,6 @@ interface MediaCardProps {
     timestampSeconds: number
     thumbnailPath?: string
   }
-  searchScore?: number
   onFindSimilar?: (mediaId: string) => void
   onPlayOpen?: (item: MediaItem) => void
   onContextMenu?: (item: MediaItem, e: React.MouseEvent) => void
@@ -94,7 +93,6 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
   onInfoOpen,
   onReviewAction,
   matchingFrame,
-  searchScore,
   onFindSimilar,
   onPlayOpen,
   onContextMenu,
@@ -344,13 +342,6 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
           </div>
         )}
 
-        {/* Search Match Confidence Score Badge */}
-        {searchScore !== undefined && searchScore > 0 && (
-          <div className="absolute top-2 right-2 z-20 flex items-center gap-1 rounded-md bg-blue-700 px-2 py-0.5 text-xs font-semibold text-white shadow-md">
-            <span>{Math.round(searchScore * 100)}% match</span>
-          </div>
-        )}
-
         {/* Video Play Indicator */}
         {isVideo && (
           <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
@@ -421,7 +412,6 @@ export const MediaCard = React.memo(MediaCardInner, (prev, next) => {
     prev.item.thumbnailPath === next.item.thumbnailPath &&
     prev.item.orientation === next.item.orientation &&
     prev.item.quality?.compositeScore === next.item.quality?.compositeScore &&
-    prev.searchScore === next.searchScore &&
     prev.matchingFrame?.timestampSeconds === next.matchingFrame?.timestampSeconds &&
     prev.matchingFrame?.thumbnailPath === next.matchingFrame?.thumbnailPath &&
     prev.isSelected === next.isSelected &&

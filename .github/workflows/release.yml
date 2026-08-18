@@ -74,7 +74,7 @@ jobs:
               exit 1
             else
               echo "Draft release ${TAG} already exists. Updating title and release notes..."
-              gh release edit "${TAG}" --title "Galleo v${VERSION}" "${NOTES_ARG[@]}"
+              gh release edit "${TAG}" --title "Version ${VERSION}" "${NOTES_ARG[@]}"
             fi
           else
             echo "Creating draft release for ${TAG}..."

@@ -119,3 +119,12 @@ export function getModelCacheDir(): string {
 export function getUpdateCachePath(): string {
   return path.join(getUserDataDir(), "update_cache.json")
 }
+
+/**
+ * Path to the downloaded updates and installer binaries directory.
+ */
+export function getUpdatesDir(): string {
+  const dir = path.join(getUserDataDir(), "updates")
+  return ensureDirExists(dir)
+}
+

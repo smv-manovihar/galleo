@@ -1,6 +1,9 @@
 import { create } from "zustand"
 import { toast } from "sonner"
-import type { UpdateCheckResult } from "../../shared/types/ipc"
+import type {
+  UpdateCheckResult,
+  DownloadedInstallerInfo,
+} from "../../shared/types/ipc"
 import { withViewTransition, type NavigationDirection } from "../lib/view-transition"
 
 export const VIEW_ORDER: Record<ViewMode, number> = {
@@ -36,8 +39,10 @@ interface UIState {
   previewMetaPanelOpen: boolean
   previewTransitionAnimation: boolean
   updateInfo: UpdateCheckResult | null
+  installerInfo: DownloadedInstallerInfo | null
   isCheckingUpdate: boolean
   isDownloadingUpdate: boolean
+  isDeletingInstaller: boolean
   updateDownloadProgress: number
   isUpdateDownloaded: boolean
   updateError: string | null
@@ -63,7 +68,10 @@ interface UIState {
   ) => void
   setActiveDuplicatesTab: (tab: "auto" | "manual") => void
   checkForUpdates: (force?: boolean) => Promise<void>
+  fetchInstallerInfo: () => Promise<void>
   startUpdateDownload: () => Promise<void>
+  deleteDownloadedInstaller: () => Promise<void>
+  startReinstall: () => Promise<void>
   installUpdate: () => Promise<void>
   dismissUpdate: () => void
 }
@@ -83,8 +91,10 @@ export const useUIStore = create<UIState>((set, get) => ({
       ? localStorage.getItem("galleo_preview_transition_animation") !== "false"
       : true,
   updateInfo: null,
+  installerInfo: null,
   isCheckingUpdate: false,
   isDownloadingUpdate: false,
+  isDeletingInstaller: false,
   updateDownloadProgress: 0,
   isUpdateDownloaded: false,
   updateError: null,
@@ -188,6 +198,7 @@ export const useUIStore = create<UIState>((set, get) => ({
           hasRunInitialUpdateCheck: true,
         })
       }
+      await get().fetchInstallerInfo()
     } catch (e: unknown) {
       const message =
         e instanceof Error
@@ -198,6 +209,21 @@ export const useUIStore = create<UIState>((set, get) => ({
         isCheckingUpdate: false,
         hasRunInitialUpdateCheck: true,
       })
+      await get().fetchInstallerInfo()
+    }
+  },
+  fetchInstallerInfo: async () => {
+    if (typeof window === "undefined" || !window.api) return
+    try {
+      const res = await window.api.getDownloadedInstallerInfo()
+      if (res.ok) {
+        set({
+          installerInfo: res.data,
+          isUpdateDownloaded: Boolean(res.data),
+        })
+      }
+    } catch {
+      // ignore
     }
   },
   startUpdateDownload: async () => {
@@ -226,6 +252,13 @@ export const useUIStore = create<UIState>((set, get) => ({
         isDownloadingUpdate: false,
         isUpdateDownloaded: true,
         updateDownloadProgress: 100,
+        installerInfo: {
+          path: "mock/Galleo-Setup.exe",
+          filename: "Galleo-Setup.exe",
+          sizeBytes: 125829120,
+          version: info.latestVersion,
+          isCurrentVersion: false,
+        },
       })
       toast.success(
         `Update v${info.latestVersion} downloaded and ready to install!`,
@@ -271,6 +304,7 @@ export const useUIStore = create<UIState>((set, get) => ({
           isUpdateDownloaded: true,
           updateDownloadProgress: 100,
         })
+        await get().fetchInstallerInfo()
         toast.success(
           `Update v${info.latestVersion} is downloaded and ready to install!`,
           {
@@ -309,6 +343,41 @@ export const useUIStore = create<UIState>((set, get) => ({
         id: "update-download-toast",
       })
     }
+  },
+  deleteDownloadedInstaller: async () => {
+    if (typeof window === "undefined" || !window.api) return
+    set({ isDeletingInstaller: true })
+    try {
+      const res = await window.api.deleteDownloadedInstaller()
+      if (res.ok) {
+        set({
+          installerInfo: null,
+          isUpdateDownloaded: false,
+          isDeletingInstaller: false,
+        })
+        toast.success("Installer deleted successfully")
+      } else {
+        const errorMsg =
+          res.error.code === "UNKNOWN"
+            ? res.error.message
+            : `Failed to delete installer (${res.error.code})`
+        set({ isDeletingInstaller: false, updateError: errorMsg })
+        toast.error(`Failed to delete installer: ${errorMsg}`)
+      }
+    } catch (e: unknown) {
+      const message =
+        e instanceof Error ? e.message : "Failed to delete installer"
+      set({ isDeletingInstaller: false, updateError: message })
+      toast.error(`Failed to delete installer: ${message}`)
+    }
+  },
+  startReinstall: async () => {
+    const { installerInfo, isUpdateDownloaded } = get()
+    if (installerInfo || isUpdateDownloaded) {
+      await get().installUpdate()
+      return
+    }
+    await get().startUpdateDownload()
   },
   installUpdate: async () => {
     if (typeof window === "undefined" || !window.api) return

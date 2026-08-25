@@ -3,6 +3,7 @@ import fs from "fs/promises"
 import path from "path"
 import crypto from "crypto"
 import { MediaRepository } from "../repositories/media.repository"
+import type { MediaItem } from "../../shared/types/media"
 import {
   fileExists,
   moveFile,
@@ -40,7 +41,13 @@ export class FileOpsService {
       if (!exists) {
         return fail({ code: "FILE_NOT_FOUND", path: filePath })
       }
-      await shell.openPath(filePath)
+      const errorMsg = await shell.openPath(filePath)
+      if (errorMsg && errorMsg.trim().length > 0) {
+        return fail({
+          code: "UNKNOWN",
+          message: errorMsg,
+        })
+      }
       return ok(undefined)
     } catch (e: unknown) {
       const err = e as Error
@@ -89,6 +96,7 @@ export class FileOpsService {
       const successfulPaths: string[] = []
       const totalCount = paths.length
 
+      let lastProgressTime = 0
       for (let i = 0; i < totalCount; i++) {
         const p = paths[i]
         const res = await moveToTrash(p)
@@ -104,7 +112,10 @@ export class FileOpsService {
           currentPath: p,
         }
 
-        if (window && !window.isDestroyed()) {
+        const now = Date.now()
+        const isLast = i === totalCount - 1
+        if (window && !window.isDestroyed() && (isLast || now - lastProgressTime >= 100)) {
+          lastProgressTime = now
           window.webContents.send(IPC_CHANNELS.MEDIA_TRASH_PROGRESS, {
             processedCount: i + 1,
             totalCount,
@@ -185,14 +196,33 @@ export class FileOpsService {
         }
       }
 
-      // Check space on target drive (e.g. check parent of first item)
-      if (previewItems.length > 0) {
+      // Check space on target drive only if copying (preserveOriginals) or moving across different drive volumes
+      const isCrossVolume = previewItems.some(
+        (item) =>
+          path.parse(item.sourcePath).root.toLowerCase() !==
+          path.parse(item.targetPath).root.toLowerCase()
+      )
+
+      if (previewItems.length > 0 && (preserveOriginals || isCrossVolume)) {
         const destParent = path.dirname(previewItems[0].targetPath)
         const spaceCheck = await checkAvailableDiskSpace(destParent, totalBytes)
         if (spaceCheck.ok === false) {
           return fail(spaceCheck.error)
         }
       }
+
+      // Pre-fetch all involved media items in a single query upfront
+      const mediaMap = this.mediaRepository.getByIds(
+        previewItems.map((i) => i.mediaId)
+      )
+      const pathsToDelete: string[] = []
+      const itemsToUpsert: MediaItem[] = []
+      const movesToApply: Array<{
+        oldPath: string
+        newPath: string
+        newName: string
+        newExtension: string
+      }> = []
 
       // 2. Process operations one by one (fault-tolerant loop)
       for (const item of previewItems) {
@@ -219,46 +249,36 @@ export class FileOpsService {
               if (res.ok === false) errorMsg = res.error.code
             }
 
-            // 3. Update local SQLite cache
+            // 3. Accumulate SQLite cache updates
             if (success) {
+              const mediaItem = mediaMap.get(item.mediaId)
               if (preserveOriginals) {
                 // Copy mode: if the target is inside a tracked root, add a new DB entry for the copy
-                if (this.isUnderRoots(item.targetPath, rootPaths)) {
-                  const dbItems = this.mediaRepository.getByFolderPath(
-                    path.dirname(item.sourcePath)
-                  )
-                  const mediaItem = dbItems.find((i) => i.id === item.mediaId)
-                  if (mediaItem) {
-                    const targetHashId = crypto
-                      .createHash("sha256")
-                      .update(item.targetPath.toLowerCase())
-                      .digest("hex")
-                    const copiedItem = {
-                      ...mediaItem,
-                      id: targetHashId,
-                      path: item.targetPath,
-                    }
-                    this.mediaRepository.upsertMany([copiedItem])
-                  }
-                }
-                // If destination is outside roots, the copy is untracked — do nothing
-              } else {
-                // Move mode: always remove the old path from DB
-                // Only re-insert under the new path if it falls within a tracked root
-                const dbItems = this.mediaRepository.getByFolderPath(
-                  path.dirname(item.sourcePath)
-                )
-                const mediaItem = dbItems.find((i) => i.id === item.mediaId)
-                this.mediaRepository.deleteMany([item.sourcePath])
-                if (
-                  mediaItem &&
-                  this.isUnderRoots(item.targetPath, rootPaths)
-                ) {
-                  const updatedItem = {
+                if (mediaItem && this.isUnderRoots(item.targetPath, rootPaths)) {
+                  const targetHashId = crypto
+                    .createHash("sha256")
+                    .update(item.targetPath.toLowerCase())
+                    .digest("hex")
+                  itemsToUpsert.push({
                     ...mediaItem,
+                    id: targetHashId,
                     path: item.targetPath,
-                  }
-                  this.mediaRepository.upsertMany([updatedItem])
+                  })
+                }
+              } else {
+                // Move mode: update path in-place to preserve FK embeddings if within tracked roots
+                if (this.isUnderRoots(item.targetPath, rootPaths)) {
+                  movesToApply.push({
+                    oldPath: item.sourcePath,
+                    newPath: item.targetPath,
+                    newName: path.basename(item.targetPath),
+                    newExtension: path
+                      .extname(item.targetPath)
+                      .replace(/^\./, "")
+                      .toLowerCase(),
+                  })
+                } else {
+                  pathsToDelete.push(item.sourcePath)
                 }
               }
             }
@@ -278,6 +298,17 @@ export class FileOpsService {
           error: errorMsg,
         }
         window.webContents.send(IPC_CHANNELS.ORGANIZE_PROGRESS, progressPayload)
+      }
+
+      // 4. Commit batched database transactions
+      if (pathsToDelete.length > 0) {
+        this.mediaRepository.deleteMany(pathsToDelete)
+      }
+      if (movesToApply.length > 0) {
+        this.mediaRepository.updateMovedFiles(movesToApply)
+      }
+      if (itemsToUpsert.length > 0) {
+        this.mediaRepository.upsertMany(itemsToUpsert)
       }
 
       return ok(undefined)

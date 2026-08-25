@@ -10,15 +10,14 @@ export function getNormalizedFilenameBase(filename: string): string {
 
   // 2. Strip extension
   const dotIndex = name.lastIndexOf(".")
-  if (dotIndex !== -1) {
-    name = name.substring(0, dotIndex)
-  }
+  const baseWithoutExt = dotIndex !== -1 ? name.substring(0, dotIndex) : name
+  name = baseWithoutExt
 
-  // 3. Strip copy suffixes like " (1)", " - Copy", "_1"
+  // 3. Strip copy suffixes like " (1)", " - Copy", "_1" (limit numeric copy suffix to 1-2 digits)
   name = name
     .replace(/\s*\(\d+\)$/g, "") // " (1)"
     .replace(/\s*-\s*copy(?:\s*\(\d+\))?$/g, "") // " - Copy" or " - Copy (2)"
-    .replace(/_\d+$/g, "") // "_1"
+    .replace(/_\d{1,2}$/g, "") // "_1" or "_02"
 
   // 4. Strip common camera prefixes: img_, pxl_, vid_, dsc_, wa_, whatsapp image, whatsapp video, screenshot, etc.
   name = name.replace(
@@ -31,5 +30,7 @@ export function getNormalizedFilenameBase(filename: string): string {
     .replace(/[_-](hdr|edited|bokeh|normal|wa\d{4})$/g, "")
     .replace(/\.(portrait|mp)$/g, "")
 
-  return name.trim()
+  const trimmed = name.trim()
+  return trimmed.length > 0 ? trimmed : baseWithoutExt.trim()
 }
+

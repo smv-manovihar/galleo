@@ -43,7 +43,11 @@ Plan and chat use dense fragments, not prose.
 2. **Fresh?** Read `schema_audit.md`. Missing or no findings → stop:
    > "No audit findings found. Run schema-alignment-audit first, then return here."
 
-**Resuming:** read the plan. If any fix is `pending` and the plan was never approved (no `APPROVED` marker in the Log), you are still behind the Phase 2 gate — present, don't execute. Otherwise continue from the first `pending`.
+**Resuming:** read in this order and stop at the pointer.
+1. **`schema_fix_plan.md` first.** No `APPROVED` marker in the Log while fixes sit `pending` → you are still behind the Phase 2 gate: present, don't execute.
+2. **Approved → Inventory + Execution Order.** Continue from the first `pending`; skip anything `done`. The Status column outranks whatever you infer from the source tree.
+3. **Execution Log — last 2–3 entries only**, to see what the previous session changed and whether a hop was left half-applied.
+4. **`schema_audit.md` on demand only, by targeted search** — `grep -n "SA-07" schema_audit.md`, then read just that block. Never re-read the audit end to end; Phase 1 already distilled it into the plan.
 
 ---
 

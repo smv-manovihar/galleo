@@ -38,6 +38,8 @@ export const IPC_CHANNELS = {
   APP_DOWNLOAD_UPDATE: "app:download-update",
   APP_DOWNLOAD_UPDATE_PROGRESS: "app:download-update-progress",
   APP_INSTALL_UPDATE: "app:install-update",
+  APP_DELETE_INSTALLER: "app:delete-installer",
+  APP_GET_INSTALLER_INFO: "app:get-installer-info",
   URL_OPEN: "url:open",
   SEARCH_SEMANTIC: "search:semantic",
   SEARCH_FIND_SIMILAR: "search:find-similar",
@@ -48,6 +50,14 @@ export const IPC_CHANNELS = {
   AI_INDEXING_PROGRESS: "ai:indexing-progress",
   AI_START_INDEXING: "ai:start-indexing",
 } as const
+
+export interface DownloadedInstallerInfo {
+  path: string
+  filename: string
+  sizeBytes: number
+  version?: string
+  isCurrentVersion?: boolean
+}
 
 export interface UpdateCheckResult {
   updateAvailable: boolean
@@ -207,6 +217,10 @@ export interface GalleoAPI {
   checkForUpdates: (force?: boolean) => Promise<Result<UpdateCheckResult>>
   downloadUpdate: (downloadUrl: string) => Promise<Result<string>>
   installUpdate: () => Promise<Result<void>>
+  deleteDownloadedInstaller: () => Promise<Result<void>>
+  getDownloadedInstallerInfo: () => Promise<
+    Result<DownloadedInstallerInfo | null>
+  >
   onUpdateDownloadProgress: (
     callback: (progress: number) => void
   ) => () => void

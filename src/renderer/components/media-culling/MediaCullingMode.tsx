@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from "react"
 import { useSessionStore } from "../../stores/session-store"
+import { useUIStore } from "../../stores/ui-store"
 import type { MediaItem } from "../../../shared/types/media"
 import { MediaCullingProgress } from "./MediaCullingProgress"
 import { MediaCullingCard } from "./MediaCullingCard"
@@ -169,6 +170,8 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
       setSwipeClass("")
       const success = await undo("culling")
       if (success && lastAction) {
+        const direction = lastAction.type === "mark-keep" ? "right" : "left"
+        setRestoringItem({ id: lastAction.mediaId, direction })
         bringToFront(lastAction.mediaId)
       }
       return
@@ -223,7 +226,8 @@ export const MediaCullingMode: React.FC<MediaCullingModeProps> = ({
       document.activeElement?.tagName === "TEXTAREA" ||
       document.activeElement?.getAttribute("contenteditable") === "true" ||
       showPreview ||
-      isHistoryOpen
+      isHistoryOpen ||
+      useUIStore.getState().keyboardShortcutsOpen
     ) {
       return
     }

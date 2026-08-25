@@ -213,7 +213,20 @@ work starts at the first `Pending` fix. (Never edit source unless Status = Appro
 ---
 
 ## Resuming
-State lives in `fix_plan.md`. A fresh session: read it → confirm header **Status = Approved** (if Draft/Revised, re-present for review — **never edit source on an unapproved plan**) → resume at the first `Pending` fix in Execution Order via 3-A. Skip anything `✅ Done`. If Status = Complete, offer the walkthrough. If the plan is missing, this isn't a resume — run Pre-Flight.
+State lives in `fix_plan.md`. Read in this order and stop at the pointer.
+
+1. **`fix_plan.md` first.** The header **Status** is the gate: `Draft`/`Revised` → re-present for review, **never edit source on an unapproved plan**. `Complete` → offer the walkthrough. Take Project Patterns from the plan, not from a fresh read of the audit.
+2. **Approved → Fix Inventory + Execution Order.** Resume at the first `Pending` in Execution Order via 3-A; skip anything `✅ Done`. The Status column outranks whatever you infer from the source tree.
+3. **Execution Log — last 2–3 entries only.** Enough to see what the previous session actually changed and whether a verification step was left hanging. Not the whole log.
+4. **`audit_progress.md` on demand only, by targeted search.** Approach Details are the contract; the audit is the source behind them. Pull one finding back when the approach reads ambiguous or blast radius needs confirming:
+
+```bash
+grep -n "ISSUE-014" audit_progress.md    # locate the finding
+sed -n '210,240p' audit_progress.md      # read only that block
+```
+
+Never re-read the findings log end to end on a resume — Phase 0 already distilled it into the plan.
+5. **Plan missing** → this is not a resume. Run Pre-Flight.
 
 ---
 

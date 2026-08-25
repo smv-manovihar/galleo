@@ -90,7 +90,7 @@ export function registerIpcHandlers(window: BrowserWindow): void {
     const wasInterrupted = scannerService.isScanInterrupted()
     // Clear the flag so it doesn't fire again on subsequent checks
     if (wasInterrupted) {
-      scannerService["clearScanInProgress"]()
+      scannerService.clearScanInProgress()
     }
     return wasInterrupted
   })
@@ -122,16 +122,16 @@ export function registerIpcHandlers(window: BrowserWindow): void {
 
   ipcMain.handle(
     IPC_CHANNELS.MEDIA_UPDATE_ORIENTATION,
-    (_, { idOrPath, orientation }: { idOrPath: string; orientation: number }) => {
+    (_, { idOrPath, orientation }: { idOrPath: string; orientation: number }): Result<void> => {
       try {
         mediaRepository.updateOrientation(idOrPath, orientation)
-        return { success: true }
+        return ok(undefined)
       } catch (err: unknown) {
         const error = err as Error
-        return {
-          success: false,
-          error: { message: error?.message || "Failed to update orientation" },
-        }
+        return fail({
+          code: "UNKNOWN",
+          message: error?.message || "Failed to update orientation",
+        })
       }
     }
   )
@@ -248,10 +248,17 @@ export function registerIpcHandlers(window: BrowserWindow): void {
 
         if (database) {
           db.prepare("DELETE FROM media_items").run()
+          db.prepare("DELETE FROM pending_file_changes").run()
+          db.prepare("DELETE FROM media_embeddings").run()
+          db.prepare("DELETE FROM video_frame_embeddings").run()
         }
 
         if (sessions) {
           db.prepare("DELETE FROM sessions").run()
+          db.prepare(`
+            UPDATE media_items 
+            SET review_state = 'pending', reviewed_at = NULL
+          `).run()
         }
 
         if (cache) {
@@ -264,6 +271,9 @@ export function registerIpcHandlers(window: BrowserWindow): void {
         if (database || cache) {
           try {
             db.pragma("wal_checkpoint(TRUNCATE)")
+            if (database) {
+              db.exec("VACUUM")
+            }
           } catch {
             // ignore checkpoint error
           }
@@ -304,7 +314,15 @@ export function registerIpcHandlers(window: BrowserWindow): void {
     return await updateService.installUpdate()
   })
 
-  ipcMain.handle(IPC_CHANNELS.URL_OPEN, (_, url: string) => {
+  ipcMain.handle(IPC_CHANNELS.APP_DELETE_INSTALLER, async () => {
+    return await updateService.deleteDownloadedInstaller()
+  })
+
+  ipcMain.handle(IPC_CHANNELS.APP_GET_INSTALLER_INFO, async () => {
+    return await updateService.getDownloadedInstallerInfo()
+  })
+
+  ipcMain.handle(IPC_CHANNELS.URL_OPEN, async (_, url: string) => {
     try {
       if (!url || typeof url !== "string" || !/^https?:\/\//i.test(url.trim())) {
         return fail({
@@ -312,7 +330,7 @@ export function registerIpcHandlers(window: BrowserWindow): void {
           message: "Only HTTP(S) URLs are permitted",
         })
       }
-      shell.openExternal(url.trim())
+      await shell.openExternal(url.trim())
       return ok(undefined)
     } catch (e: unknown) {
       const err = e as Error

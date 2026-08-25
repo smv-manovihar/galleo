@@ -125,7 +125,7 @@ export class MediaRepository {
         hash = excluded.hash,
         exact_hash = excluded.exact_hash,
         duration = excluded.duration,
-        thumbnail_path = COALESCE(excluded.thumbnail_path, media_items.thumbnail_path),
+        thumbnail_path = excluded.thumbnail_path,
         date_modified = excluded.date_modified,
         blur_score = excluded.blur_score,
         brightness = excluded.brightness,
@@ -242,26 +242,27 @@ export class MediaRepository {
       return rows.map((row) => this.rowToMediaItem(row))
     }
 
-    // Normalize path and match exact folder or subpath
-    const normPath = folderPath
-      .replace(/\\/g, "/")
-      .toLowerCase()
-      .replace(/\/+$/, "")
+    // Match exact folder or any items inside folder subdirectories (forward and backslash formats)
+    const forwardPath = folderPath.replace(/\\/g, "/").replace(/\/+$/, "")
+    const backPath = folderPath.replace(/\//g, "\\").replace(/\\+$/, "")
+    const forwardEscaped = forwardPath.replace(/[!%_]/g, "!$&")
+    const backEscaped = backPath.replace(/[!%_]/g, "!$&")
 
-    const exactPath = normPath
-    const subPath = `${normPath.replace(/[!%_]/g, "!$&")}/%`
+    const forwardSub = `${forwardEscaped}/%`
+    const backSub = `${backEscaped}\\%`
 
-    // Match exact folder or any items inside folder subdirectories
     const stmt = db.prepare(`
        SELECT * FROM media_items 
        WHERE (
-         REPLACE(path, '\\', '/') COLLATE NOCASE = ?
-         OR REPLACE(path, '\\', '/') COLLATE NOCASE LIKE ? ESCAPE '!'
+         path COLLATE NOCASE = ?
+         OR path COLLATE NOCASE = ?
+         OR path COLLATE NOCASE LIKE ? ESCAPE '!'
+         OR path COLLATE NOCASE LIKE ? ESCAPE '!'
        )
        ORDER BY date_target DESC
      `)
 
-    const rows = stmt.all(exactPath, subPath)
+    const rows = stmt.all(forwardPath, backPath, forwardSub, backSub)
     return rows.map((row) => this.rowToMediaItem(row))
   }
 
@@ -327,16 +328,83 @@ export class MediaRepository {
    * Deletes scanned metadata for files that were physically removed/moved.
    */
   public deleteMany(paths: string[]): void {
+    if (!paths || paths.length === 0) return
     const db = this.getDb()
-    const stmt = db.prepare("DELETE FROM media_items WHERE path = ?")
+    const stmt = db.prepare(`
+      DELETE FROM media_items 
+      WHERE path = ? 
+         OR path = ? 
+         OR path COLLATE NOCASE = ? 
+         OR path COLLATE NOCASE = ?
+    `)
 
     const transaction = db.transaction((pathList: string[]) => {
       for (const p of pathList) {
-        stmt.run(p)
+        const forwardSlash = p.replace(/\\/g, "/")
+        const backSlash = p.replace(/\//g, "\\")
+        stmt.run(p, forwardSlash, forwardSlash, backSlash)
       }
     })
 
     transaction(paths)
+  }
+
+  /**
+   * Updates paths and names in-place for files that were moved on disk,
+   * preserving foreign key relationships like AI embeddings.
+   */
+  public updateMovedFiles(
+    moves: Array<{
+      oldPath: string
+      newPath: string
+      newName: string
+      newExtension: string
+    }>
+  ): void {
+    if (!moves || moves.length === 0) return
+    const db = this.getDb()
+    const stmt = db.prepare(`
+      UPDATE media_items
+      SET path = :newPath,
+          name = :newName,
+          extension = :newExtension
+      WHERE path = :oldPath
+         OR path = :oldPathForward
+         OR path COLLATE NOCASE = :oldPath
+    `)
+
+    const transaction = db.transaction((moveList: typeof moves) => {
+      for (const m of moveList) {
+        stmt.run({
+          ...m,
+          oldPathForward: m.oldPath.replace(/\\/g, "/"),
+        })
+      }
+    })
+
+    transaction(moves)
+  }
+
+  /**
+   * Updates is_blurry and is_dark boolean flags across all media items when thresholds change in settings.
+   */
+  public recalibrateQualityThresholds(
+    blurThreshold: number,
+    darknessThreshold: number
+  ): void {
+    const db = this.getDb()
+    const stmt = db.prepare(`
+      UPDATE media_items
+      SET is_blurry = CASE
+            WHEN blur_score IS NOT NULL AND blur_score < ? THEN 1
+            ELSE 0
+          END,
+          is_dark = CASE
+            WHEN brightness IS NOT NULL AND brightness < ? THEN 1
+            ELSE 0
+          END
+    `)
+    stmt.run(blurThreshold, darknessThreshold)
   }
 
   /**
@@ -349,20 +417,24 @@ export class MediaRepository {
       stmt.run()
       return
     }
-    const normPath = folderPath
-      .replace(/\\/g, "/")
-      .toLowerCase()
-      .replace(/\/+$/, "")
-    const exactPath = normPath
-    const subPath = `${normPath.replace(/[!%_]/g, "!$&")}/%`
+    const forwardPath = folderPath.replace(/\\/g, "/").replace(/\/+$/, "")
+    const backPath = folderPath.replace(/\//g, "\\").replace(/\\+$/, "")
+    const forwardEscaped = forwardPath.replace(/[!%_]/g, "!$&")
+    const backEscaped = backPath.replace(/[!%_]/g, "!$&")
+
+    const forwardSub = `${forwardEscaped}/%`
+    const backSub = `${backEscaped}\\%`
+
     const stmt = db.prepare(`
       DELETE FROM media_items 
       WHERE (
-        REPLACE(path, '\\', '/') COLLATE NOCASE = ?
-        OR REPLACE(path, '\\', '/') COLLATE NOCASE LIKE ? ESCAPE '!'
+        path COLLATE NOCASE = ?
+        OR path COLLATE NOCASE = ?
+        OR path COLLATE NOCASE LIKE ? ESCAPE '!'
+        OR path COLLATE NOCASE LIKE ? ESCAPE '!'
       )
     `)
-    stmt.run(exactPath, subPath)
+    stmt.run(forwardPath, backPath, forwardSub, backSub)
   }
 
   /**
@@ -378,21 +450,25 @@ export class MediaRepository {
       stmt.run()
       return
     }
-    const normPath = folderPath
-      .replace(/\\/g, "/")
-      .toLowerCase()
-      .replace(/\/+$/, "")
-    const exactPath = normPath
-    const subPath = `${normPath.replace(/[!%_]/g, "!$&")}/%`
+    const forwardPath = folderPath.replace(/\\/g, "/").replace(/\/+$/, "")
+    const backPath = folderPath.replace(/\//g, "\\").replace(/\\+$/, "")
+    const forwardEscaped = forwardPath.replace(/[!%_]/g, "!$&")
+    const backEscaped = backPath.replace(/[!%_]/g, "!$&")
+
+    const forwardSub = `${forwardEscaped}/%`
+    const backSub = `${backEscaped}\\%`
+
     const stmt = db.prepare(`
       UPDATE media_items 
       SET review_state = 'pending', reviewed_at = NULL 
       WHERE (
-        REPLACE(path, '\\', '/') COLLATE NOCASE = ?
-        OR REPLACE(path, '\\', '/') COLLATE NOCASE LIKE ? ESCAPE '!'
+        path COLLATE NOCASE = ?
+        OR path COLLATE NOCASE = ?
+        OR path COLLATE NOCASE LIKE ? ESCAPE '!'
+        OR path COLLATE NOCASE LIKE ? ESCAPE '!'
       )
     `)
-    stmt.run(exactPath, subPath)
+    stmt.run(forwardPath, backPath, forwardSub, backSub)
   }
 
   /**

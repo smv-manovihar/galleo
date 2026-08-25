@@ -189,11 +189,16 @@ export const DuplicateAuditPage: React.FC = () => {
       const rawGroup = duplicateGroups[gIdx]
       if (rawGroup.length < 2) continue
 
-      // Group items in this perceptual group by their exact duplicates key: (normalizedFilenameBase, size)
+      // Group items in this perceptual group by their exact duplicates key:
+      // Priority 1: exactHash (SHA-256 byte-identical)
+      // Priority 2: fallback to (normalizedFilenameBase, size) only if exactHash is missing
       const exactSubGroupsMap = new Map<string, MediaItem[]>()
       for (let i = 0; i < rawGroup.length; i++) {
         const item = rawGroup[i]
-        const key = `${getNormalizedFilenameBase(item.name).toLowerCase()}_${item.size}`
+        const key =
+          item.exactHash && item.exactHash.length > 0
+            ? `hash_${item.exactHash.toLowerCase()}`
+            : `fallback_${getNormalizedFilenameBase(item.name).toLowerCase()}_${item.size}`
         let arr = exactSubGroupsMap.get(key)
         if (!arr) {
           arr = []
@@ -483,7 +488,6 @@ export const DuplicateAuditPage: React.FC = () => {
           <div className="min-h-0 flex-1">
             <TabsContent
               value="auto"
-              forceMount
               className="m-0 flex h-full min-h-0 flex-col"
             >
               <DuplicateAuditExactDuplicates
@@ -499,7 +503,6 @@ export const DuplicateAuditPage: React.FC = () => {
 
             <TabsContent
               value="manual"
-              forceMount
               className="m-0 flex h-full min-h-0 flex-col"
             >
               {manualReviewItems.length > 0 && (showManualSummary || isAllManualReviewed) ? (

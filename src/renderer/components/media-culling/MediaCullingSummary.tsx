@@ -23,7 +23,7 @@ interface MediaCullingSummaryProps {
 export const MediaCullingSummary: React.FC<MediaCullingSummaryProps> = ({
   onBackToQueue,
 }) => {
-  const { decisions, startTrashingInBackground } = useSessionStore()
+  const { decisions, startTrashingInBackground, clearSession } = useSessionStore()
   const items = useMediaStore((s) => s.items)
   const setCurrentView = useUIStore((s) => s.setCurrentView)
 
@@ -57,10 +57,15 @@ export const MediaCullingSummary: React.FC<MediaCullingSummaryProps> = ({
     const size = details.reclaimableSize
     const count = deleteIds.length
     if (count > 0) {
-      void startTrashingInBackground(deleteIds, "Trashing culled files...")
+      void startTrashingInBackground(undefined, "Trashing culled files...")
       toast.success("Trashing started", {
         id: "trashing-status-toast",
         description: `${count} file${count !== 1 ? "s" : ""} queued for trashing (${formatBytes(size)}).`,
+      })
+    } else {
+      void clearSession()
+      toast.success("Culling session completed", {
+        description: "All reviewed files preserved.",
       })
     }
     setCurrentView("dashboard")

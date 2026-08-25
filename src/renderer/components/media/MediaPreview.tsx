@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react"
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import type { MediaItem } from "../../../shared/types/media"
 import {
   Dialog,
@@ -234,7 +234,9 @@ const MAX_SCALE = 6
   }, [rotation, handleRotate])
 
   // 6. Navigation
-  const currentIndex = items && item ? items.findIndex((i) => i.id === item.id) : -1
+  const currentIndex = useMemo(() => {
+    return items && item ? items.findIndex((i) => i.id === item.id) : -1
+  }, [items, item])
   const hasPrevious = currentIndex > 0
   const hasNext = items && currentIndex >= 0 ? currentIndex < items.length - 1 : false
 
@@ -356,20 +358,22 @@ const MAX_SCALE = 6
         return
       }
 
-      // Toggle fullscreen: F
-      if (key === "f") {
+      const isVideoItem = actions.item.mediaType === "video"
+
+      // Toggle fullscreen: F (delegated to VideoPlayer for videos)
+      if (key === "f" && !isVideoItem) {
         e.preventDefault()
         void actions.toggleFullscreen()
         return
       }
 
-      // Rotation shortcuts: Ctrl/Cmd + Left/Right
-      if ((e.ctrlKey || e.metaKey) && e.key === "ArrowLeft") {
+      // Rotation shortcuts: Ctrl/Cmd + Left/Right (delegated to VideoPlayer for videos)
+      if (!isVideoItem && (e.ctrlKey || e.metaKey) && e.key === "ArrowLeft") {
         e.preventDefault()
         actions.handleRotateLeft()
         return
       }
-      if ((e.ctrlKey || e.metaKey) && e.key === "ArrowRight") {
+      if (!isVideoItem && (e.ctrlKey || e.metaKey) && e.key === "ArrowRight") {
         e.preventDefault()
         actions.handleRotateRight()
         return

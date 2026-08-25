@@ -10,6 +10,7 @@ import { toast } from "sonner"
 import { useMediaStore, filterAndSortItems } from "../stores/media-store"
 import { useSessionStore } from "../stores/session-store"
 import { useScanStore } from "../stores/scan-store"
+import { useUIStore } from "../stores/ui-store"
 import { MediaGrid } from "../components/media/MediaGrid"
 import { MediaTimeline } from "../components/media/MediaTimeline"
 import { MediaList } from "../components/media/MediaList"
@@ -198,7 +199,7 @@ export const BrowseMediaPage: React.FC = () => {
     () =>
       filterAndSortItems(items, {
         activeRootPath,
-        searchQuery,
+        searchQuery: activeSearchIdSet ? "" : searchQuery,
         similarTargetItem,
         similarRadius,
         filterType,
@@ -211,6 +212,7 @@ export const BrowseMediaPage: React.FC = () => {
       items,
       activeRootPath,
       searchQuery,
+      activeSearchIdSet,
       similarTargetItem,
       similarRadius,
       filterType,
@@ -232,26 +234,84 @@ export const BrowseMediaPage: React.FC = () => {
 
   const similarityFooter = useMemo(() => {
     if (!similarTargetItem) return undefined
+    const normRoot =
+      activeRootPath && activeRootPath !== "all"
+        ? activeRootPath.replace(/\\/g, "/").toLowerCase().replace(/\/+$/, "")
+        : null
+
+    const candidateScopeCount = items.filter((i) => {
+      if (i.mediaType !== "photo") return false
+      if (!normRoot) return true
+      const itemNorm = i.path.replace(/\\/g, "/").toLowerCase()
+      return itemNorm === normRoot || itemNorm.startsWith(normRoot + "/")
+    }).length
+
     return (
       <BrowseSimilarityRadiusFooter
         targetItem={similarTargetItem}
         matchCount={filteredItems.length}
-        totalLibraryCount={items.length}
+        totalLibraryCount={candidateScopeCount || items.length}
       />
     )
-  }, [similarTargetItem, filteredItems.length, items.length])
+  }, [similarTargetItem, filteredItems.length, items, activeRootPath])
 
-  const handleSelectToggle = useCallback((id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) {
-        next.delete(id)
-      } else {
-        next.add(id)
+  const lastSelectedIdRef = useRef<string | null>(null)
+
+  // Derive visible selection in O(N) without triggering cascading renders in an effect
+  const validSelectedIds = useMemo(() => {
+    if (selectedIds.size === 0) return selectedIds
+    const visibleSet = new Set(filteredItems.map((i) => i.id))
+    let hasInvalid = false
+    for (const id of selectedIds) {
+      if (!visibleSet.has(id)) {
+        hasInvalid = true
+        break
       }
-      return next
-    })
-  }, [])
+    }
+    if (!hasInvalid) return selectedIds
+    const next = new Set<string>()
+    for (const id of selectedIds) {
+      if (visibleSet.has(id)) next.add(id)
+    }
+    return next
+  }, [selectedIds, filteredItems])
+
+  const handleSelectToggle = useCallback(
+    (id: string, eventOrShift?: React.MouseEvent | boolean) => {
+      const shiftKey =
+        typeof eventOrShift === "boolean"
+          ? eventOrShift
+          : Boolean(eventOrShift?.shiftKey)
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        if (shiftKey && lastSelectedIdRef.current && lastSelectedIdRef.current !== id) {
+          const idx1 = filteredItems.findIndex((i) => i.id === lastSelectedIdRef.current)
+          const idx2 = filteredItems.findIndex((i) => i.id === id)
+          if (idx1 !== -1 && idx2 !== -1) {
+            const start = Math.min(idx1, idx2)
+            const end = Math.max(idx1, idx2)
+            for (let i = start; i <= end; i++) {
+              next.add(filteredItems[i].id)
+            }
+            lastSelectedIdRef.current = id
+            return next
+          }
+        }
+
+        if (next.has(id)) {
+          next.delete(id)
+          if (lastSelectedIdRef.current === id) {
+            lastSelectedIdRef.current = null
+          }
+        } else {
+          next.add(id)
+          lastSelectedIdRef.current = id
+        }
+        return next
+      })
+    },
+    [filteredItems]
+  )
 
   const handleReviewAction = useCallback(
     async (
@@ -286,7 +346,7 @@ export const BrowseMediaPage: React.FC = () => {
   const handleBatchReviewAction = useCallback(
     async (state: "keep" | "delete") => {
       const batchId = `batch_browse_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`
-      const updates = [...selectedIds].map((id) => ({
+      const updates = [...validSelectedIds].map((id) => ({
         mediaId: id,
         state,
       }))
@@ -295,7 +355,7 @@ export const BrowseMediaPage: React.FC = () => {
         .submitBatchDecisions(updates, "browse", batchId)
       setSelectedIds(new Set())
     },
-    [selectedIds]
+    [validSelectedIds]
   )
 
   const handleUndo = useCallback(async () => {
@@ -331,7 +391,8 @@ export const BrowseMediaPage: React.FC = () => {
         document.activeElement?.tagName === "INPUT" ||
         document.activeElement?.tagName === "TEXTAREA" ||
         document.activeElement?.getAttribute("contenteditable") === "true" ||
-        isModalOpenRef.current
+        isModalOpenRef.current ||
+        useUIStore.getState().keyboardShortcutsOpen
       ) {
         return
       }
@@ -455,11 +516,11 @@ export const BrowseMediaPage: React.FC = () => {
       </div>
 
       {/* Batch Operations Floating Bar (only shown if cards selected) */}
-      {selectedIds.size > 0 && (
+      {validSelectedIds.size > 0 && (
         <div className="pointer-events-none absolute bottom-4 inset-x-0 z-30 flex justify-center px-4">
           <div className="pointer-events-auto max-w-2xl w-full">
             <BrowseBatchBar
-              selectedCount={selectedIds.size}
+              selectedCount={validSelectedIds.size}
               totalFilteredCount={filteredItems.length}
               onSelectAll={handleSelectAll}
               onClearSelection={handleClearSelection}
@@ -475,12 +536,11 @@ export const BrowseMediaPage: React.FC = () => {
           <div className="h-full w-full px-3">
             <MediaGrid
               items={deferredFilteredItems}
-              selectedIds={selectedIds}
+              selectedIds={validSelectedIds}
               onSelectToggle={handleSelectToggle}
               onPreviewOpen={handleSetPreviewItem}
               onInfoOpen={handleSetInfoItem}
               onReviewAction={handleReviewAction}
-              columns={4}
               searchResultsMap={searchResultsMap}
               onFindSimilar={onFindSimilarProp}
               onPlayOpen={handlePlayOpen}
@@ -494,7 +554,7 @@ export const BrowseMediaPage: React.FC = () => {
           <div className="h-full w-full px-3">
             <MediaTimeline
               items={deferredFilteredItems}
-              selectedIds={selectedIds}
+              selectedIds={validSelectedIds}
               onSelectToggle={handleSelectToggle}
               onPreviewOpen={handleSetPreviewItem}
               onInfoOpen={handleSetInfoItem}
@@ -513,7 +573,7 @@ export const BrowseMediaPage: React.FC = () => {
           >
             <MediaList
               items={deferredFilteredItems}
-              selectedIds={selectedIds}
+              selectedIds={validSelectedIds}
               onSelectToggle={handleSelectToggle}
               onPreviewOpen={handleSetPreviewItem}
               onReviewAction={handleReviewAction}

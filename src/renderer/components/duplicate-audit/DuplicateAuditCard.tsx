@@ -17,6 +17,7 @@ import {
   TooltipContent,
 } from "@/components/ui/tooltip"
 import { QualityScoreBadge } from "../media/QualityScoreBadge"
+import { toMediaUrl } from "../../lib/media-preloader"
 
 export interface DuplicateAuditCardProps {
   item: MediaItem
@@ -46,9 +47,9 @@ export const DuplicateAuditCard = React.memo<DuplicateAuditCardProps>(({
   const isMarkedKeep = reviewState === "keep"
   const isMarkedDelete = reviewState === "delete"
 
-  const rawPath = item.thumbnailPath || item.path
+  const rawPath = isVideo ? (item.thumbnailPath || item.path) : item.path
   const safeThumbnailSrc = rawPath
-    ? `media:///${rawPath.replace(/\\/g, "/")}`
+    ? toMediaUrl(rawPath, isVideo ? undefined : 480)
     : null
 
   const dateStr = useMemo(() => {
@@ -119,6 +120,11 @@ export const DuplicateAuditCard = React.memo<DuplicateAuditCardProps>(({
           <img
             src={safeThumbnailSrc}
             alt={item.name}
+            onError={(e) => {
+              if (item.path && e.currentTarget.src !== `media:///${item.path.replace(/\\/g, "/")}`) {
+                e.currentTarget.src = `media:///${item.path.replace(/\\/g, "/")}`
+              }
+            }}
             style={
               item.orientation
                 ? { transform: `rotate(${item.orientation}deg)` }

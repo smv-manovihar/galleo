@@ -97,40 +97,56 @@ vi.mock("../../infrastructure/database", () => ({
 
       if (normalizedSql.includes("INSERT INTO session_decisions")) {
         return {
-          run: (params: {
-            sessionId: string
-            mediaId: string
-            decision: string
-          }) => {
-            mockDecisions.push({
-              session_id: params.sessionId,
-              media_id: params.mediaId,
-              decision: params.decision,
-            })
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          run: (...args: any[]) => {
+            if (args.length === 1 && typeof args[0] === "object") {
+              const params = args[0]
+              mockDecisions.push({
+                session_id: params.sessionId,
+                media_id: params.mediaId,
+                decision: params.decision,
+              })
+            } else {
+              for (let i = 0; i < args.length; i += 3) {
+                mockDecisions.push({
+                  session_id: String(args[i]),
+                  media_id: String(args[i + 1]),
+                  decision: String(args[i + 2]),
+                })
+              }
+            }
           },
         }
       }
 
       if (normalizedSql.includes("INSERT INTO undo_actions")) {
         return {
-          run: (params: {
-            id: string
-            sessionId: string
-            mediaId: string
-            type: string
-            timestamp: number
-            previousState: string
-            newState: string
-          }) => {
-            mockUndoActions.push({
-              id: params.id,
-              session_id: params.sessionId,
-              media_id: params.mediaId,
-              type: params.type,
-              timestamp: params.timestamp,
-              previous_state: params.previousState,
-              new_state: params.newState,
-            })
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          run: (...args: any[]) => {
+            if (args.length === 1 && typeof args[0] === "object") {
+              const params = args[0]
+              mockUndoActions.push({
+                id: params.id,
+                session_id: params.sessionId,
+                media_id: params.mediaId,
+                type: params.type,
+                timestamp: params.timestamp,
+                previous_state: params.previousState,
+                new_state: params.newState,
+              })
+            } else {
+              for (let i = 0; i < args.length; i += 7) {
+                mockUndoActions.push({
+                  id: String(args[i]),
+                  session_id: String(args[i + 1]),
+                  media_id: String(args[i + 2]),
+                  type: String(args[i + 3]),
+                  timestamp: Number(args[i + 4]),
+                  previous_state: String(args[i + 5]),
+                  new_state: String(args[i + 6]),
+                })
+              }
+            }
           },
         }
       }

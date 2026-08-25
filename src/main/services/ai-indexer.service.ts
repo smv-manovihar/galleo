@@ -1,3 +1,4 @@
+import fs from "node:fs"
 import { BrowserWindow } from "electron"
 import { aiService } from "./ai.service"
 import { EmbeddingRepository } from "../repositories/embedding.repository"
@@ -44,13 +45,15 @@ export class AIIndexerService {
 
     try {
       let processedCount = 0
+      let failedCount = 0
+      let consecutiveFailures = 0
       let lastTotalCount = 0
-      const attemptedIds = new Set<string>()
+      const failedMediaIds = new Set<string>()
 
       while (true) {
         if (this.isCancelled) break
 
-        const excludeArray = Array.from(attemptedIds)
+        const excludeArray = Array.from(failedMediaIds)
         const totalRemaining = this.embeddingRepository.getUnindexedCount(excludeArray)
         const batch = this.embeddingRepository.getUnindexedMediaItems(50, excludeArray)
 
@@ -67,14 +70,8 @@ export class AIIndexerService {
         lastTotalCount = totalCount
         console.log(`[AIIndexer] Batch: ${batch.length} items, processed so far: ${processedCount}, total: ${totalCount}`)
 
-        let failedCount = 0
-        let consecutiveFailures = 0
-
         for (const item of batch) {
           if (this.isCancelled) break
-
-          // Track attempted IDs to avoid infinite loops and duplicate counts
-          attemptedIds.add(item.id)
 
           this.notifyProgress(
             window,
@@ -116,6 +113,7 @@ export class AIIndexerService {
                 const frameRecords = []
                 for (const frame of framesRes.data) {
                   if (this.isCancelled) break
+                  if (!fs.existsSync(frame.framePath)) continue
                   const vec = await this.aiService.generateImageEmbedding(
                     frame.framePath
                   )
@@ -128,7 +126,7 @@ export class AIIndexerService {
                     thumbnailPath: frame.framePath,
                   })
                 }
-                if (frameRecords.length > 0) {
+                if (!this.isCancelled && frameRecords.length > 0) {
                   this.embeddingRepository.saveVideoFrameEmbeddings(frameRecords)
                 }
               }
@@ -136,6 +134,7 @@ export class AIIndexerService {
             // Reset consecutive failures on success
             consecutiveFailures = 0
           } catch (err: unknown) {
+            failedMediaIds.add(item.id)
             failedCount++
             consecutiveFailures++
             const errMsg = err instanceof Error ? err.message : String(err)

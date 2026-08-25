@@ -139,6 +139,10 @@ const api: GalleoAPI = {
   downloadUpdate: (downloadUrl: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.APP_DOWNLOAD_UPDATE, downloadUrl),
   installUpdate: () => ipcRenderer.invoke(IPC_CHANNELS.APP_INSTALL_UPDATE),
+  deleteDownloadedInstaller: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.APP_DELETE_INSTALLER),
+  getDownloadedInstallerInfo: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.APP_GET_INSTALLER_INFO),
   onUpdateDownloadProgress: (callback) => {
     const listener = (_event: IpcRendererEvent, progress: number) =>
       callback(progress)

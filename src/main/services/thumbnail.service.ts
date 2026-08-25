@@ -1,4 +1,3 @@
-import { generateImageThumbnail } from "../infrastructure/image-processor"
 import { generateVideoThumbnail } from "../infrastructure/video-processor"
 import { type Result, fail } from "../../shared/types/results"
 import type { MediaType } from "../../shared/types/media"
@@ -15,7 +14,12 @@ export class ThumbnailService {
   ): Promise<Result<string>> {
     try {
       if (mediaType === "photo") {
-        return await generateImageThumbnail(filePath, mediaId)
+        // Disk photo thumbnails are disabled to prevent GBs of cache bloat
+        return fail({
+          code: "THUMBNAIL_FAILED",
+          path: filePath,
+          reason: "Photo disk thumbnails disabled",
+        })
       } else {
         return await generateVideoThumbnail(filePath, mediaId, duration)
       }

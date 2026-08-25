@@ -1,10 +1,11 @@
 import React, { useEffect } from "react"
-import { Loader2 } from "lucide-react"
+import { Loader2, AlertCircle } from "lucide-react"
 import { useUIStore } from "../../stores/ui-store"
 import { useSettingsStore } from "../../stores/settings-store"
 import { useMediaStore } from "../../stores/media-store"
 import { useScanStore } from "../../stores/scan-store"
 import { useTheme } from "@/components/theme-provider"
+import { Button } from "@/components/ui/button"
 import { AppSidebar } from "./AppSidebar"
 import { TopBar } from "./TopBar"
 import { StatusBar } from "./StatusBar"
@@ -30,6 +31,7 @@ export const AppShell: React.FC = () => {
   const fontSize = useSettingsStore((s) => s.settings.ui.fontSize)
   const fetchSettings = useSettingsStore((s) => s.fetchSettings)
   const isInitialized = useSettingsStore((s) => s.isInitialized)
+  const settingsError = useSettingsStore((s) => s.error)
   const hasItems = useMediaStore((s) => s.items.length > 0)
   const isLoading = useMediaStore((s) => s.isLoading)
   const fetchMediaItems = useMediaStore((s) => s.fetchMediaItems)
@@ -54,9 +56,10 @@ export const AppShell: React.FC = () => {
   }, [fetchSettings, checkActiveScanStatus])
 
   useEffect(() => {
-    // Sync theme settings class list
+    // Sync theme settings class list only once settings are initialized
+    if (!isInitialized) return
     setTheme(theme || "system")
-  }, [theme, setTheme])
+  }, [theme, setTheme, isInitialized])
 
   useEffect(() => {
     // Sync base font size zoom scale
@@ -125,6 +128,30 @@ export const AppShell: React.FC = () => {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-background">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  // If loading settings failed and no roots are available, show an error recovery screen
+  if (isInitialized && settingsError && folderRoots.length === 0) {
+    return (
+      <div className="flex h-screen w-screen flex-col items-center justify-center gap-4 bg-background p-6 text-center font-sans">
+        <div className="flex max-w-md flex-col items-center gap-3 rounded-2xl border border-destructive/20 bg-destructive/5 p-6 shadow-sm">
+          <AlertCircle className="h-8 w-8 text-destructive" />
+          <h2 className="text-sm font-semibold text-foreground">
+            Unable to Load Settings
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            {settingsError}
+          </p>
+          <Button
+            size="sm"
+            onClick={() => fetchSettings()}
+            className="mt-2 text-xs font-medium cursor-pointer"
+          >
+            Retry Loading
+          </Button>
+        </div>
       </div>
     )
   }

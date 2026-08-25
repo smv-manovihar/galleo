@@ -1,14 +1,166 @@
 import type { MediaItem } from "../../shared/types/media"
+import { getNormalizedFilenameBase } from "../../shared/filename-utils"
 
-/** Inline Hamming distance on hex pHash strings (renderer cannot import from main). */
-export function hammingDistance(a: string, b: string): number {
-  if (a.length !== b.length) return Infinity
-  const NIBBLE = new Uint8Array([0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4])
-  let d = 0
-  for (let i = 0; i < a.length; i++) {
-    d += NIBBLE[parseInt(a[i], 16) ^ parseInt(b[i], 16)]
+// Pre-computed lookup table for set bits in a nibble (4 bits, 0-15)
+const NIBBLE_BIT_COUNT = new Uint8Array([
+  0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4,
+])
+
+/**
+ * Computes the Hamming distance between two hex strings.
+ * Returns Infinity if lengths mismatch or inputs are invalid.
+ */
+export function hammingDistance(
+  hash1: string | undefined | null,
+  hash2: string | undefined | null
+): number {
+  if (!hash1 || !hash2 || hash1.length !== hash2.length) {
+    return Infinity
   }
-  return d
+
+  let distance = 0
+  for (let i = 0; i < hash1.length; i++) {
+    const val1 = parseInt(hash1[i], 16)
+    const val2 = parseInt(hash2[i], 16)
+    if (isNaN(val1) || isNaN(val2)) {
+      return Infinity
+    }
+    distance += NIBBLE_BIT_COUNT[val1 ^ val2]
+  }
+
+  return distance
+}
+
+/**
+ * Checks whether a hash is empty, invalid, or all zeros (degenerate for full-length hashes).
+ */
+export function isDegenerateHash(hash: string | undefined | null): boolean {
+  if (!hash || hash.length === 0) return true
+  if (hash.length >= 64) {
+    for (let i = 0; i < hash.length; i++) {
+      if (hash[i] !== "0") {
+        return false
+      }
+    }
+    return true
+  }
+  return false
+}
+
+/**
+ * Computes the unified similarity distance between two media items.
+ * - Same byte content or exact normalized filename + size: distance 0
+ * - Incompatible media types (photo vs video) or duration mismatches: Infinity
+ * - Multi-frame video perceptual comparison across keyframes (66% threshold + normalized avg)
+ * - Single-frame photo perceptual comparison
+ * - Shared duplicate group fallback
+ */
+export function computePerceptualDistance(
+  itemA: MediaItem,
+  itemB: MediaItem,
+  maxDistance: number = DEFAULT_SIMILARITY_RADIUS
+): number {
+  // 1. Same item
+  if (itemA.id === itemB.id) {
+    return 0
+  }
+
+  // 2. Must be same media type (never group photos with videos)
+  if (itemA.mediaType !== itemB.mediaType) {
+    return Infinity
+  }
+
+  // 3. Video duration mismatch guard (protects short clips from matching long movies with similar intro/black frames)
+  if (itemA.mediaType === "video" && itemB.mediaType === "video") {
+    if (itemA.duration !== undefined && itemB.duration !== undefined) {
+      const durDelta = Math.abs(itemA.duration - itemB.duration)
+      const allowedTol = Math.max(2, Math.min(itemA.duration, itemB.duration) * 0.10)
+      if (durDelta > allowedTol) {
+        return Infinity
+      }
+    }
+  }
+
+  // 4. Exact byte-for-byte content hash match
+  if (itemA.exactHash && itemB.exactHash && itemA.exactHash === itemB.exactHash) {
+    return 0
+  }
+
+  // 5. Exact normalized filename base + size match
+  if (
+    itemA.size > 0 &&
+    itemA.size === itemB.size &&
+    getNormalizedFilenameBase(itemA.name).toLowerCase() ===
+      getNormalizedFilenameBase(itemB.name).toLowerCase()
+  ) {
+    return 0
+  }
+
+  const h1 = itemA.hash
+  const h2 = itemB.hash
+
+  // 6. Guard against degenerate/missing hashes
+  if (isDegenerateHash(h1) || isDegenerateHash(h2)) {
+    if (
+      itemA.duplicateGroupId &&
+      itemB.duplicateGroupId &&
+      itemA.duplicateGroupId === itemB.duplicateGroupId
+    ) {
+      return 1
+    }
+    return Infinity
+  }
+
+  // 7. Multi-frame Video Perceptual Distance (e.g. 192 chars = 3 frames of 64 hex chars)
+  const numFrames = Math.max(1, Math.floor(Math.min(h1!.length, h2!.length) / 64))
+  if (numFrames > 1 && h1!.length === h2!.length) {
+    let totalDist = 0
+    let matchingFrames = 0
+    for (let f = 0; f < numFrames; f++) {
+      const f1 = h1!.slice(f * 64, (f + 1) * 64)
+      const f2 = h2!.slice(f * 64, (f + 1) * 64)
+      const fDist = hammingDistance(f1, f2)
+      if (fDist === Infinity) return Infinity
+      totalDist += fDist
+      if (fDist <= maxDistance) {
+        matchingFrames++
+      }
+    }
+
+    const requiredMatches = Math.ceil(numFrames * 0.66)
+    if (matchingFrames >= requiredMatches && totalDist <= maxDistance * numFrames) {
+      return Math.round(totalDist / numFrames)
+    }
+
+    if (
+      itemA.duplicateGroupId &&
+      itemB.duplicateGroupId &&
+      itemA.duplicateGroupId === itemB.duplicateGroupId
+    ) {
+      return Math.min(maxDistance, 10)
+    }
+
+    return Infinity
+  }
+
+  // 8. Single-frame Perceptual Distance (photos or single-frame hashes)
+  if (h1!.length === h2!.length) {
+    const dist = hammingDistance(h1, h2)
+    if (dist <= maxDistance) {
+      return dist
+    }
+  }
+
+  // 9. Duplicate Group match fallback
+  if (
+    itemA.duplicateGroupId &&
+    itemB.duplicateGroupId &&
+    itemA.duplicateGroupId === itemB.duplicateGroupId
+  ) {
+    return Math.min(maxDistance, 10)
+  }
+
+  return Infinity
 }
 
 /**
@@ -18,35 +170,54 @@ export function hammingDistance(a: string, b: string): number {
 export const similaritySortedIdCache = new Map<string, string[]>()
 
 export function getItemSetFingerprint(items: MediaItem[]): string {
-  if (items.length === 0) return ""
   const len = items.length
-  const step = Math.max(1, Math.floor(len / 10))
-  const samples: string[] = []
-  for (let i = 0; i < len; i += step) {
-    samples.push(`${items[i].id}-${items[i].hash || ""}`)
-  }
-  return `${len}_${samples.join("_")}`
+  if (len === 0) return ""
+  const first = `${items[0].id}-${items[0].hash || ""}`
+  const quarter = len > 3 ? items[Math.floor(len / 4)].id : ""
+  const mid = len > 1 ? `${items[Math.floor(len / 2)].id}-${items[Math.floor(len / 2)].hash || ""}` : ""
+  const threeQuarter = len > 3 ? items[Math.floor((3 * len) / 4)].id : ""
+  const last = `${items[len - 1].id}-${items[len - 1].hash || ""}`
+  return `${len}_${first}_${quarter}_${mid}_${threeQuarter}_${last}`
 }
 
 /**
  * Greedy nearest-neighbor sort: re-orders items so that each consecutive pair
- * has the smallest possible Hamming distance. Items without a hash are appended
+ * has the smallest possible perceptual distance. Items without a valid hash are appended
  * at the end in their original relative order. This creates a smooth visual
- * gradient through the queue — no threshold, no hard groups.
+ * gradient through the queue — no hard threshold, no artificial group breaks.
  */
 export function sortBySimilarity(items: MediaItem[]): MediaItem[] {
-  const hashed = items.filter((i) => !!i.hash)
-  const unhashed = items.filter((i) => !i.hash)
+  const hashed: MediaItem[] = []
+  const unhashed: MediaItem[] = []
+
+  for (const item of items) {
+    if (item.hash && !isDegenerateHash(item.hash)) {
+      hashed.push(item)
+    } else {
+      unhashed.push(item)
+    }
+  }
+
   if (hashed.length === 0) return items
 
   // Step 1: Pre-parse hex pHash strings to BigInts
   // For 192-char multi-frame video hashes, extract primary mid-frame (chars 64..128) for uniform BigInt sorting
-  const parsed: { item: MediaItem; big: bigint; fullHash: string }[] = []
+  const parsed: {
+    item: MediaItem
+    big: bigint
+    primaryHex: string
+    fullHex: string
+  }[] = []
   for (const item of hashed) {
     try {
       const hex = item.hash!
-      const primaryHex = hex.length >= 128 ? hex.slice(64, 128) : hex
-      parsed.push({ item, big: BigInt("0x" + primaryHex), fullHash: hex })
+      const primaryHex = hex.length >= 128 ? hex.slice(64, 128) : hex.slice(0, 64)
+      parsed.push({
+        item,
+        big: BigInt("0x" + primaryHex),
+        primaryHex,
+        fullHex: hex,
+      })
     } catch {
       unhashed.push(item)
     }
@@ -59,7 +230,7 @@ export function sortBySimilarity(items: MediaItem[]): MediaItem[] {
   parsed.sort((a, b) => (a.big < b.big ? -1 : a.big > b.big ? 1 : 0))
 
   const n = parsed.length
-  // For small collections <= 300, search full array. For large collections, search window around current item.
+  // Search window centered around current item in pHash-sorted space (bounded to 64 for fast interactive response)
   const WINDOW_SIZE = n > 300 ? 64 : n
   const visited = new Uint8Array(n)
   const result: MediaItem[] = []
@@ -70,8 +241,8 @@ export function sortBySimilarity(items: MediaItem[]): MediaItem[] {
   let firstUnvisited = 1
 
   for (let step = 1; step < n; step++) {
-    const currentItem = parsed[currentIdx].item
     const currentBig = parsed[currentIdx].big
+    const currentItem = parsed[currentIdx].item
     let bestIdx = -1
     let bestDist = Infinity
 
@@ -84,29 +255,14 @@ export function sortBySimilarity(items: MediaItem[]): MediaItem[] {
       const targetItem = parsed[j].item
 
       let dist = 0
-      if (
-        parsed[currentIdx].fullHash.length === parsed[j].fullHash.length &&
-        parsed[currentIdx].fullHash.length > 64
-      ) {
-        try {
-          let x = BigInt("0x" + parsed[currentIdx].fullHash) ^ BigInt("0x" + parsed[j].fullHash)
-          while (x > 0n) {
-            x &= x - 1n
-            dist++
-          }
-        } catch {
-          let x = currentBig ^ parsed[j].big
-          while (x > 0n) {
-            x &= x - 1n
-            dist++
-          }
-        }
-      } else {
-        let x = currentBig ^ parsed[j].big
-        while (x > 0n) {
-          x &= x - 1n
-          dist++
-        }
+      let x = currentBig ^ parsed[j].big
+      while (x > 0n) {
+        x &= x - 1n
+        dist++
+      }
+
+      if (currentItem.mediaType !== targetItem.mediaType) {
+        dist += 100
       }
 
       if (
@@ -116,7 +272,7 @@ export function sortBySimilarity(items: MediaItem[]): MediaItem[] {
         targetItem.duration !== undefined
       ) {
         const durDelta = Math.abs(currentItem.duration - targetItem.duration)
-        const allowed = Math.max(3, Math.max(currentItem.duration, targetItem.duration) * 0.10)
+        const allowed = Math.max(2, Math.min(currentItem.duration, targetItem.duration) * 0.10)
         if (durDelta > allowed) {
           dist += 50
         }
@@ -129,12 +285,13 @@ export function sortBySimilarity(items: MediaItem[]): MediaItem[] {
       }
     }
 
-    // Fallback if all window neighbors are already visited: pick closest unvisited starting from firstUnvisited
+    // Fallback if all window neighbors are already visited: check nearest unvisited cluster around firstUnvisited
     if (bestIdx === -1) {
-      for (let j = firstUnvisited; j < n; j++) {
+      const fallbackEnd = Math.min(n, firstUnvisited + 16)
+      for (let j = firstUnvisited; j < fallbackEnd; j++) {
         if (!visited[j]) {
-          let x = currentBig ^ parsed[j].big
           let dist = 0
+          let x = currentBig ^ parsed[j].big
           while (x > 0n) {
             x &= x - 1n
             dist++
@@ -148,17 +305,12 @@ export function sortBySimilarity(items: MediaItem[]): MediaItem[] {
       }
     }
 
-    // Secondary fallback: pick first unvisited
+    // Secondary fallback: pick first unvisited directly
     if (bestIdx === -1) {
-      for (let j = firstUnvisited; j < n; j++) {
-        if (!visited[j]) {
-          bestIdx = j
-          break
-        }
-      }
+      bestIdx = firstUnvisited
     }
 
-    if (bestIdx !== -1) {
+    if (bestIdx !== -1 && bestIdx < n) {
       currentIdx = bestIdx
       visited[currentIdx] = 1
       result.push(parsed[currentIdx].item)
@@ -178,13 +330,6 @@ export function sortBySimilarity(items: MediaItem[]): MediaItem[] {
  */
 export function getSimilaritySortedItems(items: MediaItem[]): MediaItem[] {
   if (items.length <= 1) return items
-
-  // Fast path: if similarityIndex was indexed during scanning, sort directly by index
-  if (items.some((i) => i.similarityIndex !== undefined)) {
-    return [...items].sort(
-      (a, b) => (a.similarityIndex ?? Infinity) - (b.similarityIndex ?? Infinity)
-    )
-  }
 
   const key = getItemSetFingerprint(items)
   let sortedIds = similaritySortedIdCache.get(key)
@@ -228,8 +373,8 @@ export const SIMILARITY_RADIUS_STEP = 4
 
 /**
  * Finds all media items visually or structurally similar to targetItem.
- * - Computes Hamming distance against hashed candidates (default maxDistance DEFAULT_SIMILARITY_RADIUS).
- * - Matches items sharing the same duplicateGroupId or identical exactHash.
+ * - Computes normalized perceptual distance against candidate items (default maxDistance DEFAULT_SIMILARITY_RADIUS).
+ * - Matches exact byte hashes, normalized filename copies, same duplicate groups, and multi-frame videos.
  * - Sorts matches with closest visual distance first and places targetItem at index 0.
  */
 export function findSimilarPerceptual(
@@ -237,10 +382,6 @@ export function findSimilarPerceptual(
   allItems: MediaItem[],
   maxDistance = DEFAULT_SIMILARITY_RADIUS
 ): MediaItem[] {
-  const targetHash = targetItem.hash
-  const targetExactHash = targetItem.exactHash
-  const targetGroupId = targetItem.duplicateGroupId
-
   const matches: { item: MediaItem; distance: number }[] = []
 
   for (const item of allItems) {
@@ -249,58 +390,13 @@ export function findSimilarPerceptual(
       continue
     }
 
-    // Must be same media type (never group a photo with a video)
-    if (item.mediaType !== targetItem.mediaType) {
-      continue
-    }
-
-    let isMatch = false
-    let dist = Infinity
-
-    // 1. Exact byte hash match
-    if (targetExactHash && item.exactHash && targetExactHash === item.exactHash) {
-      isMatch = true
-      dist = 0
-    }
-
-    // 2. Same duplicate group match
-    if (!isMatch && targetGroupId && item.duplicateGroupId && targetGroupId === item.duplicateGroupId) {
-      isMatch = true
-      dist = 1
-    }
-
-    // 3. Perceptual hash distance comparison
-    if (targetHash && item.hash) {
-      let d = Infinity
-      if (targetHash.length === item.hash.length) {
-        d = hammingDistance(targetHash, item.hash)
-      } else {
-        // Compare primary 64-char segment if lengths differ (e.g. video vs image)
-        const targetPrimary =
-          targetHash.length >= 128
-            ? targetHash.slice(64, 128)
-            : targetHash.slice(0, 64)
-        const itemPrimary =
-          item.hash.length >= 128
-            ? item.hash.slice(64, 128)
-            : item.hash.slice(0, 64)
-        if (targetPrimary.length === itemPrimary.length) {
-          d = hammingDistance(targetPrimary, itemPrimary)
-        }
-      }
-
-      if (d !== -1 && d <= maxDistance) {
-        isMatch = true
-        dist = Math.min(dist, d)
-      }
-    }
-
-    if (isMatch) {
+    const dist = computePerceptualDistance(targetItem, item, maxDistance)
+    if (dist <= maxDistance) {
       matches.push({ item, distance: dist })
     }
   }
 
-  // Sort by ascending distance (targetItem is distance 0)
+  // Sort by ascending distance (targetItem is distance 0, followed by closest matches)
   matches.sort((a, b) => a.distance - b.distance)
 
   return matches.map((m) => m.item)

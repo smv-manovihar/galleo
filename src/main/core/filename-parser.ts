@@ -68,42 +68,13 @@ export function extractDateFromFilename(filename: string): Date | null {
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // P2 — Standard Android OEM: [prefix_]YYYYMMDD_HHMMSS[digits]
-  //      Covers: IMG_, VID_, DSC_, DCIM_, CAM_, MOV_, PANO_, BURST_, PRO_
-  //      Samsung, Xiaomi, OnePlus, OPPO, Vivo, Huawei, Motorola, Sony, Nokia
+  // P2 — Standard Android OEM & Camera: [prefix_]YYYYMMDD_HHMMSS[digits]
+  //      Covers: IMG_, _MG_, VID_, DSC_, _DSC_, DSC0_, DSCF_, _DSF_, DCIM_, CAM_, MOV_, PANO_, BURST_, PRO_
+  //      Samsung, Xiaomi, OnePlus, OPPO, Vivo, Huawei, Motorola, Sony, Nokia, Canon, Nikon, Fuji
   // ──────────────────────────────────────────────────────────────────────────
   {
     const m = clean.match(
-      /(?:^|[_-])(?:(?:IMG|VID|DSC|DCIM|CAM|MOV|PANO|BURST|PRO|MVIMG|SIMG)[_-]?)?(\d{4})(\d{2})(\d{2})[_-](\d{2})(\d{2})(\d{2})/i
-    )
-    if (m) {
-      const d = createValidDate(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6])
-      if (d) return d
-    }
-  }
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // P3 — Huawei/Honor raw stamp: YYYYMMDD_HHMMSS (no prefix, raw at start)
-  //      e.g. 20240315_143022.jpg
-  // ──────────────────────────────────────────────────────────────────────────
-  {
-    const m = clean.match(/^(\d{4})(\d{2})(\d{2})[_-](\d{2})(\d{2})(\d{2})/)
-    if (m) {
-      const d = createValidDate(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6])
-      if (d) return d
-    }
-  }
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // P4-P7: Messaging / Screenshot apps  (unchanged, see above)
-  // P8 — Dedicated cameras with datetime in filename (Canon EOS R firmware, Nikon Z series,
-  //      Sony ZV / Alpha when "date in filename" is enabled in menu)
-  //      Format: [IMG|_MG|DSC|_DSC|DSC0|DSCF|_DSF]_YYYYMMDD_HHMMSS
-  //      Also covers Fujifilm DSCF_YYYYMMDD_HHMMSS
-  // ──────────────────────────────────────────────────────────────────────────
-  {
-    const m = clean.match(
-      /(?:IMG|_MG|DSC|_DSC|DSC0|DSCF|_DSF)[_-](\d{4})(\d{2})(\d{2})[_-](\d{2})(\d{2})(\d{2})/i
+      /(?:^|[_-])(?:(?:IMG|_MG|VID|DSC|_DSC|DSC0|DSCF|_DSF|DCIM|CAM|MOV|PANO|BURST|PRO|MVIMG|SIMG)[_-]?)?(\d{4})(\d{2})(\d{2})[_-](\d{2})(\d{2})(\d{2})/i
     )
     if (m) {
       const d = createValidDate(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6])
@@ -373,7 +344,7 @@ export function extractDateFromFilename(filename: string): Date | null {
 
   // ──────────────────────────────────────────────────────────────────────────
   // P20 — Unix timestamp (10-digit seconds or 13-digit milliseconds)
-  //       Range: ~1998 (883612800) to ~2035 (2051222400)
+  //       Range: 1970 to 2099
   // ──────────────────────────────────────────────────────────────────────────
   {
     const m = clean.match(/(?:^|[_-])(\d{10,13})(?:$|[_-])/)
@@ -382,7 +353,7 @@ export function extractDateFromFilename(filename: string): Date | null {
       const ms = val < 9_999_999_999 ? val * 1000 : val
       const testDate = new Date(ms)
       const y = testDate.getFullYear()
-      if (y >= 1998 && y <= 2035 && !isNaN(testDate.getTime())) {
+      if (y >= 1970 && y <= 2099 && !isNaN(testDate.getTime())) {
         return testDate
       }
     }
@@ -399,7 +370,7 @@ function createValidDate(
   minute: number,
   second: number
 ): Date | null {
-  if (year < 1995 || year > 2035) return null
+  if (year < 1970 || year > 2099) return null
   if (monthIndex < 0 || monthIndex > 11) return null
   if (day < 1 || day > 31) return null
   if (hour < 0 || hour > 23) return null

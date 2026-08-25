@@ -30,6 +30,7 @@ import {
   TooltipContent,
 } from "@/components/ui/tooltip"
 import { QualityScoreBadge } from "./QualityScoreBadge"
+import { toMediaUrl } from "../../lib/media-preloader"
 
 interface MediaCardProps {
   item: MediaItem
@@ -53,6 +54,11 @@ const MediaCardThumb: React.FC<{ item: MediaItem; thumbUrl: string }> = ({
 }) => {
   const isVideo = item.mediaType === "video"
   const [imgError, setImgError] = useState(false)
+  const [fallbackToOrig, setFallbackToOrig] = useState(false)
+
+  const activeSrc = fallbackToOrig
+    ? toMediaUrl(item.path)
+    : thumbUrl
 
   const fallback = (
     <div
@@ -64,15 +70,21 @@ const MediaCardThumb: React.FC<{ item: MediaItem; thumbUrl: string }> = ({
     </div>
   )
 
-  if (!thumbUrl || imgError || !(item.thumbnailPath || !isVideo)) {
+  if (!activeSrc || imgError || (isVideo && !item.thumbnailPath)) {
     return fallback
   }
 
   return (
     <img
-      src={thumbUrl}
+      src={activeSrc}
       alt={item.name}
-      onError={() => setImgError(true)}
+      onError={() => {
+        if (!fallbackToOrig && item.path && activeSrc !== toMediaUrl(item.path)) {
+          setFallbackToOrig(true)
+        } else {
+          setImgError(true)
+        }
+      }}
       style={
         item.orientation
           ? { transform: `rotate(${item.orientation}deg)` }
@@ -102,10 +114,10 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
   const hasQuality = item.quality !== undefined
 
   const thumbUrl = useMemo(() => {
-    const rawPath = item.thumbnailPath || item.path
+    const rawPath = item.mediaType === "video" ? (item.thumbnailPath || item.path) : item.path
     if (!rawPath) return ""
-    return `media:///${rawPath.replace(/\\/g, "/")}`
-  }, [item.thumbnailPath, item.path])
+    return toMediaUrl(rawPath, item.mediaType === "photo" ? 480 : undefined)
+  }, [item.mediaType, item.thumbnailPath, item.path])
 
   const dateStr = useMemo(() => {
     if (!item.dateTarget) return ""

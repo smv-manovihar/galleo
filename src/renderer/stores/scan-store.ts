@@ -95,6 +95,8 @@ export const useScanStore = create<ScanState>((set, get) => ({
 
   startScan: async (rootPaths: string[], forceRescan: boolean = false) => {
     if (rootPaths.length === 0) return
+    const { isScanning, isPostProcessing } = get()
+    if (isScanning || isPostProcessing) return
 
     if (!ENABLE_AI_FEATURES) {
       // AI features disabled via feature flag — execute standard scan immediately
@@ -203,7 +205,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
       const batch = pendingItemsBuffer
       pendingItemsBuffer = []
       const currentItems = useMediaStore.getState().items
-      const itemMap = new Map(currentItems.map((i) => [i.id, i]))
+      const itemMap = new Map(currentItems.map((i: MediaItem) => [i.id, i]))
       for (const item of batch) {
         itemMap.set(item.id, item)
       }
@@ -423,6 +425,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
   },
 
   cancelScan: async () => {
+    if (!get().isScanning && !get().isPostProcessing) return
     set({ isStopping: true })
     await window.api.cancelScan()
   },

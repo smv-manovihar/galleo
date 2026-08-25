@@ -1,6 +1,11 @@
 import path from "path"
 import { fileURLToPath } from "url"
 
+// Maximize Node.js libuv threadpool for high-throughput parallel I/O, hashing, and image processing
+if (!process.env.UV_THREADPOOL_SIZE) {
+  process.env.UV_THREADPOOL_SIZE = "64"
+}
+
 // Polyfill __dirname / __filename on globalThis for ESM.
 // Required so @huggingface/transformers and onnxruntime-node can resolve
 // native binary paths when dynamically imported in the main Electron process.

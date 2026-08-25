@@ -1,4 +1,4 @@
-import React, { useState } from "react"
+import React, { useState, useMemo } from "react"
 import { useSettingsStore } from "../../stores/settings-store"
 import {
   Card,
@@ -34,6 +34,12 @@ import { DEFAULT_EXCLUDE_PATTERNS } from "../../../shared/constants"
 export const ScanConfig: React.FC = () => {
   const { settings, saveSettings } = useSettingsStore()
 
+  const deviceCores = useMemo(
+    () => (typeof navigator !== "undefined" ? navigator.hardwareConcurrency || 8 : 8),
+    []
+  )
+  const maxThreads = Math.max(4, deviceCores)
+
   const [includeSubfolders, setIncludeSubfolders] = useState(
     settings.scanning.includeSubfolders
   )
@@ -41,7 +47,7 @@ export const ScanConfig: React.FC = () => {
     Math.round(settings.scanning.minFileSize / 1024)
   )
   const [concurrency, setConcurrency] = useState(
-    settings.performance.maxConcurrentOps ?? 4
+    Math.min(maxThreads, settings.performance.maxConcurrentOps ?? 4)
   )
   // Merge stored excludePatterns with DEFAULT_EXCLUDE_PATTERNS if stored settings had old partial defaults
   const [excludePatterns, setExcludePatterns] = useState<string[]>(() => {
@@ -275,14 +281,14 @@ export const ScanConfig: React.FC = () => {
                 Indexing Parallelism
               </Label>
               <p className="text-xs leading-normal text-muted-foreground">
-                Simultaneous workers. Higher values speed up scans but use more CPU & RAM.
+                Simultaneous workers (device has {deviceCores} logical CPU cores). Higher values speed up scans.
               </p>
             </div>
             <div className="flex w-full shrink-0 items-center gap-3 pt-1 sm:w-44 sm:pt-0">
               <Slider
                 id="concurrency-slider"
                 min={1}
-                max={8}
+                max={maxThreads}
                 step={1}
                 value={[concurrency]}
                 onValueChange={(val) => setConcurrency(val[0])}

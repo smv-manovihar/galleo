@@ -9,6 +9,7 @@ export class StorageService {
   private lastComputedAt: number = 0
   private cacheTtlMs: number = 30_000 // 30-second TTL
   private pendingPromise: Promise<AppStorageUsage> | null = null
+  private cacheVersion: number = 0
 
   /**
    * Retrieves disk space usage for SQLite database and cached thumbnails.
@@ -25,14 +26,17 @@ export class StorageService {
     }
 
     // Deduplicate in-flight compute requests
-    if (this.pendingPromise) {
+    if (this.pendingPromise && !force) {
       return this.pendingPromise
     }
 
+    const currentVersion = this.cacheVersion
     this.pendingPromise = this.computeStorageUsage()
       .then((usage) => {
-        this.cachedUsage = usage
-        this.lastComputedAt = Date.now()
+        if (this.cacheVersion === currentVersion) {
+          this.cachedUsage = usage
+          this.lastComputedAt = Date.now()
+        }
         this.pendingPromise = null
         return usage
       })
@@ -48,8 +52,10 @@ export class StorageService {
    * Invalidates cached storage calculations so next fetch computes fresh metrics.
    */
   public invalidateCache(): void {
+    this.cacheVersion++
     this.cachedUsage = null
     this.lastComputedAt = 0
+    this.pendingPromise = null
   }
 
   /**
@@ -81,17 +87,27 @@ export class StorageService {
         const current = stack.pop()!
         try {
           const entries = await fs.readdir(current, { withFileTypes: true })
+          const filePaths: string[] = []
           for (const entry of entries) {
             const full = path.join(current, entry.name)
             if (entry.isDirectory()) {
               stack.push(full)
             } else if (entry.isFile()) {
-              try {
-                const stat = await fs.stat(full)
-                thumbnailBytes += stat.size
+              filePaths.push(full)
+            }
+          }
+
+          // Process file stats in concurrent batches of 50
+          const batchSize = 50
+          for (let i = 0; i < filePaths.length; i += batchSize) {
+            const chunk = filePaths.slice(i, i + batchSize)
+            const stats = await Promise.allSettled(
+              chunk.map((fp) => fs.stat(fp))
+            )
+            for (const res of stats) {
+              if (res.status === "fulfilled") {
+                thumbnailBytes += res.value.size
                 thumbnailCount++
-              } catch {
-                // ignore
               }
             }
           }

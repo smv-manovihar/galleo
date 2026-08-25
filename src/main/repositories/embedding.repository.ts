@@ -376,6 +376,23 @@ export class EmbeddingRepository {
   }
 
   /**
+   * Synchronizes an in-memory list of excluded media IDs into a temporary SQLite table.
+   */
+  private syncExcludedIdsTable(excludeIds: string[]): void {
+    const db = this.getDb()
+    db.exec(`CREATE TEMP TABLE IF NOT EXISTS temp_indexing_failed_ids (id TEXT PRIMARY KEY)`)
+    db.exec(`DELETE FROM temp_indexing_failed_ids`)
+    if (excludeIds.length === 0) return
+    const stmt = db.prepare(`INSERT OR IGNORE INTO temp_indexing_failed_ids (id) VALUES (?)`)
+    const insertMany = db.transaction((ids: string[]) => {
+      for (const id of ids) {
+        stmt.run(id)
+      }
+    })
+    insertMany(excludeIds)
+  }
+
+  /**
    * Get total count of media items that do not have vector embeddings yet
    */
   public getUnindexedCount(excludeIds: string[] = []): number {
@@ -385,26 +402,26 @@ export class EmbeddingRepository {
         SELECT COUNT(*) as count
         FROM media_items m
         LEFT JOIN media_embeddings e ON m.id = e.media_id
-        LEFT JOIN video_frame_embeddings v ON m.id = v.media_id
+        LEFT JOIN (SELECT DISTINCT media_id FROM video_frame_embeddings) v ON m.id = v.media_id
         WHERE (m.media_type = 'photo' AND e.media_id IS NULL)
            OR (m.media_type = 'video' AND v.media_id IS NULL)
       `).get() as { count: number }
       return row?.count ?? 0
     }
 
-    const activeExcludes = excludeIds.slice(-500)
-    const placeholders = activeExcludes.map(() => "?").join(",")
+    this.syncExcludedIdsTable(excludeIds)
     const row = db.prepare(`
       SELECT COUNT(*) as count
       FROM media_items m
       LEFT JOIN media_embeddings e ON m.id = e.media_id
-      LEFT JOIN video_frame_embeddings v ON m.id = v.media_id
+      LEFT JOIN (SELECT DISTINCT media_id FROM video_frame_embeddings) v ON m.id = v.media_id
+      LEFT JOIN temp_indexing_failed_ids f ON m.id = f.id
       WHERE ((m.media_type = 'photo' AND e.media_id IS NULL)
          OR (m.media_type = 'video' AND v.media_id IS NULL))
-         AND m.id NOT IN (${placeholders})
-    `).get(...activeExcludes) as { count: number }
+         AND f.id IS NULL
+    `).get() as { count: number }
 
-    return Math.max(0, (row?.count ?? 0) - Math.max(0, excludeIds.length - activeExcludes.length))
+    return row?.count ?? 0
   }
 
   /**
@@ -422,7 +439,7 @@ export class EmbeddingRepository {
         SELECT m.id, m.path, m.media_type, m.thumbnail_path
         FROM media_items m
         LEFT JOIN media_embeddings e ON m.id = e.media_id
-        LEFT JOIN video_frame_embeddings v ON m.id = v.media_id
+        LEFT JOIN (SELECT DISTINCT media_id FROM video_frame_embeddings) v ON m.id = v.media_id
         WHERE (m.media_type = 'photo' AND e.media_id IS NULL)
            OR (m.media_type = 'video' AND v.media_id IS NULL)
         LIMIT ?
@@ -441,19 +458,19 @@ export class EmbeddingRepository {
       }))
     }
 
-    const activeExcludes = excludeIds.slice(-500)
-    const placeholders = activeExcludes.map(() => "?").join(",")
+    this.syncExcludedIdsTable(excludeIds)
     const stmt = db.prepare(`
       SELECT m.id, m.path, m.media_type, m.thumbnail_path
       FROM media_items m
       LEFT JOIN media_embeddings e ON m.id = e.media_id
-      LEFT JOIN video_frame_embeddings v ON m.id = v.media_id
+      LEFT JOIN (SELECT DISTINCT media_id FROM video_frame_embeddings) v ON m.id = v.media_id
+      LEFT JOIN temp_indexing_failed_ids f ON m.id = f.id
       WHERE ((m.media_type = 'photo' AND e.media_id IS NULL)
          OR (m.media_type = 'video' AND v.media_id IS NULL))
-         AND m.id NOT IN (${placeholders})
+         AND f.id IS NULL
       LIMIT ?
     `)
-    const rows = stmt.all(...activeExcludes, limit) as Array<{
+    const rows = stmt.all(limit) as Array<{
       id: string
       path: string
       media_type: string

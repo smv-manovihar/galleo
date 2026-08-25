@@ -118,13 +118,15 @@ export class VideoFrameExtractorService {
         const frameFilename = `${frameId}.jpg`
         const framePath = path.join(frameDir, frameFilename)
 
-        extractedFrames.push({
-          id: frameId,
-          mediaId,
-          frameIndex: i,
-          timestampSeconds: ts,
-          framePath,
-        })
+        if (fs.existsSync(framePath)) {
+          extractedFrames.push({
+            id: frameId,
+            mediaId,
+            frameIndex: i,
+            timestampSeconds: ts,
+            framePath,
+          })
+        }
       }
 
       return ok(extractedFrames)

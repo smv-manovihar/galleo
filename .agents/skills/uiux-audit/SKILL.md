@@ -5,10 +5,11 @@ description: >
   breakdowns, or interface clutter. Triggers: "audit my UI", "review my UX", "find design
   inconsistencies", "check my user flows", "audit my frontend", "UX review", "is my interface
   consistent?". Traces actual user flows and produces a structured finding report across three
-  artifacts: `uiux_backlog.md`, `uiux_traces.md`, and `uiux_progress.md`. NEVER guesses file
+  artifacts: `uiux_backlog.md`, `uiux_traces.md`, and `uiux_audit_progress.md`. NEVER guesses file
   paths — confirms every file exists before auditing it. Audits only — does NOT fix, rewrite,
-  or refactor. Do NOT use for backend reliability, security, performance profiling, WCAG
-  compliance, or SEO.
+  or refactor. Covers perceived render performance (re-render cost, list size, layout shift);
+  do NOT use it for profiler runs, benchmarks, backend reliability, security, WCAG compliance,
+  or SEO.
 ---
 
 # UI/UX Audit Skill
@@ -16,7 +17,7 @@ description: >
 ## Core Philosophy
 Trace real user flows end-to-end. Bad UI/UX is an accumulation — "Submit" on one screen, "Continue" on the next; a spinner on three flows, nothing on the fourth — compounding into an interface users don't trust. Avoid over-flagging (every spacing nit as HIGH) and surface-only scanning (only the landing page). The worst debt lives in secondary screens, error states, and edge-case flows nobody demos.
 
-Every finding is judged against **The Golden Rules of UI Design**: the rules are the standard, the Audit Dimensions are where you look. The audit runs **one flow at a time** and **checkpoints after each**. No fixed flow cap — it runs until the flow queue is exhausted or you pause. State lives in the artifact files, so a fresh session continues from where the last left off.
+Every finding is judged against **The Golden Rules of UI Design**: the rules are the standard, the Audit Dimensions are where you look. The audit runs **one flow at a time** — or one batch of independent flows when fanned out to sub-agents (see **Delegating to Sub-Agents**) — and **checkpoints after each flow or batch**. No fixed flow cap — it runs until the flow queue is exhausted or you pause. State lives in the artifact files, so a fresh session continues from where the last left off.
 
 The audit supports two modes: **checkpoint mode** (pauses after each flow, waits for `continue`) and **continuous mode** (auto-proceeds without pausing). Reply `continuous` at any checkpoint to switch, or `checkpoint` to switch back.
 
@@ -114,11 +115,13 @@ New flows discovered mid-audit → appended as ⏳ Pending.
 | 3 | `pages/Dashboard` | post-login redirect | success state, first-load empty state |
 
 **Simulated:** [1–2 lines: the journey and UX concern tested.]
+**States:** per screen — loading · empty · error · disabled: [present | missing | n/a].
+**Cost:** [N screens · N lists mounted] · heaviest list `n` = [what + source] · repaint trigger: [what re-renders on input] · route-level heavy imports: [none | names].
 ```
 
 ---
 
-## Phase 1.75 — Initialize `uiux_progress.md`
+## Phase 1.75 — Initialize `uiux_audit_progress.md`
 
 ```markdown
 <!-- FINAL SUMMARY prepended here on completion -->
@@ -151,11 +154,11 @@ _(Append-only. Findings reference Flow IDs linked from uiux_traces.)_
 
 ## Phase 2 — Conduct the Audit
 
-**2-A. Select next flow** — pick first `⏳ Pending` from `uiux_backlog.md`. Mark it `🔍 Current`.
+**2-A. Select next flow** — pick first `⏳ Pending` from `uiux_backlog.md`. Mark it `🔍 Current`. In continuous mode, select a batch of 3–5 independent flows and dispatch them per **Delegating to Sub-Agents**.
 
-**2-B. Walk the flow** — follow every screen/component in the flow from entry to terminal state. At each step, append a row to `uiux_traces.md` (file | element / logic | action).
+**2-B. Walk the flow** — follow every screen/component in the flow from entry to terminal state. At each step, append a row to `uiux_traces.md` (file | element / logic | action). While walking, tally what the **States** and **Cost** lines need — which of loading/empty/error/disabled each screen has, the largest list rendered, and what repaints on input — so both lines can be filled at the terminal state. This walk is the primary unit of delegation: hand it to a sub-agent with the trace brief and merge what comes back — the orchestrator still writes every row.
 
-**2-C. Write findings** — when a flaw is found, write it to `uiux_progress.md` Findings Log using the Finding Template. Link the finding ID in `uiux_traces.md` Action column. If a new flow is discovered mid-audit, append it to `uiux_backlog.md` as `⏳ Pending`.
+**2-C. Write findings** — when a flaw is found, write it to `uiux_audit_progress.md` Findings Log using the Finding Template. Link the finding ID in `uiux_traces.md` Action column. If a new flow is discovered mid-audit, append it to `uiux_backlog.md` as `⏳ Pending`.
 
 **2-D. Checkpoint** — after flow reaches terminal state. See Checkpoints section below.
 
@@ -203,7 +206,62 @@ The standard the interface is held to. **Every finding cites ≥1 rule it violat
 
 **8 Interaction & feedback** — consistent hover states · visible, consistent focus rings · immediate click feedback · consistent transition/animation timing+easing · toasts in a consistent position + dismiss duration.
 
+**10 Render & perceived performance** — typing, scrolling, and toggling stay responsive (no whole-page re-render per keystroke) · long lists virtualized or paginated, not 1000 rows mounted · skeleton matches the final layout so nothing shifts · images and media carry dimensions (no layout jump on load) · transitions animate `transform`/`opacity`, not layout-triggering properties · heavy route-level dependencies code-split so first paint isn't blocked · immediate or optimistic feedback on any action whose response is slow. Judge what the **user perceives**; for the mechanism behind a finding, load `vercel-react-best-practices` on demand (see **Skill References**).
+
 **9 Microcopy & progressive disclosure** — terse imperative copy, one idea per line · positive default, must-not-miss caveats use negative framing + status styling · caveats separated from the action label · icons/color/context carry meaning, no restated cues · one voice/term per concept.
+
+---
+
+## Delegating to Sub-Agents
+
+A flow walk is read-only, independent, and has a fixed output shape — the most delegable work here. Fan out the walking; keep the judgment and the pen.
+
+### The one hard rule
+**The orchestrator is the sole writer of `uiux_backlog.md`, `uiux_traces.md`, and `uiux_audit_progress.md`.** Sub-agents return structured text and never open an artifact file. Concurrent writers corrupt the ledger, and the ledger is the only thing that makes a paused audit resumable.
+
+### Delegate
+| Work | Shape | Model |
+|---|---|---|
+| Walk one flow, entry to terminal state | one sub-agent per flow | default |
+| "Every usage of this primitive / variant", "which screens lack an empty state" | one sub-agent, questions batched | cheapest available |
+| Inventory the design system — tokens, primitives, variants (0-B) | one sub-agent | cheapest available |
+| Locate screens, routes, component roots in an unfamiliar repo (0-A) | one sub-agent | cheapest available |
+
+### Never delegate
+- **The Design System Profile and the Golden Rules calibration** — the standard every finding is judged against. Derive it yourself, or every rating downstream is taste.
+- **Severity and the systemic call** — sub-agents report what a screen does; the orchestrator rates it. One flow cannot reveal that the same inconsistency spans six.
+- **Checkpoint decisions, artifact writes, the Final Summary.**
+
+### Flow fan-out
+Continuous mode: dispatch 3–5 independent flows at once. Checkpoint mode: one at a time, so each pause maps to one reviewable flow.
+1. Mark every dispatched flow `🔍 Current` **before** dispatch.
+2. Merge returned traces in **backlog order, not completion order** — artifacts stay deterministic across runs.
+3. A sub-agent that fails or returns nothing → set that flow back to `⏳ Pending` with the reason. Never strand a flow at `🔍`.
+4. One checkpoint per batch.
+
+Do not fan out flows you are comparing *against each other*. Consistency findings — "Submit" here, "Continue" there — need both screens in one context, which is exactly what a fan-out destroys.
+
+### Trace brief
+```
+Walk FLOW-NNN, read-only: [entry screen] → [terminal state].
+Do not edit any file. Do not write artifacts. Report only.
+
+Context:
+- Design system: [primitives and tokens available · where they live]
+- Conventions: [button labels · spacing scale · loading / empty / error patterns]
+- Dimensions to apply: [the subset that fits this flow]
+
+Return exactly:
+1. TRACE ROWS — `| # | file | element / logic | action |`, one per screen or state, entry to terminal.
+2. STATES — per screen: loading, empty, error, disabled — present, missing, or not applicable.
+3. CANDIDATE FINDINGS — file + line range, what the user sees, what the Golden Rule expects, and the
+   ≤4 lines that show it. Propose a severity, marked PROVISIONAL.
+4. UNRESOLVED — screens you could not reach (conditional route, feature flag, missing file) and the
+   last known location. Never guess a path or invent a component name.
+```
+
+### Trust, then verify
+A sub-agent's finding is a claim, not a fact. Before any HIGH enters the Findings Log, open the cited lines and confirm them yourself — the standard failure is a confident report about a component that does not render the way it was described. Demote to a lead when the cited lines do not exist or the component names do not match. MEDIUM and LOW can be taken on report; spot-check them.
 
 ---
 
@@ -248,6 +306,8 @@ The standard the interface is held to. **Every finding cites ≥1 rule it violat
 | 3 | `pages/Dashboard` | post-login redirect | success state, first-load empty state |
 
 **Simulated:** [1–2 lines: the journey and UX concern tested.]
+**States:** per screen — loading · empty · error · disabled: [present | missing | n/a].
+**Cost:** [N screens · N lists mounted] · heaviest list `n` = [what + source] · repaint trigger: [what re-renders on input] · route-level heavy imports: [none | names].
 ```
 
 ---
@@ -267,7 +327,7 @@ At every checkpoint: flush both files; mark flow `✅ Done` (or `⛔ Dead-end`) 
 ---
 
 ## Final Summary Block
-Prepend to top of `uiux_progress.md` when the queue is exhausted or the user ends at a checkpoint.
+Prepend to top of `uiux_audit_progress.md` when the queue is exhausted or the user ends at a checkpoint.
 ```markdown
 <!-- ════════════════════════════════════════════════════════ -->
 ## ⛔ FINAL SUMMARY
@@ -279,7 +339,7 @@ _(one paragraph: worst finding + behavior it causes; most pervasive inconsistenc
 
 ### Counts  CRITICAL N · HIGH N · MEDIUM N · LOW N · **Total N**
 
-### By dimension  Visual N · Flow N · Loading N · Empty N · Error N · Responsive N · Hierarchy N · Interaction N · Microcopy N
+### By dimension  Visual N · Flow N · Loading N · Empty N · Error N · Responsive N · Hierarchy N · Interaction N · Microcopy N · Render N
 ### By golden rule  #1 N · #2 N · … (top violators)
 
 ### Top 5  1–5: `[screen]` — what it is + user experience
@@ -291,7 +351,22 @@ Then send:
 ---
 
 ## Resuming
-State lives in the artifact files. A fresh session reads `uiux_backlog.md` + `uiux_traces.md` + `uiux_progress.md`, re-reads Design System Profile + Golden Rules, resumes at the `🔍 Current` flow in the backlog, and skips completed flows.
+State lives in the artifact files. Read them in this order and stop as soon as you have the pointer — resuming should cost a few hundred lines, not the whole audit.
+
+1. **`uiux_audit_progress.md` first.** The Status block *is* the pointer: phase, flows done X/Y, findings count, last checkpoint. Re-read the Design System Profile and the Golden Rules while you are here — every severity call rests on that calibration, and it is short.
+2. **Current flow?** A flow marked `🔍 Current` → resume it at 2-B. More than one at `🔍` means a fan-out batch died mid-flight: reset those to `⏳ Pending` and re-dispatch.
+3. **No current flow → `uiux_backlog.md`.** Take the first `⏳ Pending`; skip anything already `✅ Done`. Nothing pending → the queue is exhausted; write the Final Summary.
+4. **`uiux_traces.md` on demand only, and only by targeted search.** It is the largest artifact and grows without bound. Never read it whole, and never read it to get oriented — steps 1–3 already did that. Grep the one section you need:
+
+```bash
+grep -n "Trace — FLOW-042" .artifacts/uiux_traces.md   # locate the section
+sed -n '120,150p' .artifacts/uiux_traces.md              # read only that block
+```
+
+Open it when a decision depends on what an earlier flow established: whether this screen was already walked, which primitive the sibling flow used, where the pattern first appeared.
+5. **Findings, same rule.** Grep the Findings Log for the `ISSUE-NNN` or the file path in question. Do not re-read the log end to end.
+
+Never re-derive Phase 0. A filled Design System Profile is authoritative — re-running discovery burns a context and risks a second, conflicting baseline.
 
 ---
 
@@ -311,11 +386,22 @@ GOLDEN RULE  every finding cites ≥1 violated rule (#1–#11)
 
 ---
 
+## Skill References (load on demand)
+Depth this file deliberately does not inline. Invoke one **at the moment you need it** — never at Phase 0. A skill loaded before you know you need it is context spent for nothing.
+
+| Skill | Load when |
+|---|---|
+| `vercel-react-best-practices` | a finding touches React/Next render cost, memoization, data fetching, or bundle size. It carries the current rules and the React 19 specifics — cite it, don't restate it. |
+| `vercel-composition-patterns` | the change is to a component's API — boolean-prop proliferation, compound components, render props, context/provider design. |
+
+Precedence: on React specifics the referenced skill wins; on audit process — severity, artifacts, checkpoints, the Performance Gate — this file wins.
+
+---
+
 ## Project-Level Conventions
 
 ### Plans & Artifacts Folder
 Place all plan documents and audit artifacts inside a dedicated folder at the project root that is gitignored. The recommended names are `.artifacts/` or `.scratch/` (add to `.gitignore`).
 
 ### Sub-Agent Usage
-For broad exploration tasks (finding files, understanding file patterns, searching code), use a sub-agent with the minimum-cost model available to avoid context rot and preserve budget for the main task. For large repetitive refactors (e.g., renaming a function across 20+ files, updating the same pattern in many modules), delegate to a sub-agent with clear per-file instructions and a checkpoint after every batch. Verify each batch's output before starting the next.
-```
+During an audit, **Delegating to Sub-Agents** governs — it is more specific than this convention. Generally: for broad exploration tasks (finding files, understanding file patterns, searching code), use a sub-agent with the minimum-cost model available to avoid context rot and preserve budget for the main task. For large repetitive refactors (e.g., renaming a function across 20+ files, updating the same pattern in many modules), delegate to a sub-agent with clear per-file instructions and a checkpoint after every batch. Verify each batch's output before starting the next.

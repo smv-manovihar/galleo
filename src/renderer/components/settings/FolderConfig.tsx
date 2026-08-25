@@ -37,11 +37,17 @@ export const FolderConfig: React.FC = () => {
     try {
       const selected = await window.api.selectFolder()
       if (selected) {
-        await addRootFolder(selected)
-        const folderName = selected.split(/[\\/]/).pop() || selected
-        toast.success("Folder registered successfully", {
-          description: `${folderName} added to scan directories.`,
-        })
+        const added = await addRootFolder(selected)
+        if (added) {
+          const folderName = selected.split(/[\\/]/).pop() || selected
+          toast.success("Folder registered successfully", {
+            description: `${folderName} added to scan directories.`,
+          })
+        } else {
+          toast.error("Failed to add folder", {
+            description: "The folder may already be registered or is invalid.",
+          })
+        }
       }
     } catch (e) {
       console.error("Add root folder selection failed:", e)

@@ -1,4 +1,5 @@
 import { create } from "zustand"
+import { toast } from "sonner"
 import type { AppSettings, RootFolder } from "../../shared/types/settings"
 import { DEFAULT_SETTINGS } from "../../shared/constants"
 import { useMediaStore } from "./media-store"
@@ -69,11 +70,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
             ? result.error.message
             : `Error: ${result.error.code}`
         set({ error: errorMsg, isLoading: false })
+        toast.error("Failed to save settings", { description: errorMsg })
         return false
       }
     } catch (e: unknown) {
       const err = e as Error
-      set({ error: err.message || "Failed to save settings", isLoading: false })
+      const errorMsg = err.message || "Failed to save settings"
+      set({ error: errorMsg, isLoading: false })
+      toast.error("Failed to save settings", { description: errorMsg })
       return false
     }
   },

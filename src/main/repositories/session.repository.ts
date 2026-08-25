@@ -43,16 +43,6 @@ export class SessionRepository {
       "DELETE FROM undo_actions WHERE session_id = ?"
     )
 
-    const insertDecision = db.prepare(`
-      INSERT INTO session_decisions (session_id, media_id, decision)
-      VALUES ($sessionId, $mediaId, $decision)
-    `)
-
-    const insertUndo = db.prepare(`
-      INSERT INTO undo_actions (id, session_id, media_id, type, timestamp, previous_state, new_state)
-      VALUES ($id, $sessionId, $mediaId, $type, $timestamp, $previousState, $newState)
-    `)
-
     const transaction = db.transaction((cp: SessionCheckpoint) => {
       const oldRow = findOldSession.get(folderNorm) as
         | { session_id: string }
@@ -72,28 +62,51 @@ export class SessionRepository {
         savedAt: cp.savedAt,
       })
 
-      // 2. Clear old decisions for this session & insert active ones
+      // 2. Clear old decisions for this session & insert active ones in chunked batches
       clearDecisions.run(cp.sessionId)
-      for (const [mediaId, decision] of Object.entries(cp.decisions)) {
-        insertDecision.run({
-          sessionId: cp.sessionId,
-          mediaId,
-          decision,
-        })
+      const decisionEntries = Object.entries(cp.decisions)
+      if (decisionEntries.length > 0) {
+        const chunkSize = 250
+        for (let i = 0; i < decisionEntries.length; i += chunkSize) {
+          const chunk = decisionEntries.slice(i, i + chunkSize)
+          const placeholders = chunk.map(() => "(?, ?, ?)").join(", ")
+          const stmt = db.prepare(`
+            INSERT INTO session_decisions (session_id, media_id, decision)
+            VALUES ${placeholders}
+          `)
+          const params: string[] = []
+          for (const [mediaId, decision] of chunk) {
+            params.push(cp.sessionId, mediaId, decision)
+          }
+          stmt.run(...params)
+        }
       }
 
-      // 3. Clear old undo stack items for this session & insert active ones
+      // 3. Clear old undo stack items for this session & insert active ones in chunked batches
       clearUndo.run(cp.sessionId)
-      for (const undo of cp.undoStack) {
-        insertUndo.run({
-          id: undo.id,
-          sessionId: cp.sessionId,
-          mediaId: undo.mediaId,
-          type: undo.type,
-          timestamp: undo.timestamp,
-          previousState: JSON.stringify(undo.previousState),
-          newState: JSON.stringify(undo.newState),
-        })
+      if (cp.undoStack.length > 0) {
+        const undoChunkSize = 100
+        for (let i = 0; i < cp.undoStack.length; i += undoChunkSize) {
+          const chunk = cp.undoStack.slice(i, i + undoChunkSize)
+          const placeholders = chunk.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(", ")
+          const stmt = db.prepare(`
+            INSERT INTO undo_actions (id, session_id, media_id, type, timestamp, previous_state, new_state)
+            VALUES ${placeholders}
+          `)
+          const params: (string | number)[] = []
+          for (const undo of chunk) {
+            params.push(
+              undo.id,
+              cp.sessionId,
+              undo.mediaId,
+              undo.type,
+              undo.timestamp,
+              JSON.stringify(undo.previousState),
+              JSON.stringify(undo.newState)
+            )
+          }
+          stmt.run(...params)
+        }
       }
     })
 

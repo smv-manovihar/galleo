@@ -18,6 +18,7 @@ import {
 } from "lucide-react"
 import { formatBytes, formatShortDate } from "../../../lib/format"
 import { getDirPath, getFilenameAndExt } from "./types"
+import { toMediaUrl } from "../../../lib/media-preloader"
 
 interface DuplicateAuditExactRowProps {
   item: MediaItem
@@ -35,8 +36,8 @@ export const DuplicateAuditExactRow = React.memo<DuplicateAuditExactRowProps>(
     const dirPath = getDirPath(item.path)
     const { base, ext } = getFilenameAndExt(item.name)
 
-    const rawSrc = item.thumbnailPath || item.path
-    const thumbnailSrc = !imgError && rawSrc ? `media:///${rawSrc.replace(/\\/g, "/")}` : null
+    const rawSrc = isVideo ? (item.thumbnailPath || item.path) : item.path
+    const thumbnailSrc = !imgError && rawSrc ? toMediaUrl(rawSrc, isVideo ? undefined : 160) : null
 
     const handleRowClick = useCallback(() => {
       if (!isKeep && onSwapKeep) {

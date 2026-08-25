@@ -27,6 +27,8 @@ interface DuplicateAuditProgressSeekerProps {
   isAllReviewed?: boolean
   isFilterUnreviewedOnly?: boolean
   onToggleFilterUnreviewedOnly?: (enabled: boolean) => void
+  decidedArray?: Uint8Array
+  totalDecidedCount?: number
   className?: string
 }
 
@@ -39,9 +41,7 @@ interface HoverState {
 // Threshold above which we switch from DOM flex segments to high-performance Canvas
 const CANVAS_THRESHOLD = 100
 
-export const DuplicateAuditProgressSeeker: React.FC<
-  DuplicateAuditProgressSeekerProps
-> = ({
+export const DuplicateAuditProgressSeeker = React.memo<DuplicateAuditProgressSeekerProps>(({
   groups,
   activeGroupIndex,
   decisions,
@@ -50,6 +50,8 @@ export const DuplicateAuditProgressSeeker: React.FC<
   isAllReviewed = false,
   isFilterUnreviewedOnly = false,
   onToggleFilterUnreviewedOnly,
+  decidedArray: decidedArrayProp,
+  totalDecidedCount: totalDecidedCountProp,
   className = "",
 }) => {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -63,6 +65,10 @@ export const DuplicateAuditProgressSeeker: React.FC<
 
   // Lightweight bitset for decision states — O(N) single-pass with zero heavy object allocations
   const { totalDecidedCount, decidedArray } = useMemo(() => {
+    if (decidedArrayProp !== undefined && totalDecidedCountProp !== undefined) {
+      return { totalDecidedCount: totalDecidedCountProp, decidedArray: decidedArrayProp }
+    }
+
     let count = 0
     const total = groups.length
     const arr = new Uint8Array(total)
@@ -84,7 +90,7 @@ export const DuplicateAuditProgressSeeker: React.FC<
     }
 
     return { totalDecidedCount: count, decidedArray: arr }
-  }, [groups, decisions])
+  }, [groups, decisions, decidedArrayProp, totalDecidedCountProp])
 
   const totalGroups = groups.length
   const pendingCount = totalGroups - totalDecidedCount
@@ -610,4 +616,6 @@ export const DuplicateAuditProgressSeeker: React.FC<
       </div>
     </div>
   )
-}
+})
+
+DuplicateAuditProgressSeeker.displayName = "DuplicateAuditProgressSeeker"

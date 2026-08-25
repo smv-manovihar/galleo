@@ -2,14 +2,14 @@ import fs from "fs"
 import crypto from "crypto"
 import { type Result, ok, fail } from "../../shared/types/results"
 
-const FULL_HASH_THRESHOLD = 10 * 1024 * 1024 // 10 MB
+const FULL_HASH_THRESHOLD = 512 * 1024 // 512 KB
 const CHUNK_SIZE = 64 * 1024 // 64 KB
 
 /**
  * Computes a fast, deterministic content hash (exactHash) for a media file.
- * - Files <= 10MB: Full SHA-256 hash of file content.
- * - Files > 10MB: Sparse SHA-256 hash (File size + 64KB head + 64KB mid + 64KB tail).
- * Takes <1ms even for multi-gigabyte video files.
+ * - Files <= 512KB: Full SHA-256 hash of file content.
+ * - Files > 512KB: Sparse SHA-256 hash (File size + 64KB head + 64KB mid + 64KB tail).
+ * Takes <0.5ms even for multi-gigabyte video and photo files.
  */
 export async function computeFastContentHash(
   filePath: string,

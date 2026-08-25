@@ -4,8 +4,12 @@ description: >
   Use when asked to audit a codebase for reliability, resilience, or production-readiness issues.
   Triggers: "audit my codebase", "find reliability issues", "review for production", "check for
   race conditions / timeouts / N+1 queries", "SRE review", "find vulnerabilities", "trace user
-  flows". Outputs three artifacts: `audit_backlog.md`, `audit_traces.md`, and `audit_progress.md`. NEVER executes code
-  changes. Do NOT use for security pen-testing, CVE scanning, or static type-checking.
+  flows". Also covers performance: "find performance bottlenecks", "why is this slow", "review our
+  query / access patterns", "check algorithmic complexity", "why does this re-render", and dead code: "find unused exports",
+  "what code is dead", "do we have circular dependencies". Outputs three artifacts:
+  `audit_backlog.md`, `audit_traces.md`, and `audit_progress.md`. NEVER executes code changes.
+  Do NOT use for security pen-testing, CVE scanning, static type-checking, or profiler / benchmark
+  runs (this skill reads code, it does not measure).
 ---
 
 # App Reliability & Resilience Audit Skill
@@ -13,7 +17,9 @@ description: >
 ## Core Philosophy
 Trace real user flows end-to-end. Production failures are cascades of small gaps — a missing timeout, a swallowed exception, a schema mismatch — not single catastrophic bugs. Avoid alarm fatigue (flagging every TODO as HIGH) and false confidence (stopping at the controller layer).
 
-The audit runs **one flow at a time** and **checkpoints after each flow**. No fixed flow/file cap — it proceeds until the flow queue is exhausted or you pause. State lives entirely in the two artifact files, so a fresh session continues from where the last left off.
+Slowness is a reliability failure on a delay. An `O(n^2)` app-side join and an N+1 access pattern are outages waiting for enough rows — audit a flow's algorithm and access shape with the same rigor as its error handling. But a perf finding without a realistic `n` is noise: see the **Performance Gate**.
+
+The audit runs **one flow at a time** — or one batch of independent flows when fanned out to sub-agents (see **Delegating to Sub-Agents**) — and **checkpoints after each flow or batch**. No fixed flow/file cap — it proceeds until the flow queue is exhausted or you pause. State lives entirely in the two artifact files, so a fresh session continues from where the last left off.
 
 The audit supports two modes: **checkpoint mode** (pauses after each flow, waits for `continue`) and **continuous mode** (auto-proceeds without pausing). Reply `continuous` at any checkpoint to switch, or `checkpoint` to switch back.
 
@@ -44,6 +50,54 @@ Answer by reading landmark files only:
 
 Write into **Project Profile**.
 
+### 0-A2. Establish the Scale Baseline
+Perf findings need an `n`. Collect once, cheaply, from what the repo already states:
+- **Row volumes** — which tables grow unbounded (events, logs, submissions) vs. fixed (roles, statuses). Sources: migrations, seed files, retention jobs.
+- **Declared indexes** per table, and the column each one leads with.
+- **Caches and pools** — cache layers, TTLs, DB pool size, queue concurrency.
+- **Hot paths** — entry points hit per session (auth, list, dashboard, poll) vs. once a day.
+
+No basis in the repo → ask the user for real volumes, or record `unknown`. Never invent a number. Write into **Project Profile** as `Scale baseline`.
+
+### 0-A3. Harvest Static Signals (dead code, duplication, cycles)
+One repo-wide pass, before tracing. This finds what flow-tracing structurally cannot: code that **no flow reaches**. Read-only — it inspects, it never edits.
+
+```bash
+npx fallow                                           # full pipeline: dead code + duplication + health
+npx fallow audit                                     # scoped to what a PR changed
+npx fallow audit --format json --quiet 2>/dev/null   # machine-readable, for agents and scripts
+```
+
+Use the full pipeline for a whole-repo audit; use `audit` when the review is scoped to a diff. `npm install --save-dev fallow` if the repo vendors its own tooling, otherwise zero-install `npx` is fine. Save raw output under the artifacts folder (`.artifacts/fallow.json`).
+
+**Exit codes:** `0` and `1` both mean the run **succeeded** (`1` = findings exist). Only `2` is a real error, reported as a JSON envelope on stdout. Never treat `1` as a failure.
+
+Record the headline counts verbatim in **Static Signals**:
+```
+Unused files 44 · unused exports 111 · unused types 41 · unused class members 5 · circular deps 1
+```
+
+Non-JS/TS repo, tool absent, or exit `2` → record `Static signals: unavailable ([reason])` and continue. The audit never blocks on a tool.
+
+#### Static signals are leads, not findings
+A count is not a finding, and no list is ever copied into the Findings Log wholesale. Before promoting an entry, rule out the standard false positives — grep for the symbol first:
+- **Dynamic reference** — reached by string or glob (`require(path)`, `import()`, route auto-registration, DI container, job registry)
+- **Framework convention** — called by the framework, not by your code (route module, migration, seed, worker, `*.config.*`, test helper, story)
+- **Published surface** — exported via the package `main`/`exports`, or consumed by another workspace in the monorepo
+- **Type-only reach** — used solely in a `.d.ts`, a generic constraint, or an inferred contract the tool cannot follow
+- **Out of the tool's scope** — excluded path, unresolved tsconfig alias, so the tool never saw the caller
+
+One unverified "delete this" costs more trust than ten correct ones.
+
+#### Which signals earn a finding
+Promote only where dead code creates real risk:
+- **Diverged stale duplicate** — an unused file/export shadowing a live one; the next reader edits the dead copy (§10, MEDIUM+)
+- **Half-removed feature** — dead code paired with a live table, route, env var, or flag still shipped; say which half survives
+- **Circular dependency** — a reliability defect, not hygiene: partial module init, `undefined` at import time, TDZ crash, non-deterministic bundle order. Trace the cycle and name the binding that is `undefined` at load; rate by whether it sits on a startup or request path.
+- **Dead error handling** — a guard, retry, or fallback nothing can reach: protection you believe you have and do not
+
+Everything else is **one** batched LOW finding carrying the counts and the artifact path. Never write 111 findings.
+
 ### 0-B. Learn the Documentation Pattern
 Read 2–3 well-documented files to capture: comment style, error message format, naming conventions, logging pattern (structured vs. plain), return conventions (tuples / exceptions / Result types), test coverage. Record in **Project Patterns**. All remediations mirror these exactly.
 
@@ -57,6 +111,8 @@ Read the routing layer and all entry points (route files, server entry, schedule
 FLOW-001 Create resource     → `POST /api/resources` → `service.create` → `store.save` → DB write
 FLOW-002 Get resource        → `GET /api/resources/:id` → `service.getById` → `store.findOne` → DB read
 ```
+
+Cross-check entry points against 0-A3's unused-files list: an entry point reported unused is either a dead route or a tool false positive — resolve which, in one line, before building the backlog. Do not queue a flow for code nothing can reach.
 
 Order: highest-risk/traffic first. The backlog is the **source of truth** for all known flows. During Phase 2, flows discovered mid-audit (following a call chain reveals an undocumented path) are **appended** to the backlog.
 
@@ -97,6 +153,7 @@ New flows discovered mid-audit → appended as ⏳ Pending.
 | 3 | `store.py` | `save_to_db` | atomic write + error bubbling |
 
 **Simulated:** [1–2 lines: the user flow and the reliability concern tested.]
+**Cost:** [N DB · N cache · N HTTP] round trips, [sequential|batched] · dominant complexity `O(?)` on `n` = [what] · payload note (e.g. 40 cols fetched, 3 read).
 ```
 
 ---
@@ -118,6 +175,11 @@ New flows discovered mid-audit → appended as ⏳ Pending.
 
 ## Project Profile
 - Language/runtime · Framework · ORM/DB client · External services · Total files · Key risk areas
+- Scale baseline: growing tables · declared indexes · caches/TTLs · pool + concurrency limits · hot paths
+
+## Static Signals
+- `fallow` run [date] · unused files N · unused exports N · unused types N · unused class members N · circular deps N · raw: `.artifacts/fallow.json`
+- Verified / dismissed as false positive: N / N
 
 ## Project Patterns
 - Error handling · Logging · Naming · Return conventions · Test coverage
@@ -139,9 +201,9 @@ _(Append-only. Findings reference Flow IDs linked from audit_traces.)_
 
 One flow at a time; checkpoint after each. Repeat until the queue is empty or the user pauses.
 
-**2-A. Select next flow** — pick first `⏳ Pending` from `audit_backlog.md`. Mark it `🔍 Current`.
+**2-A. Select next flow** — pick first `⏳ Pending` from `audit_backlog.md`. Mark it `🔍 Current`. In continuous mode, select a batch of 3–5 independent flows and dispatch them per **Delegating to Sub-Agents**.
 
-**2-B. Walk the flow** — follow the real call chain from entry to terminal boundary. At each step, append a row to `audit_traces.md` (file | function | action).
+**2-B. Walk the flow** — follow the real call chain from entry to terminal boundary. At each step, append a row to `audit_traces.md` (file | function | action). This walk is the primary unit of delegation: hand it to a sub-agent with the trace brief and merge what comes back — the orchestrator still writes every row. While walking, tally the flow's access shape — every DB query, cache read, and outbound HTTP call, plus any loop whose bound is user data — so the trace's **Cost** line can be filled at the boundary. A round trip inside a loop is the highest-yield thing this walk catches.
 
 **2-C. Write findings** — when a flaw is found, write it to `audit_progress.md` Findings Log using the Finding Template. Link the finding ID in `audit_traces.md` Action column. If a new flow is discovered mid-audit, append it to `audit_backlog.md` as `⏳ Pending`.
 
@@ -156,6 +218,64 @@ At every checkpoint: flush both files; mark flow `✅ Done` (or `⛔ Dead-end`) 
 
 **Checkpoint line:**
 > **Checkpoint — `FLOW-NNN` done.** [N] findings · [Y]/[X] flows. Top: [one line]. Next: `FLOW-NNN`. Reply **continue**, or `continuous` to auto-proceed, or resume from `audit_backlog.md`.
+
+---
+
+## Delegating to Sub-Agents
+
+Tracing a flow is read-only, independent, and has a fixed output shape — the most delegable work in this audit. Fan out the reading; keep the judgment and the pen.
+
+### The one hard rule
+**The orchestrator is the sole writer of `audit_backlog.md`, `audit_traces.md`, and `audit_progress.md`.** Sub-agents return structured text and never open an artifact file. Concurrent writers corrupt the ledger, and the ledger is the only thing that makes a paused audit resumable.
+
+### Delegate
+| Work | Shape | Model |
+|---|---|---|
+| Trace one flow end to end | one sub-agent per flow | default |
+| "Where is `X` called from?" / "is this guarded elsewhere?" (chain step 5) | one sub-agent, questions batched | cheapest available |
+| Verify a `fallow` unused list against the false-positive checklist (0-A3) | one sub-agent for the whole list | cheapest available |
+| Locate entry points and routing files in an unfamiliar repo (0-A, 0-D) | one sub-agent | cheapest available |
+| Confirm an index / read migrations for the scale baseline (0-A2) | one sub-agent, batched | cheapest available |
+
+### Never delegate
+- **0-B and 0-C** — Project Patterns and the quality baseline are the calibration every severity call rests on. Read them yourself or every downstream rating is guesswork.
+- **Severity, the Performance Gate, the Reasoning-Before-Flagging chain** — sub-agents propose, the orchestrator rates. An agent that has seen one flow cannot judge *systemic*, does not know what 0-C established as normal for this repo, and will over-rate.
+- **Checkpoint decisions, artifact writes, the Final Summary.**
+
+### Flow fan-out
+Continuous mode: dispatch 3–5 independent flows at once. Checkpoint mode: one at a time, so each pause maps to one reviewable flow.
+1. Mark every dispatched flow `🔍 Current` **before** dispatch.
+2. Merge returned traces in **backlog order, not completion order** — artifacts stay deterministic across runs.
+3. A sub-agent that fails or returns nothing → set that flow back to `⏳ Pending` with the reason. Never strand a flow at `🔍`.
+4. One checkpoint per batch.
+
+Do not fan out flows you are reasoning about *together* — two writers to the same table in a race investigation, or a create/delete pair being checked for symmetry (§11). Cross-flow reasoning needs one context.
+
+### Trace brief
+Give each sub-agent what it cannot infer, and demand a fixed return shape. Anything vaguer returns prose you then have to re-read.
+
+```
+Trace FLOW-NNN, read-only: `entry` → `service` → `store` → boundary.
+Do not edit any file. Do not write artifacts. Report only.
+
+Context:
+- Project patterns: [error handling · logging · return conventions — one line each]
+- Scale baseline: [table volumes / indexes / hot-path status relevant to this flow]
+- Categories to apply: [the numbered list, or the subset that fits this flow]
+
+Return exactly:
+1. TRACE ROWS — `| # | file | function | action |`, one per real step, entry to terminal boundary.
+2. COST — DB · cache · HTTP round trips, sequential or batched, dominant complexity, `n` and where the number came from.
+3. CANDIDATE FINDINGS — each with: file + line range, the trigger input, the observed failure,
+   proposed category, and the ≤4 lines of code that show it. Propose a severity, marked PROVISIONAL.
+4. UNRESOLVED — what you could not follow (dynamic dispatch, missing file, external service) and the
+   last known location. Never guess a path or invent a symbol name.
+
+If the chain leaves the codebase, stop at the boundary and say so.
+```
+
+### Trust, then verify
+A sub-agent's finding is a claim, not a fact. Before any CRITICAL or HIGH enters the Findings Log, open the cited lines and confirm them yourself — the standard failure is a confident report about code that does not read the way it was described. Demote to a lead and re-check when the cited lines do not exist, the symbol names do not match, or the failure story depends on a call path you cannot see. MEDIUM and LOW can be taken on report; spot-check them.
 
 ---
 
@@ -174,7 +294,21 @@ Only after all six should you write a finding.
 
 ---
 
-## The Nine Audit Categories
+## Performance Gate
+
+Applies to **Algo**, **Access**, and **Perf** findings only. A perf finding needs a number, not a smell. State all five before writing one:
+
+1. **Realistic `n`** — items/rows/calls at p50 and at the plausible ceiling, plus where the figure came from (schema, seed data, page-size default, an existing `LIMIT`, the user). No basis → write `n` unknown and cap at LOW.
+2. **Complexity now → after** — `O(n^2)` app-side join → `O(n)` via a `Map` index; 1+N round trips → 2. If neither the complexity class nor the round-trip count changes, it is a constant-factor rewrite.
+3. **Where the cost lands** — request latency, blocked event loop, DB CPU, memory ceiling, or upstream quota. The landing zone sets severity, not how ugly the code is.
+4. **Hot path?** — per request, per rendered row, or per queue message outranks a nightly job at identical complexity.
+5. **Bounded by construction?** — fixed enum, config list, `LIMIT 50` already applied upstream. If `n` provably cannot grow, say so and skip or downgrade.
+
+Constant-factor rewrites are LOW at most, and only when they cost nothing in clarity. Never flag a perf issue with a fix you have not sized: "add an index" is not a finding unless you name the column order and the query it serves.
+
+---
+
+## The Eleven Audit Categories
 
 ### 1 — Schema & Model Alignment
 - **Frontend → API**: field names, casing, required vs. optional
@@ -202,24 +336,62 @@ Check-then-act without atomicity (fix: `upsert` + unique constraint); missing id
 ### 6 — Rate Limiting & Back-Pressure
 Public write/expensive endpoints without rate limiting; background jobs without a concurrency cap; outbound calls to rate-limited upstreams without a 429 handler / token bucket; webhook receivers without signature verification.
 
-### 7 — Performance & Efficiency
-Flag only where it degrades under *realistic* load.
+### 7 — Algorithmic Complexity & Data Structures
+The work done per item, in application code. Rate by complexity class × realistic `n` (Performance Gate), never by aesthetics.
+- **Nested iteration over the same data**: `O(n^2)` app-side join, dedupe, or lookup where indexing one side into a `Map`/`Set` makes it `O(n)` — the most common real offender
+- **Linear scan inside a loop**: `.find` / `.includes` / `.indexOf` / `x in list` against a growing array per iteration → build the keyed index once, outside the loop
+- **Sorting for the wrong reason**: sorting inside a loop; a full `O(n log n)` sort to take min/max/top-k; re-sorting data the source could have returned ordered
+- **Wrong container for the access**: array used for membership or keyed lookup; `shift`/`unshift`/`splice(0,…)` as a queue (`O(n)` per op); ordered iteration over a hash, re-sorted on every call
+- **Quadratic accumulation**: string `+=` in a loop, `[...acc, x]` or `{...acc}` spread inside a `reduce`, repeated `concat` — allocate once, push, join once
+- **Redundant deep work**: `JSON.parse(JSON.stringify(x))`, deep clone, or full re-serialization per item where a shallow copy or a reference serves
+- **Recursion hazards**: overlapping subproblems with no memoization; recursion depth tied to user input (stack overflow, not slowness)
+- **Whole-set work for a partial answer**: load-then-filter, map-then-take-one, count-by-materializing — push the predicate, the limit, and the aggregate down to the source
+- **Loop-invariant derivation**: value recomputed per item from data that is constant across the loop — hoist it
+
+### 8 — Data Access Patterns
+How data is *reached* across a whole flow. Judge the flow's access shape, not one call site — a single query is fine; the same query 200 times is the outage.
+- **Round-trip count**: total DB + cache + HTTP calls for one request. Sequential *dependent* round trips are the latency floor. Collapse chains into one query, one batch, or one join.
+- **Batching absent**: per-item fetch where the source takes a set (`WHERE id = ANY($1)`, `mget`, a bulk endpoint). N+1 generalized to cache and HTTP, not just the DB (§4 covers the DB case).
+- **Index/predicate mismatch**: filter, join, or sort columns with no matching index; wrong leading column in a composite index; a predicate that defeats the index (`LOWER(email) = …`, leading-wildcard `LIKE`, cast on the column side).
+- **Pagination strategy**: `OFFSET` deep-paging on a growing table (cost rises with the offset) → keyset/cursor. Also: no `LIMIT` on a user-supplied filter, no maximum page size, unindexed `COUNT(*)` for every page.
+- **Projection**: rows, columns, or relations fetched but never read; a relation eager-loaded for one conditional branch.
+- **Read-modify-write round trips**: fetch → mutate in app → write, where one atomic `UPDATE`/upsert does it. Also a race (§5) — flag once, cite both.
+- **Cache correctness**: key omits something the value depends on (tenant, user, locale, schema version); no TTL or no invalidation on the write path; stampede on expiry with no lock or jitter; caching a per-process-stable value per request, or the reverse.
+- **Client-side waterfalls**: dependent fetches in sequential effects; a fetch keyed on an unstable dep so it refires every render; one request per rendered row.
+- **Write amplification**: one logical action fanning out to many single-row writes where a bulk insert inside one transaction serves.
+- **Hot-path scan of cold storage**: full table scan, unindexed `COUNT(*)`, or object-store listing on a per-request path.
+
+### 9 — Runtime Performance & Efficiency
+Cost that is neither the algorithm nor the access shape. Flag only where it degrades under *realistic* load.
 - **Redundant computation**: same value derived >once per request with no memoization
-- **Over-fetching**: `SELECT *` / full relation when 1–2 fields are used (large relation or hot path only)
 - **Sequential I/O**: `await a(); await b();` where `a`,`b` are independent and parallelizable
 - **Hot-path re-init**: config parse, regex compile, schema object, SDK client built per request (belongs at module load)
 - **Unbounded memory**: append to an in-memory structure with no cap/flush (streams, background jobs)
 - **Blocking I/O on async thread**: sync file reads, `JSON.parse` of huge payloads, CPU-heavy transforms on the event loop
+- **Payload weight**: response size driven by unbounded nesting or a large blob column on a list endpoint
 
-### 8 — Code Duplication & Abstraction Flaws
-Flag only when duplication creates real divergence risk.
+**Render path** (React and other component UIs). Apply the Performance Gate with `n` = list length × render frequency:
+- **Re-render cascade**: state held above the components that read it — one keystroke repaints a page. Colocate the state or split the component.
+- **Unstable props and deps**: inline object / array / function literals passed to memoized children; `useMemo`/`useCallback` dependencies whose identity changes every render. Memo present, benefit zero.
+- **Context thrash**: one provider carrying unrelated values, so every consumer re-renders when any field changes — split by change frequency.
+- **Index keys on reorderable lists**: remounts, lost input state, wrong DOM reuse (a correctness bug that looks like a perf bug).
+- **Unvirtualized long lists**: 1000+ rows mounted with no windowing or pagination.
+- **Work in render**: sort / filter / derive over a large array on every render (§7), or a value duplicated into `useState` + `useEffect` where deriving it during render is correct.
+- **Layout thrash**: reading `getBoundingClientRect` / `offsetWidth` then writing style in the same frame; animating properties that trigger layout instead of `transform` / `opacity`.
+- **Eager bundle weight**: a heavy dependency imported at a route root, a barrel import pulling a whole library, no code splitting on rarely visited routes.
+
+
+### 10 — Duplication, Dead Code & Abstraction Flaws
+Flag only when duplication or dead surface creates real divergence risk.
 - **Diverged duplicates**: same logic in 2+ places, one updated and the other not (the only immediate reliability risk)
 - **Inline reimplementation** of an existing utility (cite its location)
 - **Copy-pasted validation** without a shared schema — one will drift
 - **Parallel type hierarchies** (DB model / DTO / API type) kept in sync by hand, no mapper
 - **Repeated try/catch boilerplate** where a wrapper/middleware would centralize
+- **Unreachable surface**: files, exports, types, or class members no flow reaches — confirm against 0-A3's false-positive list, then batch (one LOW finding) unless it shadows live code or strands half a removed feature
+- **Circular imports**: `A → B → A` at module load — name the binding that is `undefined` during init and the path (startup vs. request) that hits it
 
-### 9 — Logic Flaws & Behavioral Correctness
+### 11 — Logic Flaws & Behavioral Correctness
 Hardest to find, most damaging — they look like working code.
 - **Boundary conditions**: off-by-one pagination, wrong operator (`>` vs `>=`), date fence-posts — trace the math
 - **Assumption violations**: assumes sorted list / non-empty / UTC / lowercase without upstream guarantee — read producer + consumer together
@@ -240,6 +412,10 @@ Hardest to find, most damaging — they look like working code.
 | **MEDIUM** | Degrades gracefully but causes visible errors, measurable perf regression, or latent divergence that will surface later. |
 | **LOW** | Code-quality / abstraction / optimization gap, no current user impact. |
 
+**Perf severity**: rate by the landing zone at realistic `n`. Times out, exhausts the pool, or blocks the loop under normal load → HIGH. Measurable but survivable regression → MEDIUM. Structural gap with `n` provably bounded small → LOW. A worse *complexity class* on a growing table is HIGH even when it is fast today — name the `n` at which it breaks.
+
+**Dead-code severity**: LOW by default — unreachable code has no user impact. Escalate only for a stale duplicate of live code (MEDIUM), a half-removed feature whose live half still runs (MEDIUM), or a circular dependency on a startup/request path (MEDIUM–HIGH, rated by what is `undefined` when it fires). Volume never escalates dead code; 111 unused exports is still one LOW finding.
+
 **Systemic upgrade**: same flaw in 3+ files → escalate one level; state reason + files.
 **Don't escalate** a zero-impact LOW just for frequency. Frequency amplifies impact-based severity, not zero-impact severity.
 
@@ -255,12 +431,15 @@ Hardest to find, most damaging — they look like working code.
 | Issue | `ISSUE-NNN` |
 | Flow | `FLOW-NNN` |
 | File | `path` lines X–Y |
-| Category | Schema / Exception / Timeout / DB / Race / RateLimit / Perf / Duplication / Logic |
+| Category | Schema / Exception / Timeout / DB / Race / RateLimit / Algo / Access / Perf / Duplication / DeadCode / Logic |
 | Systemic | Yes (`fileA`,`fileB`) / No |
 
 **Flaw** — trigger input + what breaks. Code ≤10 lines.
 **Impact** — what fails, for whom, how visibly, auto-recover or manual.
 **Fix** — before/after using the project's own error class, logger, naming. Note any migration/schema/config change.
+
+_Algo / Access / Perf findings add one more line; omit it for every other category:_
+**Cost** — `n` = [value + source] · now `O(?)` / N round trips → after `O(?)` / N · lands on [latency|DB CPU|event loop|memory|quota].
 ```
 
 ---
@@ -276,6 +455,7 @@ Hardest to find, most damaging — they look like working code.
 | 3 | `store.py` | `save_to_db` | atomic write + error bubbling |
 
 **Simulated:** [1–2 lines: the user flow and the reliability concern tested.]
+**Cost:** [N DB · N cache · N HTTP] round trips, [sequential|batched] · dominant complexity `O(?)` on `n` = [what] · payload note (e.g. 40 cols fetched, 3 read).
 ```
 
 ---
@@ -301,6 +481,12 @@ _(one paragraph: worst finding, most pervasive pattern, highest-density layer, i
 1. `[file:lines]` — issue → fix
 2. `[file:lines]` — issue → fix
 3. `[file:lines]` — issue → fix
+
+### Top 3 Perf Wins
+_(Omit if no Algo/Access/Perf finding cleared the Performance Gate.)_
+1. `[file:lines]` — `O(?)` / N round trips → target, at `n` = [value]
+2. `[file:lines]` — …
+3. `[file:lines]` — …
 <!-- ════════════════════════════════════════════════════════ -->
 ```
 
@@ -310,7 +496,22 @@ Then send:
 ---
 
 ## Resuming
-State lives in the artifact files. A fresh session reads `audit_backlog.md` + `audit_traces.md` + `audit_progress.md`, re-reads Project Profile & Patterns, resumes at the `🔍 Current` flow in the backlog, and skips completed flows.
+State lives in the artifact files. Read them in this order and stop as soon as you have the pointer — resuming should cost a few hundred lines, not the whole audit.
+
+1. **`audit_progress.md` first.** The Status block *is* the pointer: phase, flows done X/Y, findings count, last checkpoint. Re-read Project Profile, Scale baseline, and Project Patterns while you are here — every severity call rests on that calibration, and it is short.
+2. **Current flow?** A flow marked `🔍 Current` → resume it at 2-B. More than one at `🔍` means a fan-out batch died mid-flight: reset those to `⏳ Pending` and re-dispatch.
+3. **No current flow → `audit_backlog.md`.** Take the first `⏳ Pending`; skip `✅ Done` and `⛔ Dead-end`. Nothing pending → the queue is exhausted; write the Final Summary.
+4. **`audit_traces.md` on demand only, and only by targeted search.** It is the largest artifact and grows without bound. Never read it whole, and never read it to get oriented — steps 1–3 already did that. Grep the one section you need:
+
+```bash
+grep -n "Trace — FLOW-042" .artifacts/audit_traces.md   # locate the section
+sed -n '120,150p' .artifacts/audit_traces.md              # read only that block
+```
+
+Open it when a decision depends on what an earlier flow established: whether this file was already walked, where a shared service terminated, what Cost line the flow hitting this same table recorded.
+5. **Findings, same rule.** Grep the Findings Log for the `ISSUE-NNN` or the file path in question. Do not re-read the log end to end.
+
+Never re-derive Phase 0. A filled Project Profile and Project Patterns are authoritative — re-running 0-A/0-B burns a context and risks a second, conflicting baseline.
 
 ---
 
@@ -320,5 +521,5 @@ State lives in the artifact files. A fresh session reads `audit_backlog.md` + `a
 Place all plan documents and audit artifacts inside a dedicated folder at the project root that is gitignored. The recommended names are `.artifacts/` or `.scratch/` (add to `.gitignore`).
 
 ### Sub-Agent Usage
-For broad exploration tasks (finding files, understanding file patterns, searching code), use a sub-agent with the minimum-cost model available to avoid context rot and preserve budget for the main task. For large repetitive refactors (e.g., renaming a function across 20+ files, updating the same pattern in many modules), delegate to a sub-agent with clear per-file instructions and a checkpoint after every batch. Verify each batch's output before starting the next.
+During an audit, **Delegating to Sub-Agents** governs — it is more specific than this convention. Generally: for broad exploration tasks (finding files, understanding file patterns, searching code), use a sub-agent with the minimum-cost model available to avoid context rot and preserve budget for the main task. For large repetitive refactors (e.g., renaming a function across 20+ files, updating the same pattern in many modules), delegate to a sub-agent with clear per-file instructions and a checkpoint after every batch. Verify each batch's output before starting the next.
 ```

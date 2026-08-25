@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useCallback, useEffect, useRef } from "react"
 import type { MediaItem } from "../../../shared/types/media"
+import { useUIStore } from "../../stores/ui-store"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import {
@@ -26,6 +27,7 @@ import {
   type MediaContextMenuState,
 } from "../media/MediaContextMenu"
 import { useSessionStore } from "../../stores/session-store"
+import { mediaStore } from "../../stores/media-store"
 import {
   DuplicateAuditHistoryDialog,
   type DuplicateAuditHistoryDialogItem,
@@ -179,17 +181,6 @@ export const DuplicateAuditSimilarMedia = React.memo<
     return currentGroup[0]
   }, [currentGroup])
 
-  const isCurrentGroupDecided = useMemo(() => {
-    if (!currentGroup || currentGroup.length === 0) return true
-    for (let i = 0; i < currentGroup.length; i++) {
-      const dec = decisions[currentGroup[i].id]
-      if (dec !== "keep" && dec !== "delete") {
-        return false
-      }
-    }
-    return true
-  }, [currentGroup, decisions])
-
   const getItemReviewState = useCallback(
     (item: MediaItem): "keep" | "delete" | "pending" => {
       const committed = decisions[item.id]
@@ -251,14 +242,25 @@ export const DuplicateAuditSimilarMedia = React.memo<
       idMap.set(itemsList[i].id, itemsList[i])
     }
 
-    return duplicateUndoStack.map((action, idx) => {
-      const item = idMap.get(action.mediaId)
+    const storeItems = mediaStore.getState().items
+    const storeIdMap = new Map<string, MediaItem>()
+    for (const si of storeItems) {
+      storeIdMap.set(si.id, si)
+    }
+
+    const latestActionsByMediaId = new Map<string, (typeof duplicateUndoStack)[0]>()
+    for (const action of duplicateUndoStack) {
+      latestActionsByMediaId.set(action.mediaId, action)
+    }
+
+    return Array.from(latestActionsByMediaId.values()).map((action) => {
+      const item = idMap.get(action.mediaId) ?? storeIdMap.get(action.mediaId)
       const currentDecision = (decisions[action.mediaId] ?? "pending") as
         | "keep"
         | "delete"
         | "pending"
       return {
-        id: `${action.id}-${idx}`,
+        id: action.id,
         mediaId: action.mediaId,
         name: item?.name ?? action.mediaId,
         thumbnailPath: item?.thumbnailPath,
@@ -290,19 +292,6 @@ export const DuplicateAuditSimilarMedia = React.memo<
       onGroupIndexChange(targetGroupIndex)
     }
   }, [duplicateGroups, activeGroupIndex, onGroupIndexChange])
-
-  const ensureCurrentGroupCommitted = useCallback(async () => {
-    if (!currentGroup || currentGroup.length === 0 || isCurrentGroupDecided) return
-    const bestId = currentGroupBest?.id ?? currentGroup[0].id
-    const batchId = `auto_recommend_${Date.now()}`
-    const store = useSessionStore.getState()
-    const updates = currentGroup.map((item) => {
-      const state: "keep" | "delete" = item.id === bestId ? "keep" : "delete"
-      const prevState = (store.decisions[item.id] ?? "pending") as "keep" | "delete" | "pending"
-      return { mediaId: item.id, state, prevState }
-    })
-    await store.submitBatchDecisions(updates, "duplicates", batchId)
-  }, [currentGroup, isCurrentGroupDecided, currentGroupBest])
 
   const handleBulkChangeDecisions = useCallback(
     async (mediaIds: string[], newDecision: "keep" | "delete") => {
@@ -375,9 +364,8 @@ export const DuplicateAuditSimilarMedia = React.memo<
     onGroupIndexChange((prev) => Math.min(duplicateGroups.length, prev + 1))
   }, [currentGroup, onGroupIndexChange, duplicateGroups.length])
 
-  const jumpToNextPending = useCallback(async () => {
+  const jumpToNextPending = useCallback(() => {
     if (duplicateGroups.length === 0) return
-    await ensureCurrentGroupCommitted()
 
     // 1. Search forward from activeGroupIndex + 1
     for (let i = activeGroupIndex + 1; i < decidedArray.length; i++) {
@@ -398,15 +386,13 @@ export const DuplicateAuditSimilarMedia = React.memo<
     }
   }, [
     duplicateGroups.length,
-    ensureCurrentGroupCommitted,
     activeGroupIndex,
     decidedArray,
     onGroupIndexChange,
   ])
 
-  const jumpToPrevPending = useCallback(async () => {
+  const jumpToPrevPending = useCallback(() => {
     if (duplicateGroups.length === 0) return
-    await ensureCurrentGroupCommitted()
 
     // 1. Search backward from activeGroupIndex - 1
     for (let i = activeGroupIndex - 1; i >= 0; i--) {
@@ -427,15 +413,13 @@ export const DuplicateAuditSimilarMedia = React.memo<
     }
   }, [
     duplicateGroups.length,
-    ensureCurrentGroupCommitted,
     activeGroupIndex,
     decidedArray,
     onGroupIndexChange,
   ])
 
-  const nextGroup = useCallback(async () => {
+  const nextGroup = useCallback(() => {
     setSlideDirection("right")
-    await ensureCurrentGroupCommitted()
 
     if (isFilterUnreviewedOnly && unreviewedIndices.length > 0) {
       const nextIdx = unreviewedIndices.find((idx) => idx > activeGroupIndex)
@@ -451,7 +435,6 @@ export const DuplicateAuditSimilarMedia = React.memo<
       Math.min(duplicateGroups.length, prev + 1)
     )
   }, [
-    ensureCurrentGroupCommitted,
     isFilterUnreviewedOnly,
     unreviewedIndices,
     activeGroupIndex,
@@ -459,9 +442,8 @@ export const DuplicateAuditSimilarMedia = React.memo<
     duplicateGroups.length,
   ])
 
-  const prevGroup = useCallback(async () => {
+  const prevGroup = useCallback(() => {
     setSlideDirection("left")
-    await ensureCurrentGroupCommitted()
 
     if (isFilterUnreviewedOnly && unreviewedIndices.length > 0) {
       const prevIdx = [...unreviewedIndices]
@@ -477,7 +459,6 @@ export const DuplicateAuditSimilarMedia = React.memo<
 
     onGroupIndexChange((prev) => Math.max(0, prev - 1))
   }, [
-    ensureCurrentGroupCommitted,
     isFilterUnreviewedOnly,
     unreviewedIndices,
     activeGroupIndex,
@@ -611,7 +592,8 @@ export const DuplicateAuditSimilarMedia = React.memo<
         document.activeElement?.getAttribute("contenteditable") === "true" ||
         state.previewItem !== null ||
         state.infoItem !== null ||
-        state.isHistoryOpen
+        state.isHistoryOpen ||
+        useUIStore.getState().keyboardShortcutsOpen
       ) {
         return
       }
@@ -834,6 +816,8 @@ export const DuplicateAuditSimilarMedia = React.memo<
           groups={duplicateGroups}
           activeGroupIndex={activeGroupIndex}
           decisions={decisions}
+          decidedArray={decidedArray}
+          totalDecidedCount={totalDecidedCount}
           onSeek={(idx) => onGroupIndexChange(idx)}
           onComplete={onComplete}
           isAllReviewed={isAllReviewed}

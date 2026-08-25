@@ -1,12 +1,20 @@
 import { app, BrowserWindow, shell } from "electron"
 import { spawn } from "child_process"
 import fs from "fs/promises"
-import { createWriteStream } from "fs"
+import { createWriteStream, existsSync } from "fs"
 import path from "path"
 
 import { type Result, ok, fail } from "../../shared/types/results"
-import { IPC_CHANNELS, type UpdateCheckResult } from "../../shared/types/ipc"
-import { getUpdateCachePath } from "../infrastructure/app-paths"
+import {
+  IPC_CHANNELS,
+  type UpdateCheckResult,
+  type DownloadedInstallerInfo,
+} from "../../shared/types/ipc"
+import {
+  getUpdateCachePath,
+  getUpdatesDir,
+} from "../infrastructure/app-paths"
+import { storageService } from "./storage.service"
 
 const GITHUB_RELEASES_URL =
   "https://api.github.com/repos/smv-manovihar/galleo/releases/latest"
@@ -91,6 +99,7 @@ export class UpdateService {
   public async checkForUpdates(
     force = false
   ): Promise<Result<UpdateCheckResult>> {
+    this.cleanupPreviousVersions().catch(() => {})
     const cached = await this.loadCache()
     const now = Date.now()
     const currentVersion = app.getVersion()
@@ -272,7 +281,214 @@ export class UpdateService {
   }
 
   /**
-   * Downloads the release installer binary to the temporary directory with live progress updates.
+   * Cleans up older installer binaries and temporary download artifacts from
+   * the updates directory and temporary locations to reclaim disk space.
+   *
+   * @param {string} [activeInstallerPath] If provided, removes all installer files except this active one.
+   */
+  public async cleanupPreviousVersions(
+    activeInstallerPath?: string
+  ): Promise<void> {
+    try {
+      const updatesDir = getUpdatesDir()
+      const entries = await fs.readdir(updatesDir, { withFileTypes: true })
+      const normalizedActive = activeInstallerPath
+        ? path.resolve(activeInstallerPath)
+        : null
+
+      for (const entry of entries) {
+        if (!entry.isFile()) continue
+        const filePath = path.resolve(path.join(updatesDir, entry.name))
+
+        if (normalizedActive && filePath === normalizedActive) {
+          continue
+        }
+
+        const isInstallerOrTemp =
+          /\.(exe|msi|dmg|pkg|appimage|deb|rpm|zip|tmp|crdownload|download|partial)$/i.test(
+            entry.name
+          )
+        if (!isInstallerOrTemp) continue
+
+        if (!normalizedActive) {
+          const fileVersion = this.extractVersionFromFilename(entry.name)
+          const currentVersion = app.getVersion()
+          const isTemp = /\.(tmp|crdownload|download|partial)$/i.test(entry.name)
+          if (
+            isTemp ||
+            (fileVersion && !this.isVersionNewer(currentVersion, fileVersion))
+          ) {
+            await fs.unlink(filePath).catch(() => {})
+          }
+        } else {
+          await fs.unlink(filePath).catch(() => {})
+        }
+      }
+
+      // Also clean up any legacy installer leftovers from temp directory
+      try {
+        const tempDir = app.getPath("temp")
+        const tempEntries = await fs.readdir(tempDir, { withFileTypes: true })
+        for (const entry of tempEntries) {
+          if (!entry.isFile()) continue
+          const fullPath = path.resolve(path.join(tempDir, entry.name))
+          if (normalizedActive && fullPath === normalizedActive) continue
+          if (
+            /^galleo.*(setup|installer|\.appimage|\.dmg|\.deb|\.exe)/i.test(
+              entry.name
+            )
+          ) {
+            await fs.unlink(fullPath).catch(() => {})
+          }
+        }
+      } catch {
+        // Ignore temp directory cleanup errors
+      }
+    } catch (e) {
+      console.warn("Failed to cleanup previous update installers:", e)
+    }
+  }
+
+  /**
+   * Extracts a SemVer version string from an installer filename.
+   */
+  public extractVersionFromFilename(filename: string): string | null {
+    const withoutExt = filename.replace(
+      /\.(exe|msi|dmg|pkg|appimage|deb|rpm|zip|blockmap|tmp|crdownload|download|partial)$/i,
+      ""
+    )
+    const match = withoutExt.match(
+      /(?:[v\-_])?(\d+\.\d+\.\d+(?:-(?:alpha|beta|rc|dev|preview)(?:\.\d+)?)?)/i
+    )
+    if (match) return match[1]
+    const fallback = withoutExt.match(/(\d+\.\d+\.\d+)/)
+    return fallback ? fallback[1] : null
+  }
+
+  /**
+   * Retrieves metadata regarding the currently downloaded installer file on disk, if any.
+   */
+  public async getDownloadedInstallerInfo(): Promise<
+    Result<DownloadedInstallerInfo | null>
+  > {
+    try {
+      const installerPath = this.downloadedInstallerPath
+
+      if (installerPath && existsSync(installerPath)) {
+        const stat = await fs.stat(installerPath)
+        const filename = path.basename(installerPath)
+        const version = this.extractVersionFromFilename(filename) || undefined
+        const isCurrentVersion = version
+          ? version === app.getVersion()
+          : undefined
+
+        return ok({
+          path: installerPath,
+          filename,
+          sizeBytes: stat.size,
+          version,
+          isCurrentVersion,
+        })
+      }
+
+      // Scan updates directory for valid installer
+      const updatesDir = getUpdatesDir()
+      const entries = await fs.readdir(updatesDir, { withFileTypes: true })
+      const installerFiles = entries.filter(
+        (e) =>
+          e.isFile() &&
+          /\.(exe|msi|dmg|pkg|appimage|deb|rpm|zip)$/i.test(e.name) &&
+          !/\.(tmp|crdownload|download|partial)$/i.test(e.name)
+      )
+
+      if (installerFiles.length === 0) {
+        this.downloadedInstallerPath = null
+        return ok(null)
+      }
+
+      let newestPath: string | null = null
+      let newestMtime = 0
+      let newestSize = 0
+
+      for (const file of installerFiles) {
+        const fullPath = path.join(updatesDir, file.name)
+        try {
+          const stat = await fs.stat(fullPath)
+          if (stat.mtimeMs >= newestMtime) {
+            newestMtime = stat.mtimeMs
+            newestPath = fullPath
+            newestSize = stat.size
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      if (newestPath) {
+        this.downloadedInstallerPath = newestPath
+        const filename = path.basename(newestPath)
+        const version = this.extractVersionFromFilename(filename) || undefined
+        const isCurrentVersion = version
+          ? version === app.getVersion()
+          : undefined
+
+        return ok({
+          path: newestPath,
+          filename,
+          sizeBytes: newestSize,
+          version,
+          isCurrentVersion,
+        })
+      }
+
+      this.downloadedInstallerPath = null
+      return ok(null)
+    } catch (e: unknown) {
+      const message =
+        e instanceof Error ? e.message : "Failed to retrieve installer info"
+      return fail({
+        code: "UNKNOWN",
+        message,
+      })
+    }
+  }
+
+  /**
+   * Deletes all downloaded installer files from disk and clears cached installer reference.
+   */
+  public async deleteDownloadedInstaller(): Promise<Result<void>> {
+    try {
+      if (this.downloadedInstallerPath) {
+        try {
+          await fs.unlink(this.downloadedInstallerPath)
+        } catch {
+          // ignore if already missing
+        }
+        this.downloadedInstallerPath = null
+      }
+
+      const updatesDir = getUpdatesDir()
+      const entries = await fs.readdir(updatesDir, { withFileTypes: true })
+      for (const entry of entries) {
+        if (!entry.isFile()) continue
+        const filePath = path.join(updatesDir, entry.name)
+        await fs.unlink(filePath).catch(() => {})
+      }
+
+      storageService.invalidateCache()
+      return ok(undefined)
+    } catch (e: unknown) {
+      const message =
+        e instanceof Error ? e.message : "Failed to delete update installer"
+      return fail({
+        code: "UNKNOWN",
+        message,
+      })
+    }
+  }
+
+  /**
+   * Downloads the release installer binary to the updates directory with live progress updates.
    *
    * @param {BrowserWindow} window The main Electron browser window for progress event delivery.
    * @param {string} downloadUrl The direct asset download URL.
@@ -289,6 +505,7 @@ export class UpdateService {
       })
     }
 
+    let tempPath: string | null = null
     try {
       this.downloadAbortController = new AbortController()
 
@@ -302,8 +519,9 @@ export class UpdateService {
         // Fallback default filename
       }
 
-      const tempDir = app.getPath("temp")
-      const targetPath = path.join(tempDir, filename)
+      const updatesDir = getUpdatesDir()
+      const targetPath = path.join(updatesDir, filename)
+      tempPath = `${targetPath}.download`
 
       const response = await fetch(downloadUrl, {
         headers: {
@@ -328,7 +546,7 @@ export class UpdateService {
       let lastReportedPercent = -1
 
       const reader = response.body.getReader()
-      const fileStream = createWriteStream(targetPath)
+      const fileStream = createWriteStream(tempPath)
 
       try {
         while (true) {
@@ -363,13 +581,28 @@ export class UpdateService {
         })
       }
 
+      // Atomically move verified complete download into target path
+      await fs.rename(tempPath, targetPath)
+
       this.downloadedInstallerPath = targetPath
+      await this.cleanupPreviousVersions(targetPath)
+      storageService.invalidateCache()
+
       if (window && !window.isDestroyed()) {
         window.webContents.send(IPC_CHANNELS.APP_DOWNLOAD_UPDATE_PROGRESS, 100)
       }
 
       return ok(targetPath)
     } catch (e: unknown) {
+      // Clean up orphaned temp file if download was interrupted or errored
+      if (tempPath) {
+        try {
+          await fs.rm(tempPath, { force: true })
+        } catch {
+          // ignore cleanup error
+        }
+      }
+
       const message =
         e instanceof Error ? e.message : "Downloading update installer failed"
       return fail({
@@ -384,17 +617,25 @@ export class UpdateService {
   /**
    * Spawns the downloaded installer and gracefully exits the application.
    *
+   * @param {string} [customPath] Optional custom installer path to execute.
    * @returns {Promise<Result<void>>}
    */
-  public async installUpdate(): Promise<Result<void>> {
-    if (!this.downloadedInstallerPath) {
+  public async installUpdate(customPath?: string): Promise<Result<void>> {
+    let installerPath = customPath || this.downloadedInstallerPath
+
+    if (!installerPath || !existsSync(installerPath)) {
+      const infoResult = await this.getDownloadedInstallerInfo()
+      if (infoResult.ok && infoResult.data) {
+        installerPath = infoResult.data.path
+      }
+    }
+
+    if (!installerPath || !existsSync(installerPath)) {
       return fail({
         code: "UNKNOWN",
         message: "No downloaded installer is ready for installation",
       })
     }
-
-    const installerPath = this.downloadedInstallerPath
 
     try {
       if (process.platform === "win32") {

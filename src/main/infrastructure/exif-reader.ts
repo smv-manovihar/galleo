@@ -65,7 +65,7 @@ export async function readExifMetadata(
       height = Number(tags.file["Image Height"].value)
 
     // Tier 3: sharp reads the raw image header — covers PNG, WebP, GIF, BMP, AVIF, HEIC, etc.
-    if (!width || !height || !orientation) {
+    if (!width || !height) {
       try {
         const meta = await sharp(filePath).metadata()
         if (!width && meta.width && meta.width > 0) width = meta.width

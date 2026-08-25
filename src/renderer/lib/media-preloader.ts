@@ -1,16 +1,19 @@
 import type { MediaItem } from "../../shared/types/media"
 
 const MAX_CACHE_SIZE = 60
+const MAX_CONCURRENT_PRELOADS = 6
 const decodedUrlCache = new Set<string>()
 const inFlightPromises = new Map<string, Promise<void>>()
 
-/**
- * Converts a filesystem path to a safe media:// protocol URL
- */
-export function toMediaUrl(filePath: string): string {
+export function toMediaUrl(filePath: string, width?: number): string {
   if (!filePath) return ""
-  if (filePath.startsWith("media:///")) return filePath
-  return `media:///${filePath.replace(/\\/g, "/")}`
+  let base = filePath.startsWith("media:///")
+    ? filePath
+    : `media:///${filePath.replace(/\\/g, "/")}`
+  if (width && width > 0) {
+    base += `${base.includes("?") ? "&" : "?"}w=${width}`
+  }
+  return base
 }
 
 /**
@@ -18,13 +21,25 @@ export function toMediaUrl(filePath: string): string {
  * without progressive top-to-bottom paints when mounted in the DOM.
  */
 export function preloadImage(url: string): Promise<void> {
-  if (!url || decodedUrlCache.has(url)) {
+  if (!url) {
+    return Promise.resolve()
+  }
+
+  if (decodedUrlCache.has(url)) {
+    // Refresh LRU order on hit
+    decodedUrlCache.delete(url)
+    decodedUrlCache.add(url)
     return Promise.resolve()
   }
 
   const existing = inFlightPromises.get(url)
   if (existing) {
     return existing
+  }
+
+  // Bound maximum concurrent in-flight rasterizations
+  if (inFlightPromises.size >= MAX_CONCURRENT_PRELOADS) {
+    return Promise.resolve()
   }
 
   // Handle environments where Image constructor might not exist (e.g. Node test environment)

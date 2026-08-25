@@ -1,4 +1,6 @@
+import { nativeTheme } from "electron"
 import { SettingsRepository } from "../repositories/settings.repository"
+import { MediaRepository } from "../repositories/media.repository"
 import type { AppSettings } from "../../shared/types/settings"
 import { type Result, ok, fail } from "../../shared/types/results"
 import { fileExists } from "../infrastructure/file-system"
@@ -6,6 +8,7 @@ import fs from "fs/promises"
 
 export class SettingsService {
   private repository = new SettingsRepository()
+  private mediaRepository = new MediaRepository()
 
   public getSettings(): AppSettings {
     return this.repository.getSettings()
@@ -13,8 +16,9 @@ export class SettingsService {
 
   public async saveSettings(settings: AppSettings): Promise<Result<void>> {
     try {
-      // 1. Validate root folder paths
+      // 1. Validate enabled root folder paths
       for (const root of settings.folders.roots) {
+        if (!root.enabled) continue
         const exists = await fileExists(root.path)
         if (!exists) {
           return fail({
@@ -47,6 +51,22 @@ export class SettingsService {
 
       // 3. Save settings
       this.repository.saveSettings(settings)
+      if (settings.ui?.theme) {
+        nativeTheme.themeSource = settings.ui.theme
+      }
+
+      // 4. Recalibrate library quality flags based on updated thresholds
+      if (settings.quality) {
+        try {
+          this.mediaRepository.recalibrateQualityThresholds(
+            settings.quality.blurThreshold ?? 15,
+            settings.quality.darknessThreshold ?? 25
+          )
+        } catch {
+          // Non-fatal
+        }
+      }
+
       return ok(undefined)
     } catch (e: unknown) {
       const err = e as { message?: string }

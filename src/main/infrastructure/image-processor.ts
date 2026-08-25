@@ -53,20 +53,46 @@ export async function purgeOldThumbnailVersions(
 }
 
 /**
+ * Purges stale photo thumbnails from cacheDir to reclaim disk space.
+ */
+export async function purgeStalePhotoThumbnails(cacheDir: string): Promise<number> {
+  let freedCount = 0
+  try {
+    const files = await fs.readdir(cacheDir)
+    for (const file of files) {
+      if (file.endsWith(IMAGE_THUMB_SUFFIX) || file.endsWith("_v1.webp") || file.endsWith("_v2.webp")) {
+        if (!file.includes("_frame_") && !file.endsWith(VIDEO_THUMB_SUFFIX)) {
+          try {
+            await fs.unlink(path.join(cacheDir, file))
+            freedCount++
+          } catch {
+            // ignore unlink error
+          }
+        }
+      }
+    }
+  } catch {
+    // ignore readdir error
+  }
+  return freedCount
+}
+
+/**
  * Checks whether a cached thumbnail matches the current canonical format for its media type.
+ * Photos do not use disk thumbnails (returns true to preserve incremental cache hits).
  */
 export function isThumbnailCurrent(
   thumbnailPath: string | null | undefined,
   mediaType: "photo" | "video"
 ): boolean {
+  if (mediaType === "photo") return true
   if (!thumbnailPath) return false
-  const expectedSuffix =
-    mediaType === "video" ? VIDEO_THUMB_SUFFIX : IMAGE_THUMB_SUFFIX
-  return thumbnailPath.endsWith(expectedSuffix)
+  return thumbnailPath.endsWith(VIDEO_THUMB_SUFFIX)
 }
 
 /**
  * Generates a thumbnail for the image using sharp and returns the cached path.
+ * Note: Disk photo thumbnails are disabled by default to prevent storage bloat.
  */
 export async function generateImageThumbnail(
   imagePath: string,
@@ -89,7 +115,6 @@ export async function generateImageThumbnail(
     await purgeOldThumbnailVersions(cacheDir, mediaId, filename)
 
     // Resize image to 800x800 (high quality retina preview), keep aspect ratio, output as compressed webp
-    // .rotate() automatically auto-rotates the image based on EXIF orientation tag
     await sharp(imagePath)
       .rotate()
       .resize({
@@ -98,7 +123,7 @@ export async function generateImageThumbnail(
         fit: "inside",
         withoutEnlargement: true,
       })
-      .webp({ quality: 85 })
+      .webp({ quality: 80 })
       .toFile(thumbnailPath)
 
     return ok(thumbnailPath)
@@ -181,11 +206,10 @@ async function computeBrightnessMetrics(
  */
 async function computeBlurScore(image: Sharp): Promise<number> {
   try {
-    // 1. Resize to a moderately high resolution (800x800) to keep sharp edge details
-    const size = 800
+    const size = 256
     const convolved = await image
       .clone()
-      .resize(size, size, { fit: "cover" }) // Use cover to prevent aspect squishing
+      .resize(size, size, { fit: "cover", fastShrinkOnLoad: true })
       .greyscale()
       // Convolve with standard Laplacian kernel
       .convolve({
@@ -196,24 +220,22 @@ async function computeBlurScore(image: Sharp): Promise<number> {
       .raw()
       .toBuffer()
 
-    // 2. Divide the 800x800 image into a 4x4 grid (16 patches, each 200x200 pixels)
-    // This allows identifying if any focal point is sharp (e.g. subject in portraits/bokeh/brush art)
-    const patchSize = 200
-    const patchCols = 4
+    // Divide 256x256 image into a 4x4 grid (16 patches, each 64x64 pixels)
+    const patchSize = 64
     const pixelsPerPatch = patchSize * patchSize
 
-    const patchSums = new Array(16).fill(0)
-    const patchSumSquares = new Array(16).fill(0)
+    const patchSums = new Float64Array(16)
+    const patchSumSquares = new Float64Array(16)
     let globalSum = 0
 
     for (let y = 0; y < size; y++) {
       const patchY = Math.floor(y / patchSize)
+      const yOffset = y * size
       for (let x = 0; x < size; x++) {
         const patchX = Math.floor(x / patchSize)
-        const idx = y * size + x
-        const val = convolved[idx]
+        const val = convolved[yOffset + x]
 
-        const patchIdx = patchY * patchCols + patchX
+        const patchIdx = (patchY << 2) + patchX
         patchSums[patchIdx] += val
         patchSumSquares[patchIdx] += val * val
 
@@ -248,10 +270,9 @@ async function computeBlurScore(image: Sharp): Promise<number> {
     )
 
     // Boost blur score if there are high-contrast sharp edges anywhere (maxDev > 60)
-    // This protects stylized brush art, bokeh portraits, and graphics from false-flagging.
     if (globalMaxDev > 60 && blurScore < 50) {
       const boost = Math.round((globalMaxDev - 60) * 0.75)
-      blurScore = Math.min(65, blurScore + boost) // Boost up to a safe "not blurry" score of 65
+      blurScore = Math.min(65, blurScore + boost)
     }
 
     return blurScore
@@ -261,15 +282,15 @@ async function computeBlurScore(image: Sharp): Promise<number> {
 }
 
 /**
- * Generates an 8x8 (64-bit) perceptual hash using blockhash-core.
+ * Generates a 16x16 (256-bit) perceptual hash using blockhash-core.
  */
 async function computePerceptualHash(image: Sharp): Promise<string> {
   try {
     // blockhash-core expects raw RGBA data (4 channels)
-    const size = 16 // 16x16 blockhash yields 256 bits = 64 characters hex
+    const size = 16
     const { data, info } = await image
       .clone()
-      .resize(size, size, { fit: "fill" })
+      .resize(size, size, { fit: "fill", fastShrinkOnLoad: true })
       .ensureAlpha()
       .raw()
       .toBuffer({ resolveWithObject: true })
@@ -290,22 +311,20 @@ async function computePerceptualHash(image: Sharp): Promise<string> {
 }
 
 /**
- * Performs complete analysis pipeline on a photo item.
+ * Performs fast complete analysis pipeline on a photo item in memory (zero disk writes).
+ * Uses hardware fastShrinkOnLoad and single-pass metrics in RAM.
  */
 export async function analyzeImage(
   imagePath: string
 ): Promise<Result<ImageAnalysisResult>> {
   try {
-    const img = sharp(imagePath).rotate()
-
-    const brightnessMetricsPromise = computeBrightnessMetrics(img)
-    const blurScorePromise = computeBlurScore(img)
-    const hashPromise = computePerceptualHash(img)
+    const img = sharp(imagePath, { failOn: "none", limitInputPixels: false })
+      .rotate()
 
     const [brightnessMetrics, blurScore, hash] = await Promise.all([
-      brightnessMetricsPromise,
-      blurScorePromise,
-      hashPromise,
+      computeBrightnessMetrics(img),
+      computeBlurScore(img),
+      computePerceptualHash(img),
     ])
 
     return ok({

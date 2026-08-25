@@ -1,10 +1,16 @@
 import { create } from "zustand"
+import { toast } from "sonner"
+import type { UseBoundStore, StoreApi } from "zustand"
 import type { MediaItem } from "../../shared/types/media"
 import { useSettingsStore } from "./settings-store"
 import { useSessionStore } from "./session-store"
 import { useScanStore } from "./scan-store"
 import { useUIStore } from "./ui-store"
-import { findSimilarPerceptual, DEFAULT_SIMILARITY_RADIUS } from "../lib/similarity"
+import {
+  findSimilarPerceptual,
+  getSimilaritySortedItems,
+  DEFAULT_SIMILARITY_RADIUS,
+} from "../lib/similarity"
 
 export interface CachedDashboardMetrics {
   totalFiles: number
@@ -24,6 +30,7 @@ export interface CachedDashboardMetrics {
   duplicateGroupsCount: number
   duplicateSavedBytes: number
   blurrySavedBytes: number
+  totalWastedBytes: number
 }
 
 export interface FilterAndSortOptions {
@@ -47,6 +54,7 @@ export interface FilterAndSortOptions {
     | "score-asc"
     | "size-desc"
     | "size-asc"
+    | "similarity"
   decisions: Record<string, "keep" | "delete" | "skipped">
 }
 
@@ -75,20 +83,34 @@ export function filterAndSortItems(
     activeRootPath && activeRootPath !== "all"
       ? activeRootPath.replace(/\\/g, "/").toLowerCase().replace(/\/+$/, "")
       : null
+  const normRootSlash = normRoot ? normRoot + "/" : null
   const q = searchQuery.trim().length > 0 ? searchQuery.toLowerCase() : null
 
-  const result = baseItems.filter((item) => {
+  // Precompute lowercased strings once per item when text-search or root-path filter is active
+  // to avoid allocating new strings on every item in every filter pass.
+  let normNames: string[] | null = null
+  let normPaths: string[] | null = null
+  if (q || normRoot) {
+    normNames = new Array(baseItems.length)
+    normPaths = new Array(baseItems.length)
+    for (let i = 0; i < baseItems.length; i++) {
+      normNames[i] = baseItems[i].name.toLowerCase()
+      normPaths[i] = baseItems[i].path.replace(/\\/g, "/").toLowerCase()
+    }
+  }
+
+  const result = baseItems.filter((item, idx) => {
     // 0. Active Root Path Filter
-    if (normRoot) {
-      const itemNorm = item.path.replace(/\\/g, "/").toLowerCase()
-      if (itemNorm !== normRoot && !itemNorm.startsWith(normRoot + "/")) {
+    if (normRoot && normRootSlash && normPaths) {
+      const itemNorm = normPaths[idx]
+      if (itemNorm !== normRoot && !itemNorm.startsWith(normRootSlash)) {
         return false
       }
     }
 
     // 1. Text Search Filter
-    if (q) {
-      if (!item.name.toLowerCase().includes(q) && !item.path.toLowerCase().includes(q)) {
+    if (q && normNames && normPaths) {
+      if (!normNames[idx].includes(q) && !normPaths[idx].includes(q)) {
         return false
       }
     }
@@ -121,11 +143,16 @@ export function filterAndSortItems(
   })
 
   // When similarTargetItem is active, preserve similarity ranking (closest visual matches first) unless user explicitly chose a non-default sort
-  if (similarTargetItem && sortBy === "date-desc") {
+  if (similarTargetItem && (sortBy === "date-desc" || sortBy === "similarity")) {
     return result
   }
 
-  // 5. Fast Sorting logic (avoid expensive Intl.Collator / localeCompare)
+  // 5. Similarity gradient sort mode: smooth nearest-neighbor visual transition
+  if (sortBy === "similarity") {
+    return getSimilaritySortedItems(result)
+  }
+
+  // 6. Fast Sorting logic (avoid expensive Intl.Collator / localeCompare)
   result.sort((a, b) => {
     if (sortBy === "date-desc") {
       const dA = a.dateTarget || a.dateAdded || ""
@@ -207,7 +234,7 @@ export function filterAndSortItems(
   return result
 }
 
-interface MediaState {
+export interface MediaState {
   items: MediaItem[]
   cachedMetrics: CachedDashboardMetrics
   cachedDuplicateGroups: MediaItem[][]
@@ -231,6 +258,7 @@ interface MediaState {
     | "score-asc"
     | "size-desc"
     | "size-asc"
+    | "similarity"
   activeRootPath: string | null
   similarTargetItem: MediaItem | null
   similarRadius: number
@@ -260,6 +288,7 @@ interface MediaState {
       | "score-asc"
       | "size-desc"
       | "size-asc"
+      | "similarity"
   ) => void
   setSelectedItemId: (id: string | null) => void
   setActiveRootPath: (path: string | null) => void
@@ -291,6 +320,7 @@ const DEFAULT_METRICS: CachedDashboardMetrics = {
   duplicateGroupsCount: 0,
   duplicateSavedBytes: 0,
   blurrySavedBytes: 0,
+  totalWastedBytes: 0,
 }
 
 function computeMetricsForItems(items: MediaItem[]): CachedDashboardMetrics {
@@ -345,6 +375,22 @@ function computeMetricsForItems(items: MediaItem[]): CachedDashboardMetrics {
     ? 0
     : blurryItems.reduce((sum, i) => sum + (i.size || 0), 0)
 
+  // Compute totalWastedBytes without double-counting items that are both duplicate and blurry/small
+  let totalWastedBytes = 0
+  if (!isBusyScanning) {
+    const wastedIds = new Set<string>()
+    for (const item of duplicateItems) wastedIds.add(item.id)
+    for (const item of blurryItems) wastedIds.add(item.id)
+    for (const item of smallItems) wastedIds.add(item.id)
+    const allWastedItems = [...duplicateItems, ...blurryItems, ...smallItems]
+    for (const item of allWastedItems) {
+      if (wastedIds.has(item.id)) {
+        totalWastedBytes += item.size || 0
+        wastedIds.delete(item.id)
+      }
+    }
+  }
+
   return {
     totalFiles,
     photoCount,
@@ -363,6 +409,7 @@ function computeMetricsForItems(items: MediaItem[]): CachedDashboardMetrics {
     duplicateGroupsCount: isBusyScanning ? 0 : groupsSet.size,
     duplicateSavedBytes,
     blurrySavedBytes,
+    totalWastedBytes,
   }
 }
 
@@ -412,16 +459,21 @@ function computeCaches(
     }
   }
 
+  const groupSizeMap = new Map<string, number>()
+  for (const key of Object.keys(dupGroupsMap)) {
+    groupSizeMap.set(key, dupGroupsMap[key].reduce((acc, item) => acc + item.size, 0))
+  }
+
   const cachedDuplicateGroups = isBusyScanning
     ? []
     : Object.keys(dupGroupsMap)
         .sort((a, b) => {
           const countDiff = dupGroupsMap[b].length - dupGroupsMap[a].length
           if (countDiff !== 0) return countDiff
-          const sizeB = dupGroupsMap[b].reduce((acc, item) => acc + item.size, 0)
-          const sizeA = dupGroupsMap[a].reduce((acc, item) => acc + item.size, 0)
+          const sizeB = groupSizeMap.get(b) ?? 0
+          const sizeA = groupSizeMap.get(a) ?? 0
           if (sizeB !== sizeA) return sizeB - sizeA
-          return a.localeCompare(b)
+          return a < b ? -1 : a > b ? 1 : 0
         })
         .map((k) => dupGroupsMap[k])
         .filter((g) => g.length > 1)
@@ -429,7 +481,7 @@ function computeCaches(
   return { cachedMetrics, cachedDuplicateGroups, cachedRootItemCounts: rootItemCounts }
 }
 
-export const useMediaStore = create<MediaState>((set, get) => ({
+export const useMediaStore: UseBoundStore<StoreApi<MediaState>> = create<MediaState>((set, get) => ({
   items: [],
   cachedMetrics: DEFAULT_METRICS,
   cachedDuplicateGroups: [],
@@ -536,7 +588,12 @@ export const useMediaStore = create<MediaState>((set, get) => ({
           .initSession(folderPath, visibleItems.length)
           .catch(() => {})
       }
-    } catch {
+    } catch (e: unknown) {
+      const err = e as Error
+      console.error("[media-store] fetchMediaItems failed:", err)
+      toast.error("Failed to load media library", {
+        description: err.message || "An unexpected error occurred while fetching media items.",
+      })
       set({
         items: [],
         cachedMetrics: DEFAULT_METRICS,
@@ -620,3 +677,5 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     })
   },
 }))
+
+export const mediaStore = useMediaStore

@@ -26,7 +26,15 @@ describe("parseExifDate", () => {
 
     const d2 = parseExifDate("2024:03:15 10:30:45Z")
     expect(d2).not.toBeNull()
-    expect(d2!.getFullYear()).toBe(2024)
+    expect(d2!.toISOString()).toBe("2024-03-15T10:30:45.000Z")
+
+    const d3 = parseExifDate("2024:03:15 10:30:45+02:00")
+    expect(d3).not.toBeNull()
+    expect(d3!.toISOString()).toBe("2024-03-15T08:30:45.000Z")
+
+    const d4 = parseExifDate("2024:03:15 10:30:45+0200")
+    expect(d4).not.toBeNull()
+    expect(d4!.toISOString()).toBe("2024-03-15T08:30:45.000Z")
   })
 
   it("parses fallback standard dates", () => {

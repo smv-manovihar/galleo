@@ -1,5 +1,6 @@
-import React from "react"
+import React, { useEffect } from "react"
 import { useUIStore } from "../../stores/ui-store"
+import { formatBytes } from "../../lib/format"
 import {
   Card,
   CardHeader,
@@ -17,19 +18,33 @@ import {
   Download,
   Sparkles,
   Info,
+  Trash2,
+  RotateCcw,
+  Package,
 } from "lucide-react"
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 
 export const AboutConfig: React.FC = () => {
   const updateInfo = useUIStore((s) => s.updateInfo)
+  const installerInfo = useUIStore((s) => s.installerInfo)
   const isCheckingUpdate = useUIStore((s) => s.isCheckingUpdate)
   const isDownloadingUpdate = useUIStore((s) => s.isDownloadingUpdate)
+  const isDeletingInstaller = useUIStore((s) => s.isDeletingInstaller)
   const updateDownloadProgress = useUIStore((s) => s.updateDownloadProgress)
   const isUpdateDownloaded = useUIStore((s) => s.isUpdateDownloaded)
   const updateError = useUIStore((s) => s.updateError)
   const checkForUpdates = useUIStore((s) => s.checkForUpdates)
+  const fetchInstallerInfo = useUIStore((s) => s.fetchInstallerInfo)
   const startUpdateDownload = useUIStore((s) => s.startUpdateDownload)
+  const deleteDownloadedInstaller = useUIStore((s) => s.deleteDownloadedInstaller)
+  const startReinstall = useUIStore((s) => s.startReinstall)
   const installUpdate = useUIStore((s) => s.installUpdate)
+
+  useEffect(() => {
+    fetchInstallerInfo()
+  }, [fetchInstallerInfo])
+
+  const hasInstallerOnDisk = Boolean(installerInfo || isUpdateDownloaded)
 
   return (
     <div className="space-y-4 font-sans text-xs select-none">
@@ -99,13 +114,13 @@ export const AboutConfig: React.FC = () => {
                 size="sm"
                 className="h-8 flex-1 cursor-pointer text-xs font-semibold sm:flex-none"
                 onClick={() => checkForUpdates(true)}
-                disabled={isCheckingUpdate || isDownloadingUpdate}
+                disabled={isCheckingUpdate || isDownloadingUpdate || isDeletingInstaller}
               >
                 {isCheckingUpdate ? (
                   <>
                     <Loader2 className="size-4 shrink-0 animate-spin" />
                     <span className="sm:hidden">Checking...</span>
-                    <span className="hidden sm:inline">Checking...</span>
+                    <span className="hidden sm:inline">Check for Updates</span>
                   </>
                 ) : (
                   <>
@@ -155,17 +170,38 @@ export const AboutConfig: React.FC = () => {
           ) : updateInfo ? (
             updateInfo.updateAvailable ? (
               <div className="space-y-3 rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-4 dark:bg-emerald-500/10">
-                <div className="flex items-center gap-3">
-                  {isUpdateDownloaded ? (
-                    <CheckCircle2 className="size-4 shrink-0 text-emerald-500" />
-                  ) : (
-                    <span className="flex h-2 w-2 shrink-0 animate-pulse rounded-full bg-emerald-500" />
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3">
+                    {isUpdateDownloaded ? (
+                      <CheckCircle2 className="size-4 shrink-0 text-emerald-500" />
+                    ) : (
+                      <span className="flex h-2 w-2 shrink-0 animate-pulse rounded-full bg-emerald-500" />
+                    )}
+                    <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
+                      {isUpdateDownloaded
+                        ? `Update v${updateInfo.latestVersion} Ready to Install`
+                        : `New Update Available (v${updateInfo.latestVersion})`}
+                    </span>
+                  </div>
+
+                  {hasInstallerOnDisk && (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 cursor-pointer text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() => deleteDownloadedInstaller()}
+                        disabled={isDeletingInstaller}
+                      >
+                        {isDeletingInstaller ? (
+                          <Loader2 className="size-3.5 shrink-0 animate-spin" />
+                        ) : (
+                          <Trash2 className="size-3.5 shrink-0" />
+                        )}
+                        Delete Installer
+                      </Button>
+                    </div>
                   )}
-                  <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
-                    {isUpdateDownloaded
-                      ? `Update v${updateInfo.latestVersion} Ready to Install`
-                      : `New Update Available (v${updateInfo.latestVersion})`}
-                  </span>
                 </div>
 
                 {updateInfo.releaseNotes && (
@@ -177,9 +213,11 @@ export const AboutConfig: React.FC = () => {
                 )}
               </div>
             ) : (
-              <div className="flex items-center gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-3 text-xs text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400">
-                <CheckCircle2 className="h-4 w-4 shrink-0" />
-                <span>You are running the latest version of Galleo!</span>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-3 text-xs text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400">
+                  <CheckCircle2 className="h-4 w-4 shrink-0" />
+                  <span>You are running the latest version of Galleo!</span>
+                </div>
               </div>
             )
           ) : (
@@ -190,8 +228,82 @@ export const AboutConfig: React.FC = () => {
               </span>
             </div>
           )}
+
+          {/* Installer Management & Reinstall Section */}
+          <div className="space-y-2 rounded-lg border border-border/50 bg-background/50 p-3.5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+                  <Package className="size-3.5 text-primary shrink-0" />
+                  <span>Installer & Reinstallation</span>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {hasInstallerOnDisk && installerInfo ? (
+                    <span>
+                      Cached installer:{" "}
+                      <span className="font-medium text-foreground">
+                        {installerInfo.filename}
+                      </span>{" "}
+                      ({formatBytes(installerInfo.sizeBytes)})
+                    </span>
+                  ) : hasInstallerOnDisk ? (
+                    <span>Installer binary is downloaded on disk.</span>
+                  ) : (
+                    <span>
+                      Reinstall current version or clean up cached installers.
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 cursor-pointer text-xs font-medium"
+                  onClick={() => startReinstall()}
+                  disabled={isCheckingUpdate || isDownloadingUpdate || isDeletingInstaller}
+                >
+                  {isDownloadingUpdate ? (
+                    <>
+                      <Loader2 className="size-3.5 shrink-0 animate-spin" />
+                      Downloading...
+                    </>
+                  ) : (
+                    <>
+                      <RotateCcw className="size-3.5 shrink-0" />
+                      {hasInstallerOnDisk ? "Reinstall Galleo" : "Download & Reinstall"}
+                    </>
+                  )}
+                </Button>
+
+                {hasInstallerOnDisk && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 cursor-pointer text-xs font-medium text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => deleteDownloadedInstaller()}
+                    disabled={isDeletingInstaller || isDownloadingUpdate}
+                  >
+                    {isDeletingInstaller ? (
+                      <>
+                        <Loader2 className="size-3.5 shrink-0 animate-spin" />
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="size-3.5 shrink-0" />
+                        Delete Installer
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>
   )
 }
+

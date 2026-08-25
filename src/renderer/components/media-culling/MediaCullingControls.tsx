@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react"
 import type { MediaItem } from "../../../shared/types/media"
 import type { UndoableAction } from "../../../shared/types/session"
+import { useMediaStore } from "../../stores/media-store"
 import { Button } from "@/components/ui/button"
 import { Undo2, History, Bookmark, Trash2 } from "lucide-react"
 import {
@@ -45,6 +46,7 @@ export const MediaCullingControls: React.FC<MediaCullingControlsProps> = ({
       ? controlledHistoryOpen
       : internalHistoryOpen
   const setIsHistoryOpen = onHistoryOpenChange ?? setInternalHistoryOpen
+  const storeItems = useMediaStore((s) => s.items)
 
   // Filter to culling-source actions only — the shared undoStack also contains
   // duplicate-audit and browse decisions which must not appear here.
@@ -55,22 +57,43 @@ export const MediaCullingControls: React.FC<MediaCullingControlsProps> = ({
 
   // Map UndoableActions to standard MediaCullingHistoryDialogItem format
   const historyItems = useMemo<MediaCullingHistoryDialogItem[]>(() => {
+    if (!isHistoryOpen || undoStack.length === 0) return []
+    const itemMap = new Map<string, MediaItem>()
+    for (const item of allItems) {
+      itemMap.set(item.id, item)
+    }
+
+    const storeItemMap = new Map<string, MediaItem>()
+    for (const item of storeItems) {
+      storeItemMap.set(item.id, item)
+    }
+
     return undoStack
       .filter((action) => action.newState.source === "culling")
       .map((action) => {
-        const item = allItems.find((i) => i.id === action.mediaId)
+        const item = itemMap.get(action.mediaId) ?? storeItemMap.get(action.mediaId)
+        let currentDecision: "keep" | "delete" | "skipped" | "pending"
+        if (action.type === "mark-keep") {
+          currentDecision = "keep"
+        } else if (action.type === "mark-delete") {
+          currentDecision = "delete"
+        } else if (action.type === "skip") {
+          currentDecision = "skipped"
+        } else {
+          currentDecision = "pending"
+        }
+
         return {
           id: action.id,
           mediaId: action.mediaId,
           name: item?.name ?? action.mediaId,
           thumbnailPath: item?.thumbnailPath,
           path: item?.path ?? "",
-          currentDecision: (action.type === "mark-keep" ? "keep" : "delete") as
-            "keep" | "delete",
+          currentDecision,
           mediaItem: item,
         }
       })
-  }, [undoStack, allItems])
+  }, [isHistoryOpen, undoStack, allItems, storeItems])
 
   const handleSingleAction = async (
     mediaId: string,

@@ -1,5 +1,5 @@
 import React from "react"
-import { useMediaStore } from "../stores/media-store"
+import { useMediaStore, type MediaState } from "../stores/media-store"
 import { useUIStore } from "../stores/ui-store"
 import { useSettingsStore } from "../stores/settings-store"
 import { useScanStore } from "../stores/scan-store"
@@ -40,19 +40,19 @@ import {
 import { formatBytes } from "../lib/format"
 
 export const DashboardPage: React.FC = () => {
-  const items = useMediaStore((s) => s.items)
-  const metrics = useMediaStore((s) => s.cachedMetrics)
-  const isLoading = useMediaStore((s) => s.isLoading)
+  const items = useMediaStore((s: MediaState) => s.items)
+  const metrics = useMediaStore((s: MediaState) => s.cachedMetrics)
+  const isLoading = useMediaStore((s: MediaState) => s.isLoading)
   const isInitialized = useSettingsStore((s) => s.isInitialized)
   const roots = useSettingsStore((s) => s.settings.folders.roots)
   const isScanning = useScanStore((s) => s.isScanning)
   const isPostProcessing = useScanStore((s) => s.isPostProcessing)
   const isBusyScanning = isScanning || isPostProcessing
 
-  const setFilterQuality = useMediaStore((s) => s.setFilterQuality)
-  const setFilterType = useMediaStore((s) => s.setFilterType)
-  const setSortBy = useMediaStore((s) => s.setSortBy)
-  const setFilterReviewState = useMediaStore((s) => s.setFilterReviewState)
+  const setFilterQuality = useMediaStore((s: MediaState) => s.setFilterQuality)
+  const setFilterType = useMediaStore((s: MediaState) => s.setFilterType)
+  const setSortBy = useMediaStore((s: MediaState) => s.setSortBy)
+  const setFilterReviewState = useMediaStore((s: MediaState) => s.setFilterReviewState)
   const { setCurrentView, setActiveSettingsTab } = useUIStore()
 
   const showSkeleton =
@@ -77,10 +77,8 @@ export const DashboardPage: React.FC = () => {
     duplicateGroupsCount,
     duplicateSavedBytes,
     blurrySavedBytes,
+    totalWastedBytes,
   } = metrics
-  const smallSavedBytes = smallItems.reduce((sum, i) => sum + i.size, 0)
-  const totalWastedBytes =
-    duplicateSavedBytes + blurrySavedBytes + smallSavedBytes
 
   const navigateToFiltered = (
     quality: "all" | "blurry" | "dark" | "duplicates" | "screenshots" | "small",
@@ -435,9 +433,9 @@ export const DashboardPage: React.FC = () => {
                       </CardDescription>
                     </div>
                   </div>
-                  {smallSavedBytes > 0 ? (
+                  {smallItems.length > 0 ? (
                     <Badge variant="secondary" className="text-xs">
-                      Save {formatBytes(smallSavedBytes)}
+                      Save {formatBytes(smallItems.reduce((s: number, i) => s + i.size, 0))}
                     </Badge>
                   ) : (
                     <Badge variant="outline" className="text-xs">

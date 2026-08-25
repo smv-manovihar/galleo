@@ -5,10 +5,11 @@ import path from "path"
 import { Readable } from "stream"
 import { fileURLToPath } from "url"
 
-import { app, BrowserWindow, protocol } from "electron"
+import { app, BrowserWindow, protocol, nativeTheme } from "electron"
 
 import { registerIpcHandlers } from "./ipc-router"
 import { initDatabase, closeDatabase } from "./infrastructure/database"
+import { SettingsRepository } from "./repositories/settings.repository"
 
 // Register custom media protocol to load local files safely in Electron
 protocol.registerSchemesAsPrivileged([
@@ -29,7 +30,27 @@ const __dirname = path.dirname(__filename)
 
 let mainWindow: BrowserWindow | null = null
 
+const gotSingleInstanceLock = app.requestSingleInstanceLock()
+
+if (!gotSingleInstanceLock) {
+  app.quit()
+} else {
+  app.on("second-instance", () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore()
+      }
+      mainWindow.show()
+      mainWindow.focus()
+    }
+  })
+}
+
 function createWindow(): void {
+  const initialSettings = new SettingsRepository().getSettings()
+  const initialTheme = initialSettings.ui?.theme || "dark"
+  nativeTheme.themeSource = initialTheme
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -37,7 +58,7 @@ function createWindow(): void {
     minHeight: 600,
     show: false,
     title: "Galleo",
-    backgroundColor: "#0c0d12",
+    backgroundColor: nativeTheme.shouldUseDarkColors ? "#0c0d12" : "#f8fafc",
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "../preload/index.js"),
@@ -96,6 +117,11 @@ function getMimeType(filePath: string): string {
     svg: "image/svg+xml",
     bmp: "image/bmp",
     ico: "image/x-icon",
+    heic: "image/heic",
+    heif: "image/heif",
+    tiff: "image/tiff",
+    tif: "image/tiff",
+    avif: "image/avif",
   }
   return mimeTypes[ext] || "application/octet-stream"
 }
@@ -147,8 +173,14 @@ async function getMediaFileStat(filePath: string): Promise<CachedMediaStat | nul
   }
 }
 
+import sharp from "sharp"
+
+const thumbMemCache = new Map<string, Buffer>()
+const MAX_THUMB_MEM_CACHE = 1500
+
 app.whenReady().then(() => {
   // Handle media:/// requests by fetching from local file system asynchronously
+  // Supports dynamic on-the-fly thumbnailing via ?w=... parameter without writing to disk
   protocol.handle("media", async (request) => {
     try {
       const url = new URL(request.url)
@@ -187,6 +219,61 @@ app.whenReady().then(() => {
       const etag = mediaStat.etag
       const lastModified = mediaStat.lastModified
 
+      // Handle on-the-fly image downscaling (e.g. ?w=480 for grid items)
+      const widthParam = url.searchParams.get("w")
+      const targetWidth = widthParam ? parseInt(widthParam, 10) : 0
+
+      if (
+        targetWidth > 0 &&
+        targetWidth <= 1200 &&
+        mimeType.startsWith("image/") &&
+        mimeType !== "image/svg+xml" &&
+        mimeType !== "image/gif"
+      ) {
+        const thumbKey = `${resolvedPath}#w=${targetWidth}#${mediaStat.etag}`
+        const cachedThumb = thumbMemCache.get(thumbKey)
+        if (cachedThumb) {
+          return new Response(new Uint8Array(cachedThumb), {
+            status: 200,
+            headers: {
+              "Content-Type": "image/webp",
+              "ETag": `${etag}-w${targetWidth}`,
+              "Cache-Control": "public, max-age=31536000, immutable",
+            },
+          })
+        }
+
+        try {
+          const thumbBuf = await sharp(resolvedPath)
+            .rotate()
+            .resize({
+              width: targetWidth,
+              height: targetWidth,
+              fit: "inside",
+              withoutEnlargement: true,
+            })
+            .webp({ quality: 80 })
+            .toBuffer()
+
+          if (thumbMemCache.size >= MAX_THUMB_MEM_CACHE) {
+            const oldest = thumbMemCache.keys().next().value
+            if (oldest) thumbMemCache.delete(oldest)
+          }
+          thumbMemCache.set(thumbKey, thumbBuf)
+
+          return new Response(new Uint8Array(thumbBuf), {
+            status: 200,
+            headers: {
+              "Content-Type": "image/webp",
+              "ETag": `${etag}-w${targetWidth}`,
+              "Cache-Control": "public, max-age=31536000, immutable",
+            },
+          })
+        } catch {
+          // Fall through to streaming raw file if sharp fails
+        }
+      }
+
       // Handle conditional validation for instant 304 Not Modified cache hits
       const ifNoneMatch = request.headers.get("if-none-match")
       const ifModifiedSince = request.headers.get("if-modified-since")
@@ -208,14 +295,31 @@ app.whenReady().then(() => {
         })
       }
 
-      // Support Range request for video seeking
+      // Support Range request for video seeking (RFC 7233 standard and suffix ranges)
       const range = request.headers.get("range")
       if (range) {
-        const parts = range.replace(/bytes=/, "").split("-")
-        const start = parseInt(parts[0], 10)
-        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1
+        const rawRange = range.replace(/bytes=/, "").trim()
+        const parts = rawRange.split("-")
+        let start: number
+        let end: number
 
-        if (start >= fileSize || end >= fileSize || start > end) {
+        if (parts[0] === "") {
+          // Suffix range: bytes=-500 (last 500 bytes)
+          const suffixLength = parseInt(parts[1], 10)
+          if (isNaN(suffixLength) || suffixLength <= 0) {
+            return new Response("Range Not Satisfiable", {
+              status: 416,
+              headers: { "Content-Range": `bytes */${fileSize}` },
+            })
+          }
+          start = Math.max(0, fileSize - suffixLength)
+          end = fileSize - 1
+        } else {
+          start = parseInt(parts[0], 10)
+          end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1
+        }
+
+        if (isNaN(start) || isNaN(end) || start >= fileSize || end >= fileSize || start > end) {
           return new Response("Range Not Satisfiable", {
             status: 416,
             headers: {

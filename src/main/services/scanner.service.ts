@@ -17,7 +17,11 @@ import type { MediaItem } from "../../shared/types/media"
 import { IPC_CHANNELS, type FolderCountResult, type FileChangeEvent } from "../../shared/types/ipc"
 import { ENABLE_AI_FEATURES } from "../../shared/constants"
 import { initDatabase } from "../infrastructure/database"
-import { isThumbnailCurrent } from "../infrastructure/image-processor"
+import {
+  isThumbnailCurrent,
+  purgeStalePhotoThumbnails,
+  getThumbnailCacheDir,
+} from "../infrastructure/image-processor"
 import { storageService } from "./storage.service"
 import { aiIndexerService } from "./ai-indexer.service"
 
@@ -33,6 +37,7 @@ export class ScannerService {
 
   private isScanning = false
   private isCancelled = false
+  private activePostProcessingPromise: Promise<void> | null = null
   private activeWatchers = new Map<string, nodeFs.FSWatcher>()
   private watchDebounceTimers = new Map<string, NodeJS.Timeout>()
   private changedFolders = new Set<string>()
@@ -75,7 +80,7 @@ export class ScannerService {
     }
   }
 
-  private clearScanInProgress(): void {
+  public clearScanInProgress(): void {
     try {
       const db = initDatabase()
       db.prepare(`DELETE FROM settings WHERE key = 'scan_in_progress'`).run()
@@ -351,6 +356,11 @@ export class ScannerService {
       return fail({ code: "UNKNOWN", message: "Scan already in progress" })
     }
 
+    if (this.activePostProcessingPromise) {
+      await this.activePostProcessingPromise.catch(() => {})
+      this.activePostProcessingPromise = null
+    }
+
     this.isScanning = true
     this.isCancelled = false
     this.markScanInProgress()
@@ -403,7 +413,10 @@ export class ScannerService {
         const batchSize = settings.performance.scanBatchSize || 50
         const concurrency = Math.max(
           1,
-          settings.performance.maxConcurrentOps || 4
+          typeof settings.performance.maxConcurrentOps === "number" &&
+            settings.performance.maxConcurrentOps > 0
+            ? settings.performance.maxConcurrentOps
+            : 4
         )
 
         const sendProgressThrottled = (file: ScanFileData, force = false) => {
@@ -460,12 +473,14 @@ export class ScannerService {
                   (cached.dateModified === file.mtime ||
                     (cachedMtimeMs > 0 && Math.abs(cachedMtimeMs - fileMtimeMs) < 2000))
 
-                // Cache hit: size AND mtime both match, and the thumbnail format is current
+                // Cache hit: size AND mtime both match, thumbnail format is current, and exactHash + quality are computed
                 if (
                   cached &&
                   cached.size === file.size &&
                   isMtimeMatch &&
-                  !isOldThumb
+                  !isOldThumb &&
+                  Boolean(cached.exactHash) &&
+                  Boolean(cached.quality)
                 ) {
                   scannedCount++
                   sendProgressThrottled(file)
@@ -489,50 +504,62 @@ export class ScannerService {
                   exactHash = exactHashRes.data
                 }
 
-                // Create compressed thumbnail cache file FIRST to allow video hash generation from thumbnail frame
-                let thumbnailPath = undefined
-                const thumbRes =
-                  await this.thumbnailService.getOrCreateThumbnail(
+                let thumbnailPath: string | undefined = undefined
+                let quality = undefined
+                let hash = undefined
+
+                if (file.mediaType === "video") {
+                  // Video: generate lightweight 480p poster and derive perceptual hash from it in memory
+                  const thumbRes = await this.thumbnailService.getOrCreateThumbnail(
                     file.path,
                     file.id,
                     file.mediaType,
                     meta.duration
                   )
-                if (thumbRes.ok) {
-                  thumbnailPath = thumbRes.data
-                }
+                  if (thumbRes.ok) {
+                    thumbnailPath = thumbRes.data
+                  }
 
-                // Analyze quality metrics (blur, darkness, screenshot, composite score)
-                const qualityRes = await this.qualityService.analyzeItem(
-                  file.path,
-                  file.mediaType,
-                  file.size,
-                  file.name,
-                  meta.width,
-                  meta.height,
-                  settings.quality
-                )
+                  const qualityRes = await this.qualityService.analyzeItem(
+                    file.path,
+                    file.mediaType,
+                    file.size,
+                    file.name,
+                    meta.width,
+                    meta.height,
+                    settings.quality
+                  )
+                  if (qualityRes.ok) {
+                    quality = qualityRes.data.quality
+                  }
 
-                let quality = undefined
-                let hash = undefined
-                if (qualityRes.ok) {
-                  quality = qualityRes.data.quality
-                  hash = qualityRes.data.hash
-                }
-
-                // For videos, derive multi-frame perceptual hash across keyframes (15%, 50%, 85%)
-                if (file.mediaType === "video") {
                   try {
-                    const multiHashRes = await extractVideoMultiHash(
+                    const videoHashRes = await extractVideoMultiHash(
                       file.path,
                       file.id,
                       meta.duration
                     )
-                    if (multiHashRes.ok) {
-                      hash = multiHashRes.data
+                    if (videoHashRes.ok) {
+                      hash = videoHashRes.data
                     }
                   } catch {
-                    // Fail silently — fallback to single frame hash if any
+                    // Fail silently
+                  }
+                } else {
+                  // Photo: Fast in-memory analysis (blur, darkness, screenshot, and 256-bit perceptual hash)
+                  // Zero disk thumbnail writes to prevent storage bloat
+                  const qualityRes = await this.qualityService.analyzeItem(
+                    file.path,
+                    file.mediaType,
+                    file.size,
+                    file.name,
+                    meta.width,
+                    meta.height,
+                    settings.quality
+                  )
+                  if (qualityRes.ok) {
+                    quality = qualityRes.data.quality
+                    hash = qualityRes.data.hash
                   }
                 }
 
@@ -673,7 +700,7 @@ export class ScannerService {
         .map((r) => r.path)
       const foldersToAnalyze = allEnabledRoots.length > 0 ? allEnabledRoots : rootPaths
 
-      setImmediate(async () => {
+      this.activePostProcessingPromise = (async () => {
         try {
           await this.duplicateService.resolveDuplicatesInFolders(
             foldersToAnalyze,
@@ -681,6 +708,9 @@ export class ScannerService {
           )
 
           await this.similarityService.resolveSimilarityInFolders(foldersToAnalyze)
+
+          // Asynchronously purge any legacy photo thumbnails to reclaim disk space
+          purgeStalePhotoThumbnails(getThumbnailCacheDir()).catch(() => {})
 
           // Invalidate storage metrics cache so Settings displays fresh values
           storageService.invalidateCache()
@@ -701,11 +731,12 @@ export class ScannerService {
             window.webContents.send(IPC_CHANNELS.SCAN_POST_PROCESSING_COMPLETE)
           }
         } finally {
+          this.activePostProcessingPromise = null
           if (!this.isScanning) {
             this.clearScanInProgress()
           }
         }
-      })
+      })()
 
       return ok(undefined)
     } catch (e: unknown) {

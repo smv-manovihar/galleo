@@ -142,54 +142,73 @@ export function initDatabase(): Database.Database {
   const currentVersion = (db.pragma("user_version", { simple: true }) as number) || 0
 
   if (currentVersion < 1) {
-    try {
-      db.exec(`ALTER TABLE media_items ADD COLUMN date_modified TEXT;`)
-    } catch {
-      // Column may already exist
-    }
-    try {
-      db.exec(`ALTER TABLE media_items ADD COLUMN similarity_index INTEGER;`)
-    } catch {
-      // Column may already exist
-    }
-    db.pragma("user_version = 1")
+    db.transaction(() => {
+      try {
+        db.exec(`ALTER TABLE media_items ADD COLUMN date_modified TEXT;`)
+      } catch {
+        // Column may already exist
+      }
+      try {
+        db.exec(`ALTER TABLE media_items ADD COLUMN similarity_index INTEGER;`)
+      } catch {
+        // Column may already exist
+      }
+      db.pragma("user_version = 1")
+    })()
   }
 
   if (currentVersion < 2) {
-    try {
-      db.exec(`CREATE INDEX IF NOT EXISTS idx_media_lower_path ON media_items(path COLLATE NOCASE);`)
-    } catch {
-      // Index may already exist
-    }
-    db.pragma("user_version = 2")
+    db.transaction(() => {
+      try {
+        db.exec(`CREATE INDEX IF NOT EXISTS idx_media_lower_path ON media_items(path COLLATE NOCASE);`)
+      } catch {
+        // Index may already exist
+      }
+      db.pragma("user_version = 2")
+    })()
   }
 
   if (currentVersion < 3) {
-    try {
-      db.exec(`ALTER TABLE media_items ADD COLUMN exact_hash TEXT;`)
-    } catch {
-      // Column may already exist
-    }
-    try {
-      db.exec(`ALTER TABLE media_items ADD COLUMN duration REAL;`)
-    } catch {
-      // Column may already exist
-    }
-    try {
-      db.exec(`CREATE INDEX IF NOT EXISTS idx_media_exact_hash ON media_items(exact_hash) WHERE exact_hash IS NOT NULL;`)
-    } catch {
-      // Index may already exist
-    }
-    db.pragma("user_version = 3")
+    db.transaction(() => {
+      try {
+        db.exec(`ALTER TABLE media_items ADD COLUMN exact_hash TEXT;`)
+      } catch {
+        // Column may already exist
+      }
+      try {
+        db.exec(`ALTER TABLE media_items ADD COLUMN duration REAL;`)
+      } catch {
+        // Column may already exist
+      }
+      try {
+        db.exec(`CREATE INDEX IF NOT EXISTS idx_media_exact_hash ON media_items(exact_hash) WHERE exact_hash IS NOT NULL;`)
+      } catch {
+        // Index may already exist
+      }
+      db.pragma("user_version = 3")
+    })()
   }
 
   if (currentVersion < 4) {
-    try {
-      db.exec(`ALTER TABLE media_items ADD COLUMN orientation INTEGER DEFAULT 0;`)
-    } catch {
-      // Column may already exist
-    }
-    db.pragma("user_version = 4")
+    db.transaction(() => {
+      try {
+        db.exec(`ALTER TABLE media_items ADD COLUMN orientation INTEGER DEFAULT 0;`)
+      } catch {
+        // Column may already exist
+      }
+      db.pragma("user_version = 4")
+    })()
+  }
+
+  if (currentVersion < 5) {
+    db.transaction(() => {
+      try {
+        db.exec(`UPDATE media_items SET thumbnail_path = NULL WHERE media_type = 'photo' AND thumbnail_path IS NOT NULL;`)
+      } catch {
+        // Column or table may not exist yet
+      }
+      db.pragma("user_version = 5")
+    })()
   }
 
   dbInstance = db

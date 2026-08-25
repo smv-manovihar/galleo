@@ -2,7 +2,6 @@ import { execFile } from "node:child_process"
 import { promisify } from "node:util"
 import path from "node:path"
 import { existsSync } from "node:fs"
-import { unlink } from "node:fs/promises"
 import ffmpegPath from "ffmpeg-static"
 import ffprobeStatic from "ffprobe-static"
 import { type Result, fail, ok } from "../../shared/types/results"
@@ -88,7 +87,8 @@ interface FfprobeOutput {
 }
 
 /**
- * Extracts a representative thumbnail frame from a video file past typical intro cards.
+ * Extracts a compact representative thumbnail frame from a video file past typical intro cards.
+ * Uses fast-seek and downscales to max 480px width for fast decoding and minimal disk space.
  */
 export async function generateVideoThumbnail(
   videoPath: string,
@@ -116,6 +116,7 @@ export async function generateVideoThumbnail(
       sampleTimestamp = Math.max(0.5, duration * 0.5)
     }
 
+    // Fast-seek (-ss before -i) allows FFmpeg to seek directly in the container demuxer
     await runFfmpeg(
       [
         "-ss",
@@ -125,11 +126,13 @@ export async function generateVideoThumbnail(
         "-vframes",
         "1",
         "-vf",
-        "scale=1080:-2",
+        "scale=480:-2",
+        "-q:v",
+        "4",
         "-y",
         outputPath,
       ],
-      15000
+      10000
     )
 
     if (!existsSync(outputPath)) {
@@ -152,8 +155,8 @@ export async function generateVideoThumbnail(
 }
 
 /**
- * Extracts multiple keyframe hashes across a video (25%, 55%, 85% of duration)
- * and concatenates them into a robust multi-frame perceptual hash in a single batched FFmpeg run.
+ * Derives a video perceptual hash directly from the fast-extracted poster frame in RAM,
+ * eliminating redundant FFmpeg child process invocations and temp disk files.
  */
 export async function extractVideoMultiHash(
   videoPath: string,
@@ -161,113 +164,25 @@ export async function extractVideoMultiHash(
   duration?: number
 ): Promise<Result<string>> {
   try {
-    const cacheDir = getThumbnailCacheDir()
-    const timestamps: number[] = []
-
-    if (duration && duration > 5) {
-      timestamps.push(
-        Math.max(1, Math.round(duration * 0.25 * 10) / 10),
-        Math.round(duration * 0.55 * 10) / 10,
-        Math.min(Math.max(1, duration - 1), Math.round(duration * 0.85 * 10) / 10)
-      )
-    } else if (duration && duration > 0) {
-      timestamps.push(Math.max(0.5, Math.round(duration * 0.5 * 10) / 10))
-    } else {
-      timestamps.push(1)
+    // Generate or fetch the lightweight 480p poster frame
+    const thumbRes = await generateVideoThumbnail(videoPath, mediaId, duration)
+    if (!thumbRes.ok) {
+      return fail(thumbRes.error)
     }
 
-    const tempPaths: string[] = timestamps.map((_, i) =>
-      path.join(cacheDir, `temp_${mediaId}_hashframe_${i}.webp`)
-    )
-
-    // Build a single batched FFmpeg command with fast-seek multi-inputs
-    const ffmpegArgs: string[] = []
-    for (let i = 0; i < timestamps.length; i++) {
-      ffmpegArgs.push("-ss", String(timestamps[i]), "-i", videoPath)
-    }
-    for (let i = 0; i < timestamps.length; i++) {
-      ffmpegArgs.push(
-        "-map",
-        `${i}:v:0`,
-        "-vframes",
-        "1",
-        "-vf",
-        "scale=448:-2",
-        "-y",
-        tempPaths[i]
-      )
+    const posterPath = thumbRes.data
+    const analysisRes = await analyzeImage(posterPath)
+    if (!analysisRes.ok) {
+      return fail(analysisRes.error)
     }
 
-    let lastError: string | undefined = undefined
-
-    try {
-      await runFfmpeg(ffmpegArgs, 15000)
-    } catch (e: unknown) {
-      const err = e as { message?: string }
-      lastError = err.message
-      console.warn(`[VideoProcessor] Batched multi-frame extraction failed for ${videoPath}, falling back to single-frame extraction:`, lastError)
-
-      // Fallback to individual extraction if multi-input stream mapping encounters non-standard codec
-      for (let i = 0; i < timestamps.length; i++) {
-        if (!existsSync(tempPaths[i])) {
-          try {
-            await runFfmpeg(
-              [
-                "-ss",
-                String(timestamps[i]),
-                "-i",
-                videoPath,
-                "-vframes",
-                "1",
-                "-vf",
-                "scale=448:-2",
-                "-y",
-                tempPaths[i],
-              ],
-              5000
-            )
-          } catch (singleErr: unknown) {
-            const errObj = singleErr as { message?: string }
-            lastError = errObj.message || lastError
-            console.warn(`[VideoProcessor] Fallback frame extraction failed for frame ${i} (${videoPath}):`, errObj.message)
-          }
-        }
-      }
-    }
-
-    const hashes: string[] = []
-    try {
-      for (const tempPath of tempPaths) {
-        if (existsSync(tempPath)) {
-          const analysisRes = await analyzeImage(tempPath)
-          if (analysisRes.ok) {
-            hashes.push(analysisRes.data.hash)
-          }
-        }
-      }
-    } finally {
-      for (const tempPath of tempPaths) {
-        unlink(tempPath).catch(() => {})
-      }
-    }
-
-    const expectedCount = timestamps.length
-    if (hashes.length < expectedCount) {
-      return fail({
-        code: "THUMBNAIL_FAILED",
-        path: videoPath,
-        reason: lastError || `Incomplete keyframe extractions for video (${hashes.length}/${expectedCount} succeeded)`,
-      })
-    }
-
-    // Concatenate frame pHashes into composite hash
-    return ok(hashes.join(""))
+    return ok(analysisRes.data.hash)
   } catch (e: unknown) {
     const err = e as { message?: string }
     return fail({
       code: "THUMBNAIL_FAILED",
       path: videoPath,
-      reason: err.message || "Video multi-hash extraction failed",
+      reason: err.message || "Video hash extraction failed",
     })
   }
 }
@@ -296,25 +211,26 @@ export async function readVideoMetadata(
       binary,
       [
         "-v",
-        "quiet",
-        "-print_format",
+        "error",
+        "-select_streams",
+        "v:0",
+        "-show_entries",
+        "stream=width,height,coded_width,coded_height,display_aspect_ratio:stream_tags=rotate:stream_side_data=rotation",
+        "-show_entries",
+        "format=duration",
+        "-of",
         "json",
-        "-show_format",
-        "-show_streams",
         videoPath,
       ],
-      { timeout: 10000, maxBuffer: 10 * 1024 * 1024 }
+      { timeout: 8000, maxBuffer: 5 * 1024 * 1024 }
     )
 
     const metadata = JSON.parse(stdout) as FfprobeOutput
-    if (!metadata || !metadata.streams) {
+    if (!metadata) {
       return ok(fallback)
     }
 
-    const videoStream =
-      metadata.streams.find(
-        (s) => s.codec_type === "video" && !s.disposition?.attached_pic
-      ) || metadata.streams.find((s) => s.codec_type === "video")
+    const videoStream = metadata.streams?.[0]
     const duration = Number(metadata.format?.duration) || 0
 
     // Tier 1: primary display dimensions

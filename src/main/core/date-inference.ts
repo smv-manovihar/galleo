@@ -18,11 +18,12 @@ export function parseExifDate(
 
   // 1. Check EXIF colon format: YYYY:MM:DD (with optional time / subseconds / timezone)
   const exifRegex =
-    /^(\d{4}):(\d{2}):(\d{2})(?:[\sT](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(?:Z|([+-]\d{2}:?\d{2}))?)?$/
+    /^(\d{4}):(\d{2}):(\d{2})(?:[\sT](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(?:(Z)|([+-]\d{2}:?\d{2}))?)?$/
   const match = cleaned.match(exifRegex)
 
   if (match) {
-    const [, year, month, day, hour = "0", minute = "0", second = "0"] = match
+    const [, year, month, day, hour = "0", minute = "0", second = "0", , zTz, offsetTz] = match
+    const tz = zTz || offsetTz
     const y = parseInt(year, 10)
     const m = parseInt(month, 10) - 1
     const d = parseInt(day, 10)
@@ -44,6 +45,23 @@ export function parseExifDate(
       s >= 0 &&
       s <= 59
     ) {
+      if (tz) {
+        const isoMonth = (m + 1).toString().padStart(2, "0")
+        const isoDay = d.toString().padStart(2, "0")
+        const isoHour = h.toString().padStart(2, "0")
+        const isoMin = min.toString().padStart(2, "0")
+        const isoSec = s.toString().padStart(2, "0")
+        let formattedTz = tz === "Z" ? "Z" : tz
+        if (formattedTz !== "Z" && !formattedTz.includes(":")) {
+          formattedTz = `${formattedTz.slice(0, 3)}:${formattedTz.slice(3)}`
+        }
+        const isoStr = `${y}-${isoMonth}-${isoDay}T${isoHour}:${isoMin}:${isoSec}${formattedTz}`
+        const parsed = new Date(isoStr)
+        if (!isNaN(parsed.getTime())) {
+          return parsed
+        }
+      }
+
       const date = new Date(y, m, d, h, min, s)
       if (
         date.getFullYear() === y &&

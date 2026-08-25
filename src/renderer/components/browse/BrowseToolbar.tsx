@@ -35,6 +35,7 @@ export type SortBy =
   | "score-asc"
   | "size-desc"
   | "size-asc"
+  | "similarity"
 export type LayoutMode = "card" | "list"
 export type GroupMode = "normal" | "date"
 
@@ -191,6 +192,7 @@ const BrowseToolbarComponent: React.FC<BrowseToolbarProps> = ({
           <SelectContent>
             <SelectItem value="date-desc">Newest First</SelectItem>
             <SelectItem value="date-asc">Oldest First</SelectItem>
+            <SelectItem value="similarity">Visual Similarity</SelectItem>
             <SelectItem value="score-desc">Highest Quality</SelectItem>
             <SelectItem value="score-asc">Lowest Quality</SelectItem>
             <SelectItem value="size-desc">Largest Size</SelectItem>

@@ -203,6 +203,11 @@ export class AIService {
 
     this.worker.on("exit", (code) => {
       console.warn("[AIService] Worker exited with code", code)
+      const exitError = new Error(`AI Worker process exited with code ${code}`)
+      for (const { reject } of this.pending.values()) {
+        reject(exitError)
+      }
+      this.pending.clear()
       this.worker = null
       this.workerReady = false
       if (code !== 0 && this.isModelDownloaded()) {

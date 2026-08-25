@@ -251,4 +251,33 @@ describe("filterAndSortItems sorting logic", () => {
 
     expect(results.map((i) => i.id)).toEqual(["target", "sim_in"])
   })
+
+  it("sorts by 'similarity' using nearest-neighbor similarity gradient", () => {
+    const itemA = createMockItem("item_a", { hash: "00000000" })
+    const itemB = createMockItem("item_b", { hash: "ffffffff" })
+    const itemC = createMockItem("item_c", { hash: "00000001" })
+
+    const results = filterAndSortItems([itemA, itemB, itemC], {
+      ...baseOptions,
+      sortBy: "similarity",
+    })
+
+    expect(results.map((i) => i.id)).toEqual(["item_a", "item_c", "item_b"])
+  })
+
+  it("preserves target similarity ranking when sortBy is 'similarity' with similarTargetItem", () => {
+    const target = createMockItem("target", { hash: "00000000" })
+    const close = createMockItem("close", { hash: "00000001" })
+    const medium = createMockItem("medium", { hash: "00000007" })
+    const distant = createMockItem("distant", { hash: "ffffffff" })
+
+    const results = filterAndSortItems([distant, medium, close, target], {
+      ...baseOptions,
+      similarTargetItem: target,
+      sortBy: "similarity",
+      similarRadius: 20,
+    })
+
+    expect(results.map((i) => i.id)).toEqual(["target", "close", "medium"])
+  })
 })

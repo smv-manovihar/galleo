@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import {
   MoreVertical,
   Play,
-  FileImage,
   Trash2,
   Check,
   Eye,
@@ -15,6 +14,7 @@ import {
 } from "lucide-react"
 import { formatBytes } from "../../lib/format"
 import { getFileManagerName } from "../../lib/os"
+import { toMediaUrl } from "../../lib/media-preloader"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -127,9 +127,9 @@ export const MediaCompactList: React.FC<MediaCompactListProps> = ({
 
                       {/* Media Icon/Thumbnail */}
                       <div className="pointer-events-none relative flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded bg-muted/40 select-none">
-                        {item.thumbnailPath ? (
+                        {item.thumbnailPath || !isVideo ? (
                           <img
-                            src={`media:///${item.thumbnailPath.replace(/\\/g, "/")}`}
+                            src={toMediaUrl(item.thumbnailPath || item.path, isVideo ? undefined : 120)}
                             alt=""
                             style={
                               item.orientation
@@ -138,10 +138,8 @@ export const MediaCompactList: React.FC<MediaCompactListProps> = ({
                             }
                             className="h-full w-full object-cover"
                           />
-                        ) : isVideo ? (
-                          <Play className="size-4 fill-current text-primary" />
                         ) : (
-                          <FileImage className="size-4 text-muted-foreground" />
+                          <Play className="size-4 fill-current text-primary" />
                         )}
 
                         {/* Small play overlay on thumbnail */}

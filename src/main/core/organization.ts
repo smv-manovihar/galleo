@@ -18,34 +18,33 @@ const MONTH_NAMES = [
 
 /**
  * Builds the folder structure fragment based on a pattern and target date.
- * Supported tokens: YYYY (year), MM (2-digit month), MMMM (full month name), DD (2-digit day)
+ * Supported tokens: {YYYY}/YYYY, {MM}/MM, {MMMM}/MMMM, {DD}/DD, {camera}/camera
  */
 export function buildFolderPathFromPattern(
   pattern: string,
-  date: Date
+  date: Date,
+  camera?: string
 ): string {
   const year = date.getFullYear().toString()
   const monthVal = date.getMonth() + 1
   const MM = monthVal.toString().padStart(2, "0")
   const MMMM = MONTH_NAMES[date.getMonth()]
   const DD = date.getDate().toString().padStart(2, "0")
+  const cameraVal = camera ? camera.trim().replace(/[/\\:*?"<>|]/g, "_") : ""
 
   let result = pattern
-    .replace(/YYYY/g, year)
-    .replace(/MMMM/g, MMMM)
-    .replace(/MM/g, MM)
-    .replace(/DD/g, DD)
+    .replace(/\{YYYY\}|YYYY/g, year)
+    .replace(/\{MMMM\}|MMMM/g, MMMM)
+    .replace(/\{MM\}|MM/g, MM)
+    .replace(/\{DD\}|DD/g, DD)
+    .replace(/\{camera\}|camera/gi, cameraVal)
 
-  // Normalize path separators (ensure forward/backward slashes match OS standard later)
-  result = result.replace(/\\/g, "/")
-  if (!result.endsWith("/")) {
-    result += "/"
-  }
+  // Normalize path separators (ensure forward slashes for internal consistency)
+  result = result.replace(/\\/g, "/").replace(/\/+/g, "/")
 
-  // Clean up any double slashes
-  result = result.replace(/\/+/g, "/")
-
-  return result
+  // Strip leading and trailing slashes from fragment
+  const clean = result.replace(/^\/+|\/+$/g, "")
+  return clean ? `${clean}/` : ""
 }
 
 /**
@@ -77,7 +76,7 @@ export function resolveFilenameConflict(
 
 /**
  * Computes target destinations for a set of media items during a dry run organization phase.
- * Resolves naming conflicts among planned items and existing files.
+ * Resolves naming conflicts among planned items and existing files in O(N+M) time.
  */
 export function planOrganization(params: {
   items: MediaItem[]
@@ -95,9 +94,25 @@ export function planOrganization(params: {
     ? destinationDir.replace(/\\/g, "/").replace(/\/$/, "")
     : ""
 
-  // Keep track of target paths we have already assigned in THIS execution batch
-  // to avoid internal conflicts.
-  const assignedLowerPaths = new Set<string>()
+  // Pre-index existing files by directory for O(1) filename conflict checks
+  const existingFilesByDir = new Map<string, Set<string>>()
+  for (const diskPath of existingFilePaths) {
+    const norm = diskPath.replace(/\\/g, "/").toLowerCase()
+    const lastSlash = norm.lastIndexOf("/")
+    if (lastSlash !== -1) {
+      const dir = norm.substring(0, lastSlash + 1)
+      const filename = norm.substring(lastSlash + 1)
+      let set = existingFilesByDir.get(dir)
+      if (!set) {
+        set = new Set()
+        existingFilesByDir.set(dir, set)
+      }
+      set.add(filename)
+    }
+  }
+
+  // Keep track of assigned files by target directory in this execution batch
+  const assignedFilesByDir = new Map<string, Set<string>>()
 
   for (const item of items) {
     const date = new Date(item.dateTarget)
@@ -105,47 +120,43 @@ export function planOrganization(params: {
       continue // Skip invalid dates
     }
 
-    const folderFragment = buildFolderPathFromPattern(pattern, date)
+    const folderFragment = buildFolderPathFromPattern(
+      pattern,
+      date,
+      (item as unknown as { camera?: string }).camera
+    )
 
-    // Check if filename conflict exists
-    // Find all files already allocated in the target subfolder
-    // Combine existing files on disk + files we just planned for this subfolder
+    // Check if filename conflict exists in this target folder
     const targetFolderLower = normalizedDest
       ? `${normalizedDest}/${folderFragment}`.toLowerCase()
       : folderFragment.toLowerCase()
 
-    // We collect files that map to this folder
+    const existingInDir = existingFilesByDir.get(targetFolderLower)
+    const assignedInDir = assignedFilesByDir.get(targetFolderLower)
+
     const siblingNames = new Set<string>()
-
-    // 1. Scan existing file paths on disk for matches in this subfolder
-    for (const diskPath of existingFilePaths) {
-      const normalizedDiskPath = diskPath.replace(/\\/g, "/")
-      if (normalizedDiskPath.toLowerCase().startsWith(targetFolderLower)) {
-        const name = normalizedDiskPath.substring(targetFolderLower.length)
-        if (name && !name.includes("/")) {
-          siblingNames.add(name.toLowerCase())
-        }
-      }
+    if (existingInDir) {
+      for (const name of existingInDir) siblingNames.add(name)
     }
-
-    // 2. Scan already assigned paths in this dry-run
-    for (const assignedPath of assignedLowerPaths) {
-      if (assignedPath.startsWith(targetFolderLower)) {
-        const name = assignedPath.substring(targetFolderLower.length)
-        if (name && !name.includes("/")) {
-          siblingNames.add(name.toLowerCase())
-        }
-      }
+    if (assignedInDir) {
+      for (const name of assignedInDir) siblingNames.add(name)
     }
 
     // Resolve conflict (e.g. photo.jpg -> photo_1.jpg if target file already exists)
     const finalFilename = resolveFilenameConflict(item.name, siblingNames)
+
+    // Track assigned filename in this directory
+    let assignedSet = assignedFilesByDir.get(targetFolderLower)
+    if (!assignedSet) {
+      assignedSet = new Set()
+      assignedFilesByDir.set(targetFolderLower, assignedSet)
+    }
+    assignedSet.add(finalFilename.toLowerCase())
+
     const relativePath = `${folderFragment}${finalFilename}`
     const targetPath = normalizedDest
       ? `${normalizedDest}/${relativePath}`
       : relativePath
-
-    assignedLowerPaths.add(targetPath.toLowerCase())
 
     const isConflict = normalizedDest
       ? existingFilePaths.has(targetPath.toLowerCase()) ||

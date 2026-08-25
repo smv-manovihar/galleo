@@ -13,6 +13,7 @@ import {
 import { formatBytes } from "../../lib/format"
 import { VideoPlayer } from "../media/VideoPlayer"
 import { QualityScoreBadge } from "../media/QualityScoreBadge"
+import { toMediaUrl } from "../../lib/media-preloader"
 
 interface MediaCullingCardProps {
   item: MediaItem
@@ -29,14 +30,7 @@ interface MediaCullingCardProps {
   onContextMenu?: (item: MediaItem, e: React.MouseEvent) => void
 }
 
-interface MediaCullingCardInnerProps {
-  item: MediaItem
-  deckIndex: number
-  isTopCard: boolean
-  isVideoPlaying: boolean
-  videoPlayerRef?: React.Ref<VideoPlayerRef>
-  onFullscreen?: () => void
-  onPlayStateChange?: (playing: boolean) => void
+interface MediaCullingCardInnerProps extends MediaCullingCardProps {
   keepOverlayRef: React.RefObject<HTMLDivElement | null>
   deleteOverlayRef: React.RefObject<HTMLDivElement | null>
 }
@@ -54,7 +48,10 @@ const MediaCullingCardInner: React.FC<MediaCullingCardInnerProps> = React.memo(
     deleteOverlayRef,
   }) => {
     const itemIsVideo = item.mediaType === "video"
-    const safeSrc = `media:///${(item.thumbnailPath || item.path).replace(/\\/g, "/")}`
+    const rawSrc = item.thumbnailPath || item.path
+    const safeSrc = item.thumbnailPath
+      ? toMediaUrl(item.thumbnailPath)
+      : toMediaUrl(rawSrc, itemIsVideo ? undefined : 800)
 
     return (
       <Card className="relative flex h-full w-full flex-col overflow-hidden rounded-2xl border border-border bg-card/60 p-0 py-0 shadow-xl select-none">
@@ -78,6 +75,11 @@ const MediaCullingCardInner: React.FC<MediaCullingCardInnerProps> = React.memo(
               <img
                 src={safeSrc}
                 alt={item.name}
+                onError={(e) => {
+                  if (item.path && e.currentTarget.src !== `media:///${item.path.replace(/\\/g, "/")}`) {
+                    e.currentTarget.src = `media:///${item.path.replace(/\\/g, "/")}`
+                  }
+                }}
                 style={
                   item.orientation
                     ? { transform: `rotate(${item.orientation}deg)` }
@@ -224,6 +226,7 @@ export const MediaCullingCard: React.FC<MediaCullingCardProps> = ({
 
   const pointerIdRef = useRef<number>(-1)
   const hasCapturedRef = useRef<boolean>(false)
+  const swipeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [swipeOutAction, setSwipeOutAction] = useState<
     "keep" | "delete" | null
   >(null)
@@ -286,6 +289,16 @@ export const MediaCullingCard: React.FC<MediaCullingCardProps> = ({
       }
     }
   }, [item.id, isTopCard, restoringDirection, swipeClass, swipeOutAction])
+
+  // Cancel any pending swipe timer when item changes or component unmounts
+  useEffect(() => {
+    return () => {
+      if (swipeTimerRef.current !== null) {
+        clearTimeout(swipeTimerRef.current)
+        swipeTimerRef.current = null
+      }
+    }
+  }, [item.id])
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isTopCard || swipeClass !== "" || swipeOutAction !== null) return
@@ -369,7 +382,8 @@ export const MediaCullingCard: React.FC<MediaCullingCardProps> = ({
         }
         if (keepOverlayRef.current) keepOverlayRef.current.style.opacity = "1"
         setSwipeOutAction("keep")
-        setTimeout(() => {
+        swipeTimerRef.current = setTimeout(() => {
+          swipeTimerRef.current = null
           onSwipeComplete?.("keep")
         }, 350)
       } else if (dx < -thresholdX) {
@@ -384,7 +398,8 @@ export const MediaCullingCard: React.FC<MediaCullingCardProps> = ({
         if (deleteOverlayRef.current)
           deleteOverlayRef.current.style.opacity = "1"
         setSwipeOutAction("delete")
-        setTimeout(() => {
+        swipeTimerRef.current = setTimeout(() => {
+          swipeTimerRef.current = null
           onSwipeComplete?.("delete")
         }, 350)
       } else {

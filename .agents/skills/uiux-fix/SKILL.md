@@ -3,7 +3,7 @@ name: uiux-fix
 description: >
   Use after a UI/UX audit to implement fixes. Triggers: "implement the audit fixes", "fix the
   UI issues found", "apply the UX remediations", "start fixing the design issues", "fix the
-  design inconsistencies". Reads findings from uiux_audit.md, builds a structured plan, gets
+  design inconsistencies". Reads findings from uiux_audit_progress.md, builds a structured plan, gets
   approval, then executes one fix at a time with a checkpoint after every change.
   Do NOT edit files before plan approval. Do NOT run a new audit — that is the uiux-audit skill's job.
 depends_on: uiux-audit
@@ -30,7 +30,7 @@ Framework- and library-agnostic. Fixes use the *project's own* tokens, variants,
 
 ## Artifacts
 - **`uiux_fix_plan.md`** — single source of truth: Design System Patterns, Fix Inventory (per-fix status), Approach Details, Execution Order, append-only Execution Log. Everything a resuming session needs is here.
-- **`uiux_audit.md`** — read-only input; only annotated with `✅ FIXED` / `⏭️ DEFERRED` prefixes.
+- **`uiux_audit_progress.md`** — read-only input; only annotated with `✅ FIXED` / `⏭️ DEFERRED` prefixes.
 - **`walkthrough.md`** — final summary, created once all fixes complete.
 
 > No separate task tracker. Per-fix state = the Fix Inventory **Status** column; next fix = the first `Pending` item in Execution Order.
@@ -39,7 +39,7 @@ Framework- and library-agnostic. Fixes use the *project's own* tokens, variants,
 
 ## Pre-Flight Check
 1. **Resume?** If `uiux_fix_plan.md` already exists → go to **Resuming**, not Phase 0.
-2. **Fresh start?** Read `uiux_audit.md`. If it doesn't exist or has no Audit Log entries, stop:
+2. **Fresh start?** Read `uiux_audit_progress.md`. If it doesn't exist or has no Findings Log entries, stop:
    > "No UI/UX audit findings found. Run the uiux-audit skill first, then return here."
 
 ---
@@ -78,7 +78,7 @@ Don't slurp whole files, and don't trust the audit snippet alone. Widen only whe
 
 ```markdown
 # UI/UX Fix Implementation Plan
-> Status: Draft — Awaiting Review · Source: `uiux_audit.md` · Updated: [what/why]
+> Status: Draft — Awaiting Review · Source: `uiux_audit_progress.md` · Updated: [what/why]
 
 ## Design System Patterns (from audit)
 - Design system / component lib · Color tokens · Spacing scale · Type scale · Breakpoints · Icon set · Theming approach · Accessibility target
@@ -175,7 +175,7 @@ After editing, read the file back: no syntax error · the referenced token/role/
 - Deviation: None / [what + why]
 ```
 2. Set Fix Inventory Status → `✅ Done` (that + Execution Order is the resume pointer).
-3. In `uiux_audit.md`, prepend `✅ FIXED — ` to the finding title. For deferrals: prepend `⏭️ DEFERRED — `, replace Recommendation with a **Deferred Reason**, add the legend once:
+3. In `uiux_audit_progress.md`, prepend `✅ FIXED — ` to the finding title. For deferrals: prepend `⏭️ DEFERRED — `, replace Recommendation with a **Deferred Reason**, add the legend once:
 ```markdown
 ## Audit Legend
 - `✅ FIXED` — resolved · `⏭️ DEFERRED` — acknowledged, out of scope this run
@@ -226,7 +226,20 @@ work starts at the first `Pending` fix. (Never edit source unless Status = Appro
 ---
 
 ## Resuming
-State lives in `uiux_fix_plan.md`. A fresh session: read it → confirm header **Status = Approved** (if Draft/Revised, re-present for review — **never edit source on an unapproved plan**) → resume at the first `Pending` fix in Execution Order via 3-A. Skip anything `✅ Done`. If Status = Complete, offer the walkthrough. If the plan is missing, this isn't a resume — run Pre-Flight.
+State lives in `uiux_fix_plan.md`. Read in this order and stop at the pointer.
+
+1. **`uiux_fix_plan.md` first.** The header **Status** is the gate: `Draft`/`Revised` → re-present for review, **never edit source on an unapproved plan**. `Complete` → offer the walkthrough. Take Design System Patterns from the plan, not from a fresh read of the audit.
+2. **Approved → Fix Inventory + Execution Order.** Resume at the first `Pending` in Execution Order via 3-A; skip anything `✅ Done`. The Status column outranks whatever you infer from the source tree.
+3. **Execution Log — last 2–3 entries only.** Enough to see what the previous session changed and whether a verification step was left hanging.
+4. **`uiux_audit_progress.md` on demand only, by targeted search.** Approach Details are the contract; the audit is the source behind them. Pull one finding back when the approach reads ambiguous:
+
+```bash
+grep -n "ISSUE-014" uiux_audit_progress.md      # locate the finding
+sed -n '210,240p' uiux_audit_progress.md        # read only that block
+```
+
+Never re-read the audit end to end on a resume — Phase 0 already distilled it into the plan.
+5. **Plan missing** → this is not a resume. Run Pre-Flight.
 
 ---
 
@@ -246,7 +259,7 @@ State lives in `uiux_fix_plan.md`. A fresh session: read it → confirm header *
 | Never regress accessibility with a later cosmetic fix | Accessibility must monotonically improve — cosmetic fixes must not override focus styles, contrast, or semantics restored earlier |
 | Re-read the target region fresh before editing | Files drift between plan and execution |
 | Read the changed file back after editing | Verify no syntax error, no stray adjacent change, referenced token exists |
-| Only prepend `✅ FIXED`/`⏭️ DEFERRED` to `uiux_audit.md` | Altering audit data destroys the record |
+| Only prepend `✅ FIXED`/`⏭️ DEFERRED` to `uiux_audit_progress.md` | Altering audit data destroys the record |
 
 ---
 
@@ -259,6 +272,18 @@ State lives in `uiux_fix_plan.md`. A fresh session: read it → confirm header *
 | Approach Details | Overwrite per subsection on revision; mark *(user-revised)* |
 | Execution Order | Overwrite when reordering; note reason |
 | Deferred / Excluded · Execution Log | Append-only; never edit a completed entry |
+
+---
+
+## Skill References (load on demand)
+Depth this file deliberately does not inline. Invoke one **at the moment you need it** — drafting Approach Details, or applying the fix in 3-B — never up front. A skill loaded before you know you need it is context spent for nothing.
+
+| Skill | Load when |
+|---|---|
+| `vercel-react-best-practices` | the fix touches React/Next render cost, memoization, data fetching, or bundle size. It carries the current rules and the React 19 specifics — cite it, don't restate it. |
+| `vercel-composition-patterns` | the change is to a component's API — boolean-prop proliferation, compound components, render props, context/provider design. |
+
+Precedence: on React specifics the referenced skill wins; on fix process — the approval gate, one-fix-at-a-time, checkpoints, artifact rules — this file wins.
 
 ---
 

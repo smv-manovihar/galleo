@@ -1,6 +1,8 @@
 import { describe, expect, it, beforeEach } from "vitest"
 import {
   hammingDistance,
+  isDegenerateHash,
+  computePerceptualDistance,
   getItemSetFingerprint,
   sortBySimilarity,
   getSimilaritySortedItems,
@@ -9,7 +11,7 @@ import {
 } from "../similarity"
 import type { MediaItem } from "../../../shared/types/media"
 
-const mockItem = (id: string, hash?: string): MediaItem => ({
+const mockItem = (id: string, hash?: string, overrides: Partial<MediaItem> = {}): MediaItem => ({
   id,
   name: `file_${id}.jpg`,
   path: `/path/file_${id}.jpg`,
@@ -24,6 +26,7 @@ const mockItem = (id: string, hash?: string): MediaItem => ({
   isBestInDuplicateGroup: false,
   reviewState: "pending",
   hash,
+  ...overrides,
 })
 
 describe("Similarity utilities", () => {
@@ -38,8 +41,59 @@ describe("Similarity utilities", () => {
       expect(hammingDistance("ff", "00")).toBe(8)
     })
 
-    it("returns Infinity for unequal length strings", () => {
+    it("returns Infinity for unequal length strings or invalid hex", () => {
       expect(hammingDistance("00", "000")).toBe(Infinity)
+      expect(hammingDistance(null, "00")).toBe(Infinity)
+      expect(hammingDistance("00", "0g")).toBe(Infinity)
+    })
+  })
+
+  describe("isDegenerateHash", () => {
+    it("identifies empty or all-zero hashes", () => {
+      expect(isDegenerateHash("")).toBe(true)
+      expect(isDegenerateHash(null)).toBe(true)
+      expect(isDegenerateHash("0".repeat(64))).toBe(true)
+      expect(isDegenerateHash("0".repeat(63) + "1")).toBe(false)
+    })
+  })
+
+  describe("computePerceptualDistance", () => {
+    it("returns 0 for identical item IDs or identical exactHash", () => {
+      const itemA = mockItem("a", "ffff", { exactHash: "sha_1" })
+      const itemB = mockItem("b", "0000", { exactHash: "sha_1" })
+      expect(computePerceptualDistance(itemA, itemA)).toBe(0)
+      expect(computePerceptualDistance(itemA, itemB)).toBe(0)
+    })
+
+    it("returns 0 for copy filename and matching file size", () => {
+      const orig = mockItem("orig", "ffff", { name: "IMG_1234.jpg", size: 50000 })
+      const copy = mockItem("copy", "0000", { name: "IMG_1234 - Copy.jpg", size: 50000 })
+      expect(computePerceptualDistance(orig, copy)).toBe(0)
+    })
+
+    it("returns Infinity for mismatched media types (photo vs video)", () => {
+      const photo = mockItem("p", "ffff", { mediaType: "photo" })
+      const video = mockItem("v", "ffff", { mediaType: "video", duration: 10 })
+      expect(computePerceptualDistance(photo, video)).toBe(Infinity)
+    })
+
+    it("returns Infinity for videos with significant duration difference", () => {
+      const shortVid = mockItem("v1", "ffff", { mediaType: "video", duration: 10 })
+      const longVid = mockItem("v2", "ffff", { mediaType: "video", duration: 600 })
+      expect(computePerceptualDistance(shortVid, longVid)).toBe(Infinity)
+    })
+
+    it("computes multi-frame video perceptual distance across 3 keyframes", () => {
+      // 192-character hashes: 3 frames x 64 chars
+      // Frame 1 and 2 identical, Frame 3 has 2 bits difference -> total 2 bits / 3 = avg 1 bit
+      const v1Hash = "f".repeat(64) + "a".repeat(64) + "c".repeat(64)
+      const v2Hash = "f".repeat(64) + "a".repeat(64) + "c".repeat(62) + "e".repeat(2)
+
+      const vid1 = mockItem("v1", v1Hash, { mediaType: "video", duration: 30 })
+      const vid2 = mockItem("v2", v2Hash, { mediaType: "video", duration: 30 })
+
+      const dist = computePerceptualDistance(vid1, vid2, 10)
+      expect(dist).toBe(1)
     })
   })
 
@@ -57,7 +111,7 @@ describe("Similarity utilities", () => {
   })
 
   describe("sortBySimilarity", () => {
-    it("orders items greedily by nearest hash neighbor", () => {
+    it("orders items greedily along nearest visual neighbor gradient", () => {
       const items = [
         mockItem("1", "0000"),
         mockItem("2", "ffff"),
@@ -89,17 +143,6 @@ describe("Similarity utilities", () => {
       expect(secondCall.map((i) => i.id)).toEqual(["1", "3", "2"])
       expect(secondCall[0].reviewState).toBe("keep")
     })
-
-    it("uses pre-indexed similarityIndex directly if present", () => {
-      const items: MediaItem[] = [
-        { ...mockItem("1"), similarityIndex: 2 },
-        { ...mockItem("2"), similarityIndex: 0 },
-        { ...mockItem("3"), similarityIndex: 1 },
-      ]
-
-      const result = getSimilaritySortedItems(items)
-      expect(result.map((i) => i.id)).toEqual(["2", "3", "1"])
-    })
   })
 
   describe("findSimilarPerceptual", () => {
@@ -114,7 +157,7 @@ describe("Similarity utilities", () => {
       expect(results.map((i) => i.id)).toEqual(["target", "close", "med"])
     })
 
-    it("matches items with matching exactHash or duplicateGroupId", () => {
+    it("matches items with matching exactHash, filename copy, or duplicateGroupId", () => {
       const target: MediaItem = {
         ...mockItem("t"),
         exactHash: "hash_abc",
@@ -135,6 +178,19 @@ describe("Similarity utilities", () => {
       expect(results.map((i) => i.id)).toContain("exact")
       expect(results.map((i) => i.id)).toContain("group")
       expect(results.map((i) => i.id)).not.toContain("unrelated")
+    })
+
+    it("matches multi-frame videos when keyframes align", () => {
+      const v1Hash = "a".repeat(64) + "b".repeat(64) + "c".repeat(64)
+      const v2Hash = "a".repeat(64) + "b".repeat(64) + "c".repeat(62) + "00" // 2 frames identical, 1 frame 2 bits diff
+      const v3Diff = "0".repeat(64) + "0".repeat(64) + "0".repeat(64)
+
+      const targetVid = mockItem("v1", v1Hash, { mediaType: "video", duration: 60 })
+      const matchingVid = mockItem("v2", v2Hash, { mediaType: "video", duration: 60 })
+      const diffVid = mockItem("v3", v3Diff, { mediaType: "video", duration: 60 })
+
+      const results = findSimilarPerceptual(targetVid, [targetVid, matchingVid, diffVid], 18)
+      expect(results.map((i) => i.id)).toEqual(["v1", "v2"])
     })
 
     it("expands matches as radius increases", () => {

@@ -73,7 +73,18 @@ writes > reads · money/PII/auth-bearing > cosmetic · hand-maintained hop > gen
 | 1 | POST /orders | order create | high | pending |
 ```
 
-Checkpoint: report the rating, the queue length, top 5 contracts. Ask to proceed or reorder.
+**0-D. Harvest static signals** (JS/TS repos). Dead fields hide in dead types, and a repo-wide pass gives you leads before you trace a single contract:
+
+```bash
+npx fallow                                           # unused files / exports / types / class members + cycles
+npx fallow audit --format json --quiet 2>/dev/null   # machine-readable, for agents and scripts
+```
+
+Exit `0` and `1` both mean the run **succeeded** (`1` = findings exist); only `2` is a real error, reported as a JSON envelope on stdout. Record the counts in `contract_map.md` beneath the Truth Chain.
+
+An unused type or export is a **lead** toward a `DEAD` or `MIS-phantom` field — never the finding itself. Evidence Rule 2 applies in full, including the non-repo consumers a static tool cannot see, and Rule 3 applies to generated types (an unused generated type points at its generator input, not at the artifact). Tool absent, non-JS repo, or exit `2` → note `static signals: unavailable ([reason])` and continue.
+
+Checkpoint: report the rating, the queue length, top 5 contracts, and the static-signal counts if collected. Ask to proceed or reorder.
 
 ---
 
@@ -176,6 +187,51 @@ In **checkpoint mode**: stop. Do not start the next contract unprompted. In **co
 
 ---
 
+## Delegating to Sub-Agents
+
+One contract is an independent, read-only, hop-by-hop trace — the delegable unit here. Fan out the tracing; keep the verdicts.
+
+### The one hard rule
+**The orchestrator is the sole writer of `contract_map.md` and `schema_audit.md`.** Sub-agents return structured text and never open an artifact file. Concurrent writers corrupt the queue, and the queue is the only thing that makes a paused audit resumable.
+
+### Delegate
+| Work | Shape | Model |
+|---|---|---|
+| Trace one contract, db → server → wire → client | one sub-agent per contract | default |
+| "Every read site of field `X`", "every write path touching `Y`" (Evidence Rules 1–2) | one sub-agent, questions batched | cheapest available |
+| Enumerate the columns of the tables touched (input to the 2-A sweep) | one sub-agent per table group | cheapest available |
+| Check a `fallow` unused-type list against real imports (0-D) | one sub-agent for the whole list | cheapest available |
+| Locate migrations, generated clients, validator definitions (0-A) | one sub-agent | cheapest available |
+
+### Never delegate
+- **0-A truth chain rating and 0-B conventions** — the yardstick every later verdict is measured against. Derive them yourself or the verdicts are unanchored.
+- **Verdicts, severity, and confidence** — sub-agents report what each hop *says*; the orchestrator decides `MIS` / `ORIGIN` / `DEAD` and rates it. An agent that saw one contract cannot judge systemic, and Rule 4 (don't grade intent) needs the whole picture.
+- **The 2-A reverse sweep diff** — delegating column *lists* is fine; diffing them against the union of surfaced fields needs the full map in one context.
+- **Artifact writes and the Summary.**
+
+### Contract brief
+```
+Trace contract [id]: [surface], read-only.
+Do not edit any file. Do not write artifacts. Report only.
+
+Context:
+- Truth chain: [db → server → wire → client, and which hops are hand-maintained]
+- Conventions: [casing per hop · null-vs-absent · date and money encoding · id type]
+
+Return exactly:
+1. HOP PATH — the real `file:line` at each hop, db → server → wire → client → consumer.
+2. FIELD TABLE — `| field | db | server | wire | client |`, raw observed types, no verdicts.
+3. SUSPECTS — fields that look mismatched, discarded, phantom, or dead, each with the TWO `file:line`
+   ends that prove it. Only one end reachable → say so; do not assert.
+4. UNREACHABLE — hops you could not read (generated artifact with no input in repo, external
+   consumer, missing file) and the last known location. Never guess a path or invent a field name.
+```
+
+### Trust, then verify
+Evidence Rule 1 does not relax because a sub-agent did the reading. Before any HIGH reaches `schema_audit.md`, open both cited ends yourself. A returned row with no `file:line` on both sides is a lead, not evidence — verify it or send it back.
+
+---
+
 ## Phase 2 — Close out (queue exhausted or user stops)
 
 **2-A. Reverse sweep (bottom-up).** The contract trace only finds fields something asks for. Now go the other way: for each table/collection touched by the audited contracts, diff its columns against the union of fields those contracts surfaced. Every unsurfaced column is one of — internal/audit (fine, note and move on) · surfaced by a contract still in the queue · genuinely orphaned (`ORIGIN-unreachable`, usually LOW, but HIGH if it's written by something and read by nothing while a feature appears to depend on it). One line per column, grouped. Skip nothing silently; an unexplained column is the cheapest place a whole missing contract hides.
@@ -193,10 +249,27 @@ No recommendations section, no roadmap — that's the fix skill's job. Say so in
 
 ---
 
+## Resuming
+State lives in the artifacts. Read in this order and stop at the pointer.
+
+1. **`contract_map.md` first.** Truth Chain and Conventions are the yardstick — re-read them, they are short. The queue table is the pointer.
+2. **Next contract = the first `pending` row.** Skip `✔ audited`. A row marked `pending` whose section already holds a half-written field table means the previous run died mid-trace: re-trace it, don't patch around it.
+3. **Queue empty → Phase 2** (reverse sweep + Summary), not a fresh pass.
+4. **`schema_audit.md` on demand only, by targeted search.** It is append-only and grows without bound — never read it end to end to get oriented. Grep the contract id or the field name, then read only that block:
+
+```bash
+grep -n "C1 ·" schema_audit.md
+sed -n '84,110p' schema_audit.md
+```
+
+Never re-derive Phase 0. A filled Truth Chain is authoritative — re-rating it risks a second, conflicting yardstick.
+
+---
+
 ## Project-Level Conventions
 
 ### Plans & Artifacts Folder
 Place all plan documents and audit artifacts inside a dedicated folder at the project root that is gitignored. The recommended names are `.artifacts/` or `.scratch/` (add to `.gitignore`).
 
 ### Sub-Agent Usage
-For broad exploration tasks (finding files, understanding file patterns, searching code), use a sub-agent with the minimum-cost model available to avoid context rot and preserve budget for the main task. For large repetitive refactors (e.g., renaming a function across 20+ files, updating the same pattern in many modules), delegate to a sub-agent with clear per-file instructions and a checkpoint after every batch. Verify each batch's output before starting the next.
+During an audit, **Delegating to Sub-Agents** governs — it is more specific than this convention. Generally: for broad exploration tasks (finding files, understanding file patterns, searching code), use a sub-agent with the minimum-cost model available to avoid context rot and preserve budget for the main task. For large repetitive refactors (e.g., renaming a function across 20+ files, updating the same pattern in many modules), delegate to a sub-agent with clear per-file instructions and a checkpoint after every batch. Verify each batch's output before starting the next.

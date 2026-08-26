@@ -3,7 +3,8 @@ import fs from "fs/promises"
 import path from "path"
 import { type Result, fail, ok } from "../../shared/types/results"
 import { bmvbhash } from "blockhash-core"
-import { getThumbnailCacheDir } from "./app-paths"
+import { getThumbnailCacheDir, getVideoFrameCacheDir } from "./app-paths"
+import { initDatabase } from "./database"
 
 export { getThumbnailCacheDir } from "./app-paths"
 
@@ -50,6 +51,141 @@ export async function purgeOldThumbnailVersions(
   } catch {
     // ignore readdir error
   }
+}
+
+/**
+ * Purges all cached thumbnail and frame files associated with a specific media ID.
+ */
+export async function purgeMediaThumbnailFiles(
+  mediaId: string,
+  thumbnailPath?: string | null
+): Promise<void> {
+  if (!mediaId) return
+
+  // 1. Unlink specific thumbnailPath if provided and exists
+  if (thumbnailPath) {
+    try {
+      await fs.unlink(thumbnailPath)
+    } catch {
+      // ignore unlink error
+    }
+  }
+
+  // 2. Unlink all matching thumbnail files in the main thumbnail directory
+  try {
+    const cacheDir = getThumbnailCacheDir()
+    const files = await fs.readdir(cacheDir)
+    for (const file of files) {
+      if (
+        (file.startsWith(`${mediaId}_`) || file === `${mediaId}.webp` || file.startsWith(`${mediaId}.`)) &&
+        (file.endsWith(".webp") || file.endsWith(".jpg") || file.endsWith(".png"))
+      ) {
+        try {
+          await fs.unlink(path.join(cacheDir, file))
+        } catch {
+          // ignore unlink error
+        }
+      }
+    }
+  } catch {
+    // ignore readdir error
+  }
+
+  // 3. Unlink all video scrubber frame files in the video_frames directory
+  try {
+    const frameDir = getVideoFrameCacheDir()
+    const frameFiles = await fs.readdir(frameDir)
+    for (const file of frameFiles) {
+      if (file.startsWith(`${mediaId}_frame_`)) {
+        try {
+          await fs.unlink(path.join(frameDir, file))
+        } catch {
+          // ignore unlink error
+        }
+      }
+    }
+  } catch {
+    // ignore readdir error
+  }
+}
+
+/**
+ * Sweeps the thumbnail cache and video frame directories, deleting all orphaned cache
+ * files whose mediaId does not exist in the media_items database table.
+ */
+export async function purgeOrphanedCacheFiles(): Promise<{ freedThumbnails: number; freedFrames: number }> {
+  let freedThumbnails = 0
+  let freedFrames = 0
+
+  try {
+    const db = initDatabase()
+    const rows = db.prepare("SELECT id FROM media_items").all() as Array<{ id: string }>
+    const activeMediaIds = new Set<string>(rows.map((r) => r.id))
+
+    const cacheDir = getThumbnailCacheDir()
+    const frameDir = getVideoFrameCacheDir()
+
+    // 1. Clean orphaned poster and preview thumbnails
+    try {
+      const entries = await fs.readdir(cacheDir, { withFileTypes: true })
+      for (const entry of entries) {
+        if (entry.isDirectory()) continue
+
+        const filename = entry.name
+        if (!filename.endsWith(".webp") && !filename.endsWith(".jpg") && !filename.endsWith(".png")) {
+          continue
+        }
+
+        const baseName = filename.replace(/\.(webp|jpg|jpeg|png)$/i, "")
+        const mediaId = baseName
+          .replace(/_poster(?:_v\d+)?$/, "")
+          .replace(/_v\d+$/, "")
+          .replace(/_frame_\d+$/, "")
+
+        if (mediaId && !activeMediaIds.has(mediaId)) {
+          try {
+            await fs.unlink(path.join(cacheDir, filename))
+            freedThumbnails++
+          } catch {
+            // ignore unlink error
+          }
+        }
+      }
+    } catch {
+      // ignore readdir error
+    }
+
+    // 2. Clean orphaned video scrubber frames
+    try {
+      const frameEntries = await fs.readdir(frameDir, { withFileTypes: true })
+      for (const entry of frameEntries) {
+        if (entry.isDirectory()) continue
+
+        const filename = entry.name
+        if (!filename.endsWith(".jpg") && !filename.endsWith(".webp") && !filename.endsWith(".png")) {
+          continue
+        }
+
+        const match = filename.match(/^(.+)_frame_\d+/)
+        const mediaId = match ? match[1] : filename.replace(/\.(jpg|jpeg|webp|png)$/i, "")
+
+        if (mediaId && !activeMediaIds.has(mediaId)) {
+          try {
+            await fs.unlink(path.join(frameDir, filename))
+            freedFrames++
+          } catch {
+            // ignore unlink error
+          }
+        }
+      }
+    } catch {
+      // ignore readdir error
+    }
+  } catch {
+    // ignore general errors
+  }
+
+  return { freedThumbnails, freedFrames }
 }
 
 /**

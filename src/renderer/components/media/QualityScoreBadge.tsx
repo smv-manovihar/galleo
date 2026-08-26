@@ -24,7 +24,6 @@ export const QualityScoreBadge: React.FC<QualityScoreBadgeProps> = ({
   collisionPadding = 12,
   className = "",
 }) => {
-  const [isInteractive, setIsInteractive] = React.useState(false)
   const quality = item.quality
 
   const qualityFlags = useMemo(() => {
@@ -65,8 +64,6 @@ export const QualityScoreBadge: React.FC<QualityScoreBadgeProps> = ({
   const badgeContent = (
     <div
       className={`flex cursor-help items-center gap-2 rounded-md border px-2 py-0.5 text-xs font-semibold shadow-xs transition-colors ${colorStyles} ${className}`}
-      onMouseEnter={() => setIsInteractive(true)}
-      onFocus={() => setIsInteractive(true)}
     >
       {isFlagged ? (
         <AlertTriangle className="size-4 shrink-0 text-amber-400" />
@@ -76,10 +73,6 @@ export const QualityScoreBadge: React.FC<QualityScoreBadgeProps> = ({
       <span className="tabular-nums">{score}</span>
     </div>
   )
-
-  if (!isInteractive) {
-    return badgeContent
-  }
 
   return (
     <QualityScoreHoverCard

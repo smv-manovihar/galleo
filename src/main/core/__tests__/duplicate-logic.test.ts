@@ -170,10 +170,10 @@ describe("findDuplicates", () => {
     expect(groups.length).toBe(0)
   })
 
-  it("groups multi-frame videos when majority of keyframes (2 of 3) match within distance threshold", async () => {
-    // 192-char multi-frame pHash: Frame 1 and 2 match ("f"), Frame 3 differs slightly (2 bits diff total)
-    const video1Hash = "f".repeat(64) + "f".repeat(64) + "f".repeat(62) + "ee"
-    const video2Hash = "f".repeat(64) + "f".repeat(64) + "f".repeat(64)
+  it("groups 4-frame multi-hash videos when quorum of keyframes (3 of 4) match within distance threshold", async () => {
+    // 256-char multi-frame pHash: Frames 1, 2, 3 match ("f"), Frame 4 differs slightly (2 bits diff)
+    const video1Hash = "f".repeat(64) + "f".repeat(64) + "f".repeat(64) + "f".repeat(62) + "ee"
+    const video2Hash = "f".repeat(64) + "f".repeat(64) + "f".repeat(64) + "f".repeat(64)
 
     const video1: MediaItem = {
       ...createMockItem("v1", video1Hash, 80, 500, "video_a"),
@@ -182,6 +182,47 @@ describe("findDuplicates", () => {
     }
     const video2: MediaItem = {
       ...createMockItem("v2", video2Hash, 80, 500, "video_b"),
+      mediaType: "video",
+      duration: 60,
+    }
+
+    const groups = await findDuplicates([video1, video2], 4)
+    expect(groups.length).toBe(1)
+    expect(groups[0].items.length).toBe(2)
+  })
+
+  it("rejects 4-frame multi-hash videos when only the opening intro frame 1 matches", async () => {
+    // 256-char multi-frame pHash: Frame 1 matches ("f"), Frames 2, 3, 4 differ completely
+    const video1Hash = "f".repeat(64) + "a".repeat(64) + "1".repeat(64) + "3".repeat(64)
+    const video2Hash = "f".repeat(64) + "5".repeat(64) + "9".repeat(64) + "7".repeat(64)
+
+    const video1: MediaItem = {
+      ...createMockItem("v1", video1Hash, 80, 500, "video_a"),
+      mediaType: "video",
+      duration: 60,
+    }
+    const video2: MediaItem = {
+      ...createMockItem("v2", video2Hash, 80, 500, "video_b"),
+      mediaType: "video",
+      duration: 60,
+    }
+
+    const groups = await findDuplicates([video1, video2], 4)
+    expect(groups.length).toBe(0)
+  })
+
+  it("handles mixed-length video hashes (256-char 4-frame vs legacy 64-char single-frame)", async () => {
+    // 256-char hash with primary frame (chars 64..128) matching the 64-char hash
+    const video256Hash = "0".repeat(64) + "f".repeat(64) + "0".repeat(64) + "0".repeat(64)
+    const video64Hash = "f".repeat(64)
+
+    const video1: MediaItem = {
+      ...createMockItem("v1", video256Hash, 80, 500, "video_a"),
+      mediaType: "video",
+      duration: 60,
+    }
+    const video2: MediaItem = {
+      ...createMockItem("v2", video64Hash, 80, 500, "video_b"),
       mediaType: "video",
       duration: 60,
     }

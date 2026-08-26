@@ -20,6 +20,8 @@ const api: GalleoAPI = {
   cancelScan: () => ipcRenderer.invoke(IPC_CHANNELS.SCAN_CANCEL),
   countFolders: (rootPaths) =>
     ipcRenderer.invoke(IPC_CHANNELS.SCAN_COUNT_FOLDERS, rootPaths),
+  checkLibraryCompatibility: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.SCAN_CHECK_COMPATIBILITY),
 
   onScanProgress: (callback) => {
     const listener = (_event: IpcRendererEvent, payload: ScanProgressPayload) =>

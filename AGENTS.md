@@ -73,6 +73,14 @@ Behavioral and architectural contract for AI agents. This document governs **cod
 * **Exclusive Package Manager:** Always use `pnpm` (`pnpm add`, `pnpm test`, `pnpm run typecheck`, `pnpm run lint`). Do not use `npm` or `yarn`.
 * **Mandatory Verification:** Always verify changes by running `pnpm run typecheck` and `pnpm run lint` before completing tasks. Never leave lint or type errors unaddressed.
 
+### 1.7 AI Semantic Development Status (PAUSED)
+
+**AI Semantic / Vector embedding features are currently paused.**
+
+* **Status:** AI semantic development, SigLIP/CLIP ONNX vector embeddings, and AI background indexing are explicitly **PAUSED** (`ENABLE_AI_FEATURES = false`).
+* **Direction:** Do not write speculative AI semantic code or add vector embedding features unless specifically requested.
+* **Similarity & Duplicate Focus:** All media similarity, duplicate detection, sorting, and culling features must focus on deterministic, fast algorithms: multi-frame perceptual hashing (pHash), exact byte hashing, duration/aspect ratio tolerance checks, and windowed sorting.
+
 ---
 
 ## 2. General Architecture Principles

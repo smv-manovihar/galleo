@@ -224,7 +224,7 @@ export const VideoScrubber: React.FC<VideoScrubberProps> = React.memo(
                 transform: "translateX(-50%)",
               }}
             >
-              <div className="relative flex w-44 flex-col items-center gap-1.5 rounded-lg border border-white/20 bg-neutral-950/95 p-1.5 text-white shadow-2xl backdrop-blur-md">
+              <div className="relative flex w-44 flex-col items-center gap-1.5 rounded-lg border border-white/20 bg-neutral-950 p-1.5 text-white shadow-2xl">
                 {/* Thumbnail / Frame Preview */}
                 <div className="relative flex h-24 w-full items-center justify-center overflow-hidden rounded-md border border-white/10 bg-black">
                   {src ? (
@@ -286,7 +286,7 @@ export const VideoScrubber: React.FC<VideoScrubberProps> = React.memo(
                 left: `${displayedHoverState.xPos}px`,
               }}
             >
-              <div className="size-3 rounded-full border border-white/60 bg-white/80 shadow-xs ring-1 ring-white/20 backdrop-blur-xs" />
+              <div className="size-3 rounded-full border border-white/80 bg-white/60 shadow-xs ring-1 ring-white/20" />
             </div>
           )}
 
@@ -301,7 +301,7 @@ export const VideoScrubber: React.FC<VideoScrubberProps> = React.memo(
             onPointerUp={() => {
               isSeekingRef.current = false
             }}
-            className="w-full py-2.5 cursor-pointer **:data-[slot=slider-range]:bg-primary **:data-[slot=slider-thumb]:bg-white **:data-[slot=slider-thumb]:border-primary **:data-[slot=slider-track]:bg-white/20 [&_.slider-range]:bg-primary [&_.slider-thumb]:bg-white [&_.slider-thumb]:border-primary [&_.slider-track]:bg-white/20 group-hover/scrubber:**:data-[slot=slider-track]:h-1.5 group-hover/scrubber:[&_.slider-track]:h-1.5 **:data-[slot=slider-track]:transition-all [&_.slider-track]:transition-all"
+            className="w-full py-2.5 cursor-pointer **:data-[slot=slider-range]:bg-primary **:data-[slot=slider-thumb]:size-3.5 **:data-[slot=slider-thumb]:rounded-full **:data-[slot=slider-thumb]:opacity-100 **:data-[slot=slider-thumb]:bg-white **:data-[slot=slider-thumb]:border-2 **:data-[slot=slider-thumb]:border-primary **:data-[slot=slider-thumb]:shadow-md **:data-[slot=slider-track]:bg-white/20 [&_.slider-range]:bg-primary [&_.slider-thumb]:size-3.5 [&_.slider-thumb]:rounded-full [&_.slider-thumb]:opacity-100 [&_.slider-thumb]:bg-white [&_.slider-thumb]:border-2 [&_.slider-thumb]:border-primary [&_.slider-thumb]:shadow-md [&_.slider-track]:bg-white/20 group-hover/scrubber:**:data-[slot=slider-track]:h-1.5 group-hover/scrubber:[&_.slider-track]:h-1.5 **:data-[slot=slider-track]:transition-all [&_.slider-track]:transition-all"
           />
         </div>
       </div>

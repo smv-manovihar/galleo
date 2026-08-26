@@ -85,7 +85,7 @@ export const ZoomControls: React.FC<ZoomControlsProps> = React.memo(
 
     return (
       <div
-        className={`absolute top-4 right-4 z-30 flex items-center gap-1 rounded-lg border border-white/10 bg-black/60 p-1 backdrop-blur-xs transition-opacity duration-300 ${!isFullscreen || showControls ? "opacity-100" : "pointer-events-none opacity-0"}`}
+        className={`absolute top-4 right-4 z-30 flex items-center gap-1 rounded-lg border border-white/10 bg-neutral-950/90 p-1 shadow-lg transition-opacity duration-300 ${!isFullscreen || showControls ? "opacity-100" : "pointer-events-none opacity-0"}`}
       >
         {isFullscreen && (
               <Tooltip>

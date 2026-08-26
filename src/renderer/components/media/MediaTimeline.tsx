@@ -1,4 +1,4 @@
-import React, { useRef, useMemo, useState, useEffect } from "react"
+import React, { useRef, useMemo, useState, useEffect, useLayoutEffect } from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import type { MediaItem } from "../../../shared/types/media"
 import { MediaCard } from "./MediaCard"
@@ -23,6 +23,14 @@ interface MediaTimelineProps {
 const GAP = 16
 const TARGET_CARD_WIDTH = 200
 
+const getInitialContainerWidth = () => {
+  if (typeof window !== "undefined" && window.innerWidth > 0) {
+    // Sidebar width is ~256px (16rem), page padding is ~24px (px-3 = 12px * 2)
+    return Math.max(300, window.innerWidth - 280)
+  }
+  return 1000
+}
+
 const MediaTimelineComponent: React.FC<MediaTimelineProps> = ({
   items,
   selectedIds,
@@ -37,7 +45,7 @@ const MediaTimelineComponent: React.FC<MediaTimelineProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
-  const [containerWidth, setContainerWidth] = useState<number>(800)
+  const [containerWidth, setContainerWidth] = useState<number>(getInitialContainerWidth)
 
   const activeRootPath = useMediaStore((s) => s.activeRootPath)
   const settings = useSettingsStore((s) => s.settings)
@@ -45,6 +53,14 @@ const MediaTimelineComponent: React.FC<MediaTimelineProps> = ({
   const isScanned = useMemo(() => {
     return selectIsScanned(settings, activeRootPath)
   }, [settings, activeRootPath])
+
+  useLayoutEffect(() => {
+    if (!containerRef.current) return
+    const width = containerRef.current.clientWidth
+    if (width > 0) {
+      setContainerWidth((prev) => (Math.abs(prev - width) > 2 ? width : prev))
+    }
+  }, [])
 
   useEffect(() => {
     if (!containerRef.current) return

@@ -2,7 +2,6 @@ import "./polyfill"
 
 import fs from "fs"
 import path from "path"
-import { Readable } from "stream"
 import { fileURLToPath } from "url"
 
 import { app, BrowserWindow, protocol, nativeTheme } from "electron"
@@ -65,6 +64,7 @@ function createWindow(): void {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
+      backgroundThrottling: false,
     },
   })
 
@@ -177,6 +177,13 @@ import sharp from "sharp"
 
 const thumbMemCache = new Map<string, Buffer>()
 const MAX_THUMB_MEM_CACHE = 1500
+
+// Enable hardware accelerated video decoding and direct composition overlays for smooth 60fps playback
+app.commandLine.appendSwitch("enable-hardware-accelerated-video-decode")
+app.commandLine.appendSwitch("ignore-gpu-blocklist")
+app.commandLine.appendSwitch("enable-features", "DirectCompositionOverlays,HardwareAccelerationMode")
+app.commandLine.appendSwitch("disable-background-timer-throttling")
+app.commandLine.appendSwitch("disable-renderer-backgrounding")
 
 app.whenReady().then(() => {
   // Handle media:/// requests by fetching from local file system asynchronously
@@ -295,7 +302,7 @@ app.whenReady().then(() => {
         })
       }
 
-      // Support Range request for video seeking (RFC 7233 standard and suffix ranges)
+      // Support Range request for instant video seeking and bounded chunk streaming
       const range = request.headers.get("range")
       if (range) {
         const rawRange = range.replace(/bytes=/, "").trim()
@@ -329,15 +336,17 @@ app.whenReady().then(() => {
         }
 
         const chunksize = end - start + 1
-        const fileStream = fs.createReadStream(resolvedPath, { start, end })
+        const fileStream = fs.createReadStream(resolvedPath, {
+          start,
+          end,
+        })
         if (request.signal) {
           request.signal.addEventListener("abort", () => {
             fileStream.destroy()
           })
         }
-        const webStream = Readable.toWeb(fileStream)
 
-        return new Response(webStream as unknown as ReadableStream, {
+        return new Response(fileStream as unknown as ReadableStream, {
           status: 206,
           headers: {
             "Content-Range": `bytes ${start}-${end}/${fileSize}`,
@@ -356,8 +365,7 @@ app.whenReady().then(() => {
             fileStream.destroy()
           })
         }
-        const webStream = Readable.toWeb(fileStream)
-        return new Response(webStream as unknown as ReadableStream, {
+        return new Response(fileStream as unknown as ReadableStream, {
           status: 200,
           headers: {
             "Content-Length": fileSize.toString(),

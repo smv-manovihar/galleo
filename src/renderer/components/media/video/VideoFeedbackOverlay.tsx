@@ -70,7 +70,7 @@ export const VideoFeedbackOverlay: React.FC<VideoFeedbackOverlayProps> = React.m
             : "scale-95 opacity-0"
         }`}
       >
-        <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/80 px-3.5 py-1.5 shadow-lg backdrop-blur-md select-none">
+        <div className="flex items-center gap-2 rounded-full border border-white/15 bg-neutral-950/95 px-3.5 py-1.5 shadow-xl select-none">
           <FeedbackContent payload={display} />
         </div>
       </div>

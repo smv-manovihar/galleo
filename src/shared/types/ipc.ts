@@ -16,6 +16,7 @@ export const IPC_CHANNELS = {
   SCAN_COMPLETE: "scan:complete", // Main -> Renderer event
   SCAN_POST_PROCESSING_COMPLETE: "scan:post-processing-complete", // Main -> Renderer event (duplicates + similarity done)
   SCAN_INTERRUPTED_CHECK: "scan:interrupted-check",
+  SCAN_CHECK_COMPATIBILITY: "scan:check-compatibility",
   MEDIA_GET: "media:get",
   MEDIA_UPDATE_REVIEWS: "media:update-reviews",
   MEDIA_UPDATE_ORIENTATION: "media:update-orientation",
@@ -135,6 +136,23 @@ export interface FolderCountResult {
   changeLog?: FileChangeEvent[]
 }
 
+export type LibraryIssueType = "interrupted" | "version_mismatch" | "missing_data"
+
+export interface LibraryCompatibilityStatus {
+  isCompatible: boolean
+  needsForceRescan: boolean
+  issueType: LibraryIssueType | null
+  reasons: string[]
+  wasScanInterrupted: boolean
+  currentIndexVersion: number
+  lastIndexedVersion: number | null
+  missingColumns: string[]
+  itemsWithMissingDataCount: number
+  totalItemsCount: number
+}
+
+
+
 export interface AppStorageUsage {
   databaseBytes: number
   thumbnailBytes: number
@@ -153,6 +171,7 @@ export interface GalleoAPI {
   cancelScan: () => Promise<void>
   /** Fast readdir-only count of media files per root - no metadata, no thumbnails. */
   countFolders: (rootPaths: string[]) => Promise<FolderCountResult[]>
+  checkLibraryCompatibility: () => Promise<LibraryCompatibilityStatus>
   onScanProgress: (
     callback: (payload: ScanProgressPayload) => void
   ) => () => void

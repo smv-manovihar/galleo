@@ -11,6 +11,7 @@ import { TopBar } from "./TopBar"
 import { StatusBar } from "./StatusBar"
 import { SetupWizard } from "../onboarding/SetupWizard"
 import { ScanAIConsentDialog } from "../scan/ScanAIConsentDialog"
+import { LibraryCompatibilityDialog } from "../scan/LibraryCompatibilityDialog"
 import { FolderNotScanned } from "../media/FolderNotScanned"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/sonner"
@@ -37,6 +38,7 @@ export const AppShell: React.FC = () => {
   const fetchMediaItems = useMediaStore((s) => s.fetchMediaItems)
   const activeRootPath = useMediaStore((s) => s.activeRootPath)
   const checkActiveScanStatus = useScanStore((s) => s.checkActiveScanStatus)
+  const checkLibraryCompatibility = useScanStore((s) => s.checkLibraryCompatibility)
 
   const isScanned = React.useMemo(() => {
     if (folderRoots.length === 0) return true
@@ -50,10 +52,11 @@ export const AppShell: React.FC = () => {
   }, [activeRootPath, folderRoots])
 
   useEffect(() => {
-    // Initial settings load and active scan check on mount
+    // Initial settings load, active scan check, and library compatibility check on mount
     fetchSettings()
     checkActiveScanStatus()
-  }, [fetchSettings, checkActiveScanStatus])
+    checkLibraryCompatibility()
+  }, [fetchSettings, checkActiveScanStatus, checkLibraryCompatibility])
 
   useEffect(() => {
     // Sync theme settings class list only once settings are initialized
@@ -185,6 +188,7 @@ export const AppShell: React.FC = () => {
         </div>
       </SidebarProvider>
       <ScanAIConsentDialog />
+      <LibraryCompatibilityDialog />
       <Toaster />
     </div>
   )

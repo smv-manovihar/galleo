@@ -51,7 +51,23 @@ export const MediaPreview: React.FC<MediaPreviewProps> = React.memo(({
   } | null>(null)
 
   const isOpen = propItem !== null
+  const [activeAutoPlay, setActiveAutoPlay] = useState(autoPlay)
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen)
+  const [prevAutoPlayProp, setPrevAutoPlayProp] = useState(autoPlay)
   const isInitialOpenRef = useRef(true)
+
+  // Sync autoPlay state when preview opens or autoPlay prop changes externally
+  if (isOpen !== prevIsOpen || autoPlay !== prevAutoPlayProp) {
+    setPrevIsOpen(isOpen)
+    setPrevAutoPlayProp(autoPlay)
+    if (isOpen && !prevIsOpen) {
+      setActiveAutoPlay(autoPlay)
+    } else if (isOpen && autoPlay !== prevAutoPlayProp) {
+      setActiveAutoPlay(autoPlay)
+    } else if (!isOpen) {
+      setActiveAutoPlay(false)
+    }
+  }
 
   useEffect(() => {
     if (isOpen) {
@@ -518,6 +534,10 @@ const MAX_SCALE = 6
     }
   }, [propItem])
 
+  const handlePlayStateChange = useCallback((playing: boolean) => {
+    setActiveAutoPlay(playing)
+  }, [])
+
   if (!item) return null
 
   const safeSrc = `media:///${item.path.replace(/\\/g, "/")}`
@@ -603,7 +623,8 @@ const MAX_SCALE = 6
                       }
                       className="h-full w-full"
                       hideFullscreen={false}
-                      autoPlay={autoPlay}
+                      autoPlay={activeAutoPlay}
+                      onPlayStateChange={handlePlayStateChange}
                       onZoomIn={handleZoomIn}
                       onZoomOut={handleZoomOut}
                       onZoomReset={handleZoomReset}

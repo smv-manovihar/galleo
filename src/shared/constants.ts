@@ -7,6 +7,16 @@ import type { AppSettings } from "./types/settings"
  */
 export const ENABLE_AI_FEATURES = false
 
+/** Current index version expected by the app */
+export const CURRENT_INDEX_VERSION = 5
+
+/**
+ * Developer Testing Flag
+ * Set to true to always show the Library Index Compatibility Alert Dialog in development.
+ */
+export const FORCE_SHOW_COMPATIBILITY_DIALOG = false
+
+
 export const SUPPORTED_PHOTO_EXTENSIONS = [
   "jpg",
   "jpeg",

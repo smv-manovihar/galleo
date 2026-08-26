@@ -14,12 +14,18 @@ import { extractVideoMultiHash } from "../infrastructure/video-processor"
 import { computeFastContentHash } from "../infrastructure/file-hasher"
 import { type Result, ok, fail } from "../../shared/types/results"
 import type { MediaItem } from "../../shared/types/media"
-import { IPC_CHANNELS, type FolderCountResult, type FileChangeEvent } from "../../shared/types/ipc"
-import { ENABLE_AI_FEATURES } from "../../shared/constants"
+import {
+  IPC_CHANNELS,
+  type FolderCountResult,
+  type FileChangeEvent,
+  type LibraryCompatibilityStatus,
+} from "../../shared/types/ipc"
+import { ENABLE_AI_FEATURES, CURRENT_INDEX_VERSION } from "../../shared/constants"
 import { initDatabase } from "../infrastructure/database"
 import {
   isThumbnailCurrent,
   purgeStalePhotoThumbnails,
+  purgeOrphanedCacheFiles,
   getThumbnailCacheDir,
 } from "../infrastructure/image-processor"
 import { storageService } from "./storage.service"
@@ -98,6 +104,148 @@ export class ScannerService {
       return false
     }
   }
+
+  /**
+   * Checks whether the indexed database schema and items are compatible with the current version of the app.
+   * Detects missing columns, missing/unpopulated data for critical fields, or an outdated index version.
+   */
+  public async checkLibraryCompatibility(): Promise<LibraryCompatibilityStatus> {
+    const totalItemsCount = this.mediaRepository.getTotalMediaCount()
+    const wasScanInterrupted = this.isScanInterrupted()
+
+
+    // 1. Fresh / empty library with no interrupted scan has no compatibility conflicts
+    if (totalItemsCount === 0 && !wasScanInterrupted) {
+      return {
+        isCompatible: true,
+        needsForceRescan: false,
+        issueType: null,
+        reasons: [],
+        wasScanInterrupted: false,
+        currentIndexVersion: CURRENT_INDEX_VERSION,
+        lastIndexedVersion: CURRENT_INDEX_VERSION,
+        missingColumns: [],
+        itemsWithMissingDataCount: 0,
+        totalItemsCount: 0,
+      }
+    }
+
+    const reasons: string[] = []
+
+    if (wasScanInterrupted) {
+      reasons.push("The previous scan was interrupted before it could finish")
+    }
+
+    // 2. Check for missing columns in the database table schema
+    const requiredColumns = [
+      "id",
+      "path",
+      "name",
+      "size",
+      "extension",
+      "media_type",
+      "width",
+      "height",
+      "date_added",
+      "date_filesystem",
+      "date_target",
+      "date_target_source",
+      "exact_hash",
+      "duration",
+      "thumbnail_path",
+      "date_modified",
+      "blur_score",
+      "brightness",
+      "composite_score",
+      "duplicate_group_id",
+      "is_duplicate",
+      "is_best_in_duplicate_group",
+      "similarity_index",
+      "review_state",
+      "orientation",
+    ]
+    const existingColumns = new Set(
+      this.mediaRepository.getTableColumns().map((c) => c.toLowerCase())
+    )
+    const missingColumns = requiredColumns.filter(
+      (c) => !existingColumns.has(c.toLowerCase())
+    )
+
+    if (missingColumns.length > 0) {
+      reasons.push(
+        `Database table is missing columns: ${missingColumns.join(", ")}`
+      )
+    }
+
+    // 3. Check for existing media records missing newly introduced column data
+    const itemsWithMissingDataCount =
+      this.mediaRepository.getItemsWithMissingCriticalDataCount()
+    if (itemsWithMissingDataCount > 0) {
+      reasons.push(
+        `${itemsWithMissingDataCount.toLocaleString()} item${
+          itemsWithMissingDataCount > 1 ? "s" : ""
+        } in your library are missing updated metadata (exact hashes, video durations, rotation, or visual similarity index)`
+      )
+    }
+
+    // 4. Check for indexed version vs current index version
+    let lastIndexedVersion: number | null
+    try {
+      const db = initDatabase()
+      const row = db
+        .prepare("SELECT value FROM settings WHERE key = 'last_indexed_version'")
+        .get() as { value: string } | undefined
+      if (row?.value) {
+        const parsed = parseInt(row.value, 10)
+        lastIndexedVersion = isNaN(parsed) ? null : parsed
+      } else {
+        lastIndexedVersion = null
+      }
+    } catch {
+      lastIndexedVersion = null
+    }
+
+    const hasVersionMismatch =
+      lastIndexedVersion === null || lastIndexedVersion < CURRENT_INDEX_VERSION
+
+    if (lastIndexedVersion === null) {
+      reasons.push(
+        `Library was indexed with a legacy version prior to index v${CURRENT_INDEX_VERSION}`
+      )
+    } else if (lastIndexedVersion < CURRENT_INDEX_VERSION) {
+      reasons.push(
+        `Library index version (v${lastIndexedVersion}) is older than required index version (v${CURRENT_INDEX_VERSION})`
+      )
+    }
+
+    const needsForceRescan = reasons.length > 0
+
+    let issueType: "interrupted" | "version_mismatch" | "missing_data" | null =
+      null
+    if (wasScanInterrupted) {
+      issueType = "interrupted"
+    } else if (missingColumns.length > 0 || itemsWithMissingDataCount > 0) {
+      issueType = "missing_data"
+    } else if (hasVersionMismatch && totalItemsCount > 0) {
+      issueType = "version_mismatch"
+    }
+
+    return {
+      isCompatible: !needsForceRescan,
+      needsForceRescan,
+      issueType,
+      reasons,
+      wasScanInterrupted,
+      currentIndexVersion: CURRENT_INDEX_VERSION,
+      lastIndexedVersion,
+      missingColumns,
+      itemsWithMissingDataCount,
+      totalItemsCount,
+    }
+  }
+
+
+
 
   /**
    * Initializes or refreshes the baseline file map for a root folder from the SQLite database.
@@ -527,7 +675,8 @@ export class ScannerService {
                     file.name,
                     meta.width,
                     meta.height,
-                    settings.quality
+                    settings.quality,
+                    thumbnailPath
                   )
                   if (qualityRes.ok) {
                     quality = qualityRes.data.quality
@@ -683,7 +832,21 @@ export class ScannerService {
           this.folderNetChanges.delete(normRoot)
           this.mediaRepository.clearPendingChanges(root)
         }
+
+        // Persist last indexed version
+        try {
+          const db = initDatabase()
+          db.prepare(`
+            INSERT INTO settings (key, value)
+            VALUES ('last_indexed_version', ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+          `).run(String(CURRENT_INDEX_VERSION))
+        } catch {
+          // Non-critical
+        }
       }
+
+
 
       // 5. Signal scan completion to the frontend IMMEDIATELY so the UI unlocks.
       //    Post-scan analysis (duplicates + similarity) runs asynchronously after.
@@ -709,8 +872,9 @@ export class ScannerService {
 
           await this.similarityService.resolveSimilarityInFolders(foldersToAnalyze)
 
-          // Asynchronously purge any legacy photo thumbnails to reclaim disk space
+          // Asynchronously purge any legacy photo thumbnails and orphaned cache files to reclaim disk space
           purgeStalePhotoThumbnails(getThumbnailCacheDir()).catch(() => {})
+          purgeOrphanedCacheFiles().catch(() => {})
 
           // Invalidate storage metrics cache so Settings displays fresh values
           storageService.invalidateCache()
@@ -857,6 +1021,8 @@ export class ScannerService {
         )
       }
     }
+
+    storageService.invalidateCache()
   }
 
   /**

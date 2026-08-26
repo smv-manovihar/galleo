@@ -2,10 +2,13 @@ import { create } from "zustand"
 import { useMediaStore } from "./media-store"
 import { useSettingsStore } from "./settings-store"
 import { toast } from "sonner"
-import { ENABLE_AI_FEATURES } from "../../shared/constants"
+import {
+  ENABLE_AI_FEATURES,
+  FORCE_SHOW_COMPATIBILITY_DIALOG,
+} from "../../shared/constants"
 
 import type { MediaItem } from "../../shared/types/media"
-import type { FolderCountResult } from "../../shared/types/ipc"
+import type { FolderCountResult, LibraryCompatibilityStatus } from "../../shared/types/ipc"
 
 interface ScanProgress {
   scannedCount: number
@@ -37,6 +40,8 @@ interface ScanState {
   scanProgress: ScanProgress
   pendingScan: PendingScan | null
   showAIConsentDialog: boolean
+  compatibilityStatus: LibraryCompatibilityStatus | null
+  showCompatibilityDialog: boolean
   aiStatus: AIStatus | null
   isDownloadingAI: boolean
   aiDownloadProgress: number
@@ -46,6 +51,8 @@ interface ScanState {
 
   checkAIStatus: () => Promise<void>
   checkActiveScanStatus: () => Promise<void>
+  checkLibraryCompatibility: () => Promise<void>
+  dismissCompatibilityDialog: () => void
   startScan: (rootPaths: string[], forceRescan?: boolean) => Promise<void>
   executeScan: (rootPaths: string[], forceRescan?: boolean) => Promise<void>
   confirmScanWithAIDownload: () => Promise<void>
@@ -68,6 +75,8 @@ export const useScanStore = create<ScanState>((set, get) => ({
   },
   pendingScan: null,
   showAIConsentDialog: false,
+  compatibilityStatus: null,
+  showCompatibilityDialog: false,
   aiStatus: null,
   isDownloadingAI: false,
   aiDownloadProgress: 0,
@@ -77,6 +86,35 @@ export const useScanStore = create<ScanState>((set, get) => ({
     totalCount: 0,
   },
   folderCounts: new Map(),
+
+  checkLibraryCompatibility: async () => {
+    const isDev = typeof import.meta !== "undefined" && Boolean(import.meta.env?.DEV)
+    const forceShowInDev = isDev && FORCE_SHOW_COMPATIBILITY_DIALOG
+
+    if (typeof window !== "undefined" && window.api?.checkLibraryCompatibility) {
+      try {
+        const status = await window.api.checkLibraryCompatibility()
+        set({
+          compatibilityStatus: status,
+          showCompatibilityDialog:
+            forceShowInDev || status.needsForceRescan,
+        })
+      } catch {
+        if (forceShowInDev) {
+          set({ showCompatibilityDialog: true })
+        }
+      }
+    } else if (forceShowInDev) {
+      set({ showCompatibilityDialog: true })
+    }
+  },
+
+
+
+
+  dismissCompatibilityDialog: () => {
+    set({ showCompatibilityDialog: false })
+  },
 
   checkAIStatus: async () => {
     if (!ENABLE_AI_FEATURES) {
@@ -341,6 +379,9 @@ export const useScanStore = create<ScanState>((set, get) => ({
       const activeRootPath = useMediaStore.getState().activeRootPath
       await useMediaStore.getState().fetchMediaItems(activeRootPath || "all")
 
+      // Re-check library compatibility status after scan
+      await get().checkLibraryCompatibility()
+
       const totalCount = get().scanProgress.totalCount
       const description = wasStoppedScan
         ? `Post-processing complete ${folderPhrase}.`
@@ -457,7 +498,7 @@ if (typeof window !== "undefined" && window.api?.onFolderCountsUpdated) {
 }
 
 // Check for crash-interrupted scans on app startup and notify the user
-if (typeof window !== "undefined" && window.api?.checkScanInterrupted) {
+if (typeof window !== "undefined" && window.api) {
   window.api.checkScanInterrupted().then((wasInterrupted) => {
     if (wasInterrupted) {
       toast.warning("Previous scan was interrupted", {
@@ -468,3 +509,5 @@ if (typeof window !== "undefined" && window.api?.checkScanInterrupted) {
     }
   }).catch(() => {})
 }
+
+

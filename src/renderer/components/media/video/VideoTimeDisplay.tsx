@@ -21,7 +21,7 @@ export const VideoTimeDisplay: React.FC<VideoTimeDisplayProps> = React.memo(
     }, [subscribeTimeUpdate])
 
     return (
-      <span className="font-mono text-white/80 tabular-nums select-none text-xs">
+      <span className="font-sans text-white/80 tabular-nums select-none text-xs">
         {formatTime(currentTime)} / {formatTime(duration)}
       </span>
     )

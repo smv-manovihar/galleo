@@ -50,9 +50,9 @@ export function isDegenerateHash(hash: string | undefined | null): boolean {
 /**
  * Computes the unified similarity distance between two media items.
  * - Same byte content or exact normalized filename + size: distance 0
- * - Incompatible media types (photo vs video) or duration mismatches: Infinity
- * - Multi-frame video perceptual comparison across keyframes (66% threshold + normalized avg)
+ * - Multi-frame video perceptual comparison across keyframes (66% quorum + normalized avg)
  * - Single-frame photo perceptual comparison
+ * - Photo-to-video block comparison (detects screenshot / cover art matching a video keyframe)
  * - Shared duplicate group fallback
  */
 export function computePerceptualDistance(
@@ -65,12 +65,22 @@ export function computePerceptualDistance(
     return 0
   }
 
-  // 2. Must be same media type (never group photos with videos)
-  if (itemA.mediaType !== itemB.mediaType) {
-    return Infinity
+  // 2. Exact byte-for-byte content hash match
+  if (itemA.exactHash && itemB.exactHash && itemA.exactHash === itemB.exactHash) {
+    return 0
   }
 
-  // 3. Video duration mismatch guard (protects short clips from matching long movies with similar intro/black frames)
+  // 3. Exact normalized filename base + size match
+  if (
+    itemA.size > 0 &&
+    itemA.size === itemB.size &&
+    getNormalizedFilenameBase(itemA.name).toLowerCase() ===
+      getNormalizedFilenameBase(itemB.name).toLowerCase()
+  ) {
+    return 0
+  }
+
+  // 4. Video duration mismatch guard for video-to-video comparison
   if (itemA.mediaType === "video" && itemB.mediaType === "video") {
     if (itemA.duration !== undefined && itemB.duration !== undefined) {
       const durDelta = Math.abs(itemA.duration - itemB.duration)
@@ -81,25 +91,10 @@ export function computePerceptualDistance(
     }
   }
 
-  // 4. Exact byte-for-byte content hash match
-  if (itemA.exactHash && itemB.exactHash && itemA.exactHash === itemB.exactHash) {
-    return 0
-  }
-
-  // 5. Exact normalized filename base + size match
-  if (
-    itemA.size > 0 &&
-    itemA.size === itemB.size &&
-    getNormalizedFilenameBase(itemA.name).toLowerCase() ===
-      getNormalizedFilenameBase(itemB.name).toLowerCase()
-  ) {
-    return 0
-  }
-
   const h1 = itemA.hash
   const h2 = itemB.hash
 
-  // 6. Guard against degenerate/missing hashes
+  // 5. Guard against degenerate/missing hashes
   if (isDegenerateHash(h1) || isDegenerateHash(h2)) {
     if (
       itemA.duplicateGroupId &&
@@ -111,9 +106,44 @@ export function computePerceptualDistance(
     return Infinity
   }
 
-  // 7. Multi-frame Video Perceptual Distance (e.g. 192 chars = 3 frames of 64 hex chars)
-  const numFrames = Math.max(1, Math.floor(Math.min(h1!.length, h2!.length) / 64))
-  if (numFrames > 1 && h1!.length === h2!.length) {
+  // 6. Cross-media: Photo vs Video block matching (e.g. screenshot or cover art matching a keyframe)
+  if (itemA.mediaType !== itemB.mediaType) {
+    const photoHash = itemA.mediaType === "photo" ? h1! : h2!
+    const videoHash = itemA.mediaType === "video" ? h1! : h2!
+
+    if (photoHash.length === 64 && videoHash.length >= 64) {
+      let bestBlockDist = Infinity
+      const numBlocks = Math.floor(videoHash.length / 64)
+      for (let b = 0; b < numBlocks; b++) {
+        const block = videoHash.slice(b * 64, (b + 1) * 64)
+        const d = hammingDistance(photoHash, block)
+        if (d < bestBlockDist) {
+          bestBlockDist = d
+        }
+      }
+      if (bestBlockDist <= maxDistance) {
+        // Soft penalty of +4 so same-type matches rank slightly higher
+        return Math.min(maxDistance, bestBlockDist + 4)
+      }
+    }
+
+    if (
+      itemA.duplicateGroupId &&
+      itemB.duplicateGroupId &&
+      itemA.duplicateGroupId === itemB.duplicateGroupId
+    ) {
+      return Math.min(maxDistance, 10)
+    }
+
+    return Infinity
+  }
+
+  // 7. Video-to-Video Multi-frame Perceptual Distance (e.g. 192-256 chars = 3-4 frames of 64 hex chars)
+  const numFrames1 = Math.max(1, Math.floor(h1!.length / 64))
+  const numFrames2 = Math.max(1, Math.floor(h2!.length / 64))
+
+  if (numFrames1 > 1 && numFrames2 > 1 && h1!.length === h2!.length) {
+    const numFrames = numFrames1
     let totalDist = 0
     let matchingFrames = 0
     for (let f = 0; f < numFrames; f++) {
@@ -143,7 +173,20 @@ export function computePerceptualDistance(
     return Infinity
   }
 
-  // 8. Single-frame Perceptual Distance (photos or single-frame hashes)
+  // 8. Mixed-length video comparison (e.g. multi-frame 256/192 chars vs legacy 64 chars)
+  if (numFrames1 !== numFrames2 && itemA.mediaType === "video" && itemB.mediaType === "video") {
+    const longer = h1!.length > h2!.length ? h1! : h2!
+    const shorter = h1!.length > h2!.length ? h2! : h1!
+    if (longer.length >= 128 && shorter.length === 64) {
+      const primaryHex = longer.slice(64, 128)
+      const dist = hammingDistance(primaryHex, shorter)
+      if (dist <= maxDistance) {
+        return dist
+      }
+    }
+  }
+
+  // 9. Single-frame Perceptual Distance (photos or matching single-frame hashes)
   if (h1!.length === h2!.length) {
     const dist = hammingDistance(h1, h2)
     if (dist <= maxDistance) {
@@ -151,7 +194,7 @@ export function computePerceptualDistance(
     }
   }
 
-  // 9. Duplicate Group match fallback
+  // 10. Duplicate Group match fallback
   if (
     itemA.duplicateGroupId &&
     itemB.duplicateGroupId &&
@@ -182,9 +225,8 @@ export function getItemSetFingerprint(items: MediaItem[]): string {
 
 /**
  * Greedy nearest-neighbor sort: re-orders items so that each consecutive pair
- * has the smallest possible perceptual distance. Items without a valid hash are appended
- * at the end in their original relative order. This creates a smooth visual
- * gradient through the queue — no hard threshold, no artificial group breaks.
+ * has the smallest possible perceptual distance. Uses BigInt pre-sorting + pre-parsed
+ * Uint8Array nibble tables for O(N log N + N*W) ultra-fast execution without heap allocations.
  */
 export function sortBySimilarity(items: MediaItem[]): MediaItem[] {
   const hashed: MediaItem[] = []
@@ -200,21 +242,35 @@ export function sortBySimilarity(items: MediaItem[]): MediaItem[] {
 
   if (hashed.length === 0) return items
 
-  // Step 1: Pre-parse hex pHash strings to BigInts
-  // For 192-char multi-frame video hashes, extract primary mid-frame (chars 64..128) for uniform BigInt sorting
+  // Step 1: Pre-parse hex pHash strings to BigInts and Uint8Array nibble lookups
   const parsed: {
     item: MediaItem
     big: bigint
+    primaryNibbles: Uint8Array
+    fullNibbles: Uint8Array
     primaryHex: string
     fullHex: string
   }[] = []
+
   for (const item of hashed) {
     try {
       const hex = item.hash!
       const primaryHex = hex.length >= 128 ? hex.slice(64, 128) : hex.slice(0, 64)
+
+      const fullNibbles = new Uint8Array(hex.length)
+      for (let k = 0; k < hex.length; k++) {
+        fullNibbles[k] = parseInt(hex[k], 16)
+      }
+
+      const primaryStart = hex.length >= 128 ? 64 : 0
+      const primaryEnd = hex.length >= 128 ? 128 : Math.min(64, hex.length)
+      const primaryNibbles = fullNibbles.subarray(primaryStart, primaryEnd)
+
       parsed.push({
         item,
         big: BigInt("0x" + primaryHex),
+        primaryNibbles,
+        fullNibbles,
         primaryHex,
         fullHex: hex,
       })
@@ -226,7 +282,6 @@ export function sortBySimilarity(items: MediaItem[]): MediaItem[] {
   if (parsed.length === 0) return items
 
   // Step 2: Pre-sort by BigInt pHash numerical value (O(N log N) - ~2ms for 20k items).
-  // This clusters visually similar photos close to each other in index space.
   parsed.sort((a, b) => (a.big < b.big ? -1 : a.big > b.big ? 1 : 0))
 
   const n = parsed.length
@@ -241,7 +296,7 @@ export function sortBySimilarity(items: MediaItem[]): MediaItem[] {
   let firstUnvisited = 1
 
   for (let step = 1; step < n; step++) {
-    const currentBig = parsed[currentIdx].big
+    const currentPrimary = parsed[currentIdx].primaryNibbles
     const currentItem = parsed[currentIdx].item
     let bestIdx = -1
     let bestDist = Infinity
@@ -253,12 +308,13 @@ export function sortBySimilarity(items: MediaItem[]): MediaItem[] {
     for (let j = searchStart; j < searchEnd; j++) {
       if (visited[j]) continue
       const targetItem = parsed[j].item
+      const targetPrimary = parsed[j].primaryNibbles
 
+      // Fast nibble table distance (zero heap allocations)
       let dist = 0
-      let x = currentBig ^ parsed[j].big
-      while (x > 0n) {
-        x &= x - 1n
-        dist++
+      const compLen = Math.min(currentPrimary.length, targetPrimary.length)
+      for (let k = 0; k < compLen; k++) {
+        dist += NIBBLE_BIT_COUNT[currentPrimary[k] ^ targetPrimary[k]]
       }
 
       if (currentItem.mediaType !== targetItem.mediaType) {
@@ -290,11 +346,11 @@ export function sortBySimilarity(items: MediaItem[]): MediaItem[] {
       const fallbackEnd = Math.min(n, firstUnvisited + 16)
       for (let j = firstUnvisited; j < fallbackEnd; j++) {
         if (!visited[j]) {
+          const targetPrimary = parsed[j].primaryNibbles
           let dist = 0
-          let x = currentBig ^ parsed[j].big
-          while (x > 0n) {
-            x &= x - 1n
-            dist++
+          const compLen = Math.min(currentPrimary.length, targetPrimary.length)
+          for (let k = 0; k < compLen; k++) {
+            dist += NIBBLE_BIT_COUNT[currentPrimary[k] ^ targetPrimary[k]]
           }
           if (dist < bestDist) {
             bestDist = dist

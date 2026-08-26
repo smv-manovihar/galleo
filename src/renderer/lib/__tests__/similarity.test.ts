@@ -95,6 +95,42 @@ describe("Similarity utilities", () => {
       const dist = computePerceptualDistance(vid1, vid2, 10)
       expect(dist).toBe(1)
     })
+
+    it("computes 4-frame video perceptual distance across 4 keyframes", () => {
+      // 256-character hashes: 4 frames x 64 chars
+      const v1Hash = "f".repeat(64) + "a".repeat(64) + "c".repeat(64) + "9".repeat(64)
+      const v2Hash = "f".repeat(64) + "a".repeat(64) + "c".repeat(64) + "9".repeat(62) + "00"
+
+      const vid1 = mockItem("v1", v1Hash, { mediaType: "video", duration: 60 })
+      const vid2 = mockItem("v2", v2Hash, { mediaType: "video", duration: 60 })
+
+      const dist = computePerceptualDistance(vid1, vid2, 10)
+      expect(dist).toBe(1)
+    })
+
+    it("matches photo screenshot against a video keyframe block", () => {
+      // Photo hash matches frame 2 of the 4-frame video
+      const photoHash = "a".repeat(64)
+      const videoHash = "f".repeat(64) + "a".repeat(64) + "c".repeat(64) + "9".repeat(64)
+
+      const photo = mockItem("p1", photoHash, { mediaType: "photo" })
+      const video = mockItem("v1", videoHash, { mediaType: "video", duration: 60 })
+
+      const dist = computePerceptualDistance(photo, video, 10)
+      expect(dist).toBeLessThanOrEqual(10)
+    })
+
+    it("handles mixed length video hashes (256-char 4-frame vs legacy 64-char single-frame)", () => {
+      // 256-char hash with primary frame (chars 64..128) matching the 64-char hash
+      const v256Hash = "0".repeat(64) + "f".repeat(64) + "0".repeat(64) + "0".repeat(64)
+      const v64Hash = "f".repeat(64)
+
+      const vid1 = mockItem("v1", v256Hash, { mediaType: "video", duration: 60 })
+      const vid2 = mockItem("v2", v64Hash, { mediaType: "video", duration: 60 })
+
+      const dist = computePerceptualDistance(vid1, vid2, 10)
+      expect(dist).toBe(0)
+    })
   })
 
   describe("getItemSetFingerprint", () => {

@@ -211,6 +211,18 @@ export function initDatabase(): Database.Database {
     })()
   }
 
+  if (currentVersion < 6) {
+    db.transaction(() => {
+      try {
+        db.exec(`UPDATE media_items SET is_dark = 0 WHERE composite_score >= 85 AND is_dark = 1;`)
+        db.exec(`UPDATE media_items SET is_blurry = 0 WHERE composite_score >= 85 AND is_blurry = 1;`)
+      } catch {
+        // Non-fatal
+      }
+      db.pragma("user_version = 6")
+    })()
+  }
+
   dbInstance = db
   return db
 }

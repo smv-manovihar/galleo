@@ -45,7 +45,7 @@ export const VideoSpeedMenu: React.FC<VideoSpeedMenuProps> = React.memo(
           align="end"
           sideOffset={12}
           container={containerElement}
-          className="w-56 space-y-2 rounded-xl border border-white/15 bg-black/95 p-2.5 text-white shadow-2xl backdrop-blur-md"
+          className="w-56 space-y-2 rounded-xl border border-white/15 bg-neutral-950 p-2.5 text-white shadow-2xl"
         >
           <div className="flex items-center justify-between border-b border-white/10 pb-1.5 text-2xs">
             <span className="font-semibold text-white/90">Playback Speed</span>

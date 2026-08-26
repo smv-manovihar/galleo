@@ -5,6 +5,7 @@ import type {
   QualityMetrics,
 } from "../../shared/types/media"
 import { initDatabase } from "../infrastructure/database"
+import { purgeMediaThumbnailFiles } from "../infrastructure/image-processor"
 
 export class MediaRepository {
   private getDb(): Database {
@@ -325,11 +326,36 @@ export class MediaRepository {
   }
 
   /**
-   * Deletes scanned metadata for files that were physically removed/moved.
+   * Deletes scanned metadata for files that were physically removed/moved,
+   * and cleans up their corresponding thumbnail and frame cache files.
    */
   public deleteMany(paths: string[]): void {
     if (!paths || paths.length === 0) return
     const db = this.getDb()
+
+    // 1. Fetch matching items before deletion to clean up their disk cache
+    const findStmt = db.prepare(`
+      SELECT id, thumbnail_path as thumbnailPath
+      FROM media_items 
+      WHERE path = ? 
+         OR path = ? 
+         OR path COLLATE NOCASE = ? 
+         OR path COLLATE NOCASE = ?
+    `)
+
+    const itemsToPurge: Array<{ id: string; thumbnailPath?: string | null }> = []
+    for (const p of paths) {
+      const forwardSlash = p.replace(/\\/g, "/")
+      const backSlash = p.replace(/\//g, "\\")
+      const rows = findStmt.all(p, forwardSlash, forwardSlash, backSlash) as Array<{
+        id: string
+        thumbnailPath?: string | null
+      }>
+      if (rows && rows.length > 0) {
+        itemsToPurge.push(...rows)
+      }
+    }
+
     const stmt = db.prepare(`
       DELETE FROM media_items 
       WHERE path = ? 
@@ -344,9 +370,22 @@ export class MediaRepository {
         const backSlash = p.replace(/\//g, "\\")
         stmt.run(p, forwardSlash, forwardSlash, backSlash)
       }
+      try {
+        db.prepare("DELETE FROM session_decisions WHERE media_id NOT IN (SELECT id FROM media_items)").run()
+        db.prepare("DELETE FROM undo_actions WHERE media_id NOT IN (SELECT id FROM media_items)").run()
+      } catch {
+        // ignore if tables not yet populated
+      }
     })
 
     transaction(paths)
+
+    // 2. Asynchronously purge thumbnail and frame files from disk
+    if (itemsToPurge.length > 0) {
+      for (const item of itemsToPurge) {
+        purgeMediaThumbnailFiles(item.id, item.thumbnailPath).catch(() => {})
+      }
+    }
   }
 
   /**
@@ -400,7 +439,8 @@ export class MediaRepository {
             ELSE 0
           END,
           is_dark = CASE
-            WHEN brightness IS NOT NULL AND brightness < ? THEN 1
+            WHEN brightness IS NOT NULL AND brightness < ?
+                 AND (composite_score IS NULL OR composite_score < 85) THEN 1
             ELSE 0
           END
     `)
@@ -408,33 +448,81 @@ export class MediaRepository {
   }
 
   /**
-   * Clears database metadata for a folder path
+   * Clears database metadata for a folder path and purges cached thumbnails on disk.
    */
   public clearByFolder(folderPath: string): void {
     const db = this.getDb()
+    let itemsToPurge: Array<{ id: string; thumbnailPath?: string | null }> = []
+
     if (folderPath.toLowerCase() === "all") {
+      try {
+        itemsToPurge = db
+          .prepare("SELECT id, thumbnail_path as thumbnailPath FROM media_items")
+          .all() as Array<{ id: string; thumbnailPath?: string | null }>
+      } catch {
+        // ignore
+      }
+
       const stmt = db.prepare("DELETE FROM media_items")
       stmt.run()
-      return
+      try {
+        db.prepare("DELETE FROM session_decisions").run()
+        db.prepare("DELETE FROM undo_actions").run()
+      } catch {
+        // ignore
+      }
+    } else {
+      const forwardPath = folderPath.replace(/\\/g, "/").replace(/\/+$/, "")
+      const backPath = folderPath.replace(/\//g, "\\").replace(/\\+$/, "")
+      const forwardEscaped = forwardPath.replace(/[!%_]/g, "!$&")
+      const backEscaped = backPath.replace(/[!%_]/g, "!$&")
+
+      const forwardSub = `${forwardEscaped}/%`
+      const backSub = `${backEscaped}\\%`
+
+      try {
+        itemsToPurge = db
+          .prepare(`
+            SELECT id, thumbnail_path as thumbnailPath
+            FROM media_items 
+            WHERE (
+              path COLLATE NOCASE = ?
+              OR path COLLATE NOCASE = ?
+              OR path COLLATE NOCASE LIKE ? ESCAPE '!'
+              OR path COLLATE NOCASE LIKE ? ESCAPE '!'
+            )
+          `)
+          .all(forwardPath, backPath, forwardSub, backSub) as Array<{
+          id: string
+          thumbnailPath?: string | null
+        }>
+      } catch {
+        // ignore
+      }
+
+      const stmt = db.prepare(`
+        DELETE FROM media_items 
+        WHERE (
+          path COLLATE NOCASE = ?
+          OR path COLLATE NOCASE = ?
+          OR path COLLATE NOCASE LIKE ? ESCAPE '!'
+          OR path COLLATE NOCASE LIKE ? ESCAPE '!'
+        )
+      `)
+      stmt.run(forwardPath, backPath, forwardSub, backSub)
+      try {
+        db.prepare("DELETE FROM session_decisions WHERE media_id NOT IN (SELECT id FROM media_items)").run()
+        db.prepare("DELETE FROM undo_actions WHERE media_id NOT IN (SELECT id FROM media_items)").run()
+      } catch {
+        // ignore
+      }
     }
-    const forwardPath = folderPath.replace(/\\/g, "/").replace(/\/+$/, "")
-    const backPath = folderPath.replace(/\//g, "\\").replace(/\\+$/, "")
-    const forwardEscaped = forwardPath.replace(/[!%_]/g, "!$&")
-    const backEscaped = backPath.replace(/[!%_]/g, "!$&")
 
-    const forwardSub = `${forwardEscaped}/%`
-    const backSub = `${backEscaped}\\%`
-
-    const stmt = db.prepare(`
-      DELETE FROM media_items 
-      WHERE (
-        path COLLATE NOCASE = ?
-        OR path COLLATE NOCASE = ?
-        OR path COLLATE NOCASE LIKE ? ESCAPE '!'
-        OR path COLLATE NOCASE LIKE ? ESCAPE '!'
-      )
-    `)
-    stmt.run(forwardPath, backPath, forwardSub, backSub)
+    if (itemsToPurge.length > 0) {
+      for (const item of itemsToPurge) {
+        purgeMediaThumbnailFiles(item.id, item.thumbnailPath).catch(() => {})
+      }
+    }
   }
 
   /**
@@ -532,4 +620,56 @@ export class MediaRepository {
     `)
     stmt.run(normRoot)
   }
+
+  /**
+   * Returns the total number of indexed media items across all folders.
+   */
+  public getTotalMediaCount(): number {
+    try {
+      const db = this.getDb()
+      const row = db
+        .prepare("SELECT COUNT(*) as count FROM media_items")
+        .get() as { count?: number } | undefined
+      return row?.count ?? 0
+    } catch {
+      return 0
+    }
+  }
+
+  /**
+   * Returns the existing column names for media_items via PRAGMA table_info.
+   */
+  public getTableColumns(): string[] {
+    try {
+      const db = this.getDb()
+      const rows = db.pragma("table_info(media_items)") as { name: string }[]
+      return rows.map((r) => r.name)
+    } catch {
+      return []
+    }
+  }
+
+  /**
+   * Returns the count of indexed items missing critical metadata columns or quality scores.
+   */
+  public getItemsWithMissingCriticalDataCount(): number {
+    try {
+      const db = this.getDb()
+      const row = db
+        .prepare(`
+          SELECT COUNT(*) as count FROM media_items
+          WHERE exact_hash IS NULL
+             OR similarity_index IS NULL
+             OR date_modified IS NULL
+             OR orientation IS NULL
+             OR composite_score IS NULL
+             OR (media_type = 'video' AND duration IS NULL)
+        `)
+        .get() as { count?: number } | undefined
+      return row?.count ?? 0
+    } catch {
+      return 0
+    }
+  }
 }
+

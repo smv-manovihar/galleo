@@ -2,6 +2,7 @@ import { execFile } from "node:child_process"
 import { promisify } from "node:util"
 import path from "node:path"
 import { existsSync } from "node:fs"
+import { unlink } from "node:fs/promises"
 import ffmpegPath from "ffmpeg-static"
 import ffprobeStatic from "ffprobe-static"
 import { type Result, fail, ok } from "../../shared/types/results"
@@ -155,8 +156,93 @@ export async function generateVideoThumbnail(
 }
 
 /**
- * Derives a video perceptual hash directly from the fast-extracted poster frame in RAM,
- * eliminating redundant FFmpeg child process invocations and temp disk files.
+ * Extracts up to 4 lightweight representative I-frames (keyframes) from a video.
+ * Uses -skip_frame nokey and pict_type=I to grab native container keyframes without decoding delta P/B-frames.
+ * Scales to 120px width for fast perceptual hashing.
+ */
+export async function generateVideoKeyframes(
+  videoPath: string,
+  mediaId: string
+): Promise<Result<string[]>> {
+  try {
+    const cacheDir = getThumbnailCacheDir()
+    // Using %02d to ensure standard sequential sorting and avoid index collisions (temp_id_kframe_01.jpg)
+    const outputPattern = path.join(cacheDir, `temp_${mediaId}_kframe_%02d.jpg`)
+
+    // FFmpeg filter:
+    // - skip_frame nokey: discard non-keyframes right at demuxer level
+    // - select='eq(pict_type,I)': process only I-frames
+    // - thumbnail=2: prevents long pipeline buffering blocks while still picking representative frames
+    // - scale=120:-2: downscale to 120px micro-layout
+    // - vframes 4: limits max output frames to 4
+    const ffmpegArgs = [
+      "-skip_frame",
+      "nokey",
+      "-i",
+      videoPath,
+      "-vf",
+      "select='eq(pict_type\\,I)',thumbnail=2,scale=120:-2",
+      "-vframes",
+      "4",
+      "-vsync",
+      "vfr",
+      "-q:v",
+      "8",
+      "-y",
+      outputPattern,
+    ]
+
+    try {
+      await runFfmpeg(ffmpegArgs, 8000)
+    } catch {
+      // Fast single keyframe extraction fallback if custom multi-stream filters fail
+      const fallbackArgs = [
+        "-skip_frame",
+        "nokey",
+        "-i",
+        videoPath,
+        "-vframes",
+        "1",
+        "-vf",
+        "scale=120:-2",
+        "-y",
+        path.join(cacheDir, `temp_${mediaId}_kframe_01.jpg`),
+      ]
+      await runFfmpeg(fallbackArgs, 5000).catch(() => {})
+    }
+
+    const extractedPaths: string[] = []
+    for (let i = 1; i <= 10; i++) {
+      const paddedIndex = String(i).padStart(2, "0")
+      const expectedPath = path.join(cacheDir, `temp_${mediaId}_kframe_${paddedIndex}.jpg`)
+      if (existsSync(expectedPath)) {
+        extractedPaths.push(expectedPath)
+      }
+    }
+
+    if (extractedPaths.length === 0) {
+      return fail({
+        code: "THUMBNAIL_FAILED",
+        path: videoPath,
+        reason: "No keyframes could be extracted from video",
+      })
+    }
+
+    return ok(extractedPaths)
+  } catch (e: unknown) {
+    const err = e as { message?: string }
+    return fail({
+      code: "THUMBNAIL_FAILED",
+      path: videoPath,
+      reason: err.message || "Video keyframe extraction failed",
+    })
+  }
+}
+
+/**
+ * Extracts a multi-frame perceptual timeline hash for a video by aggregating hashes
+ * of up to 4 extracted keyframes into a continuous 256-character (or 64-character fallback) fingerprint.
+ * Cleans up temporary 120px keyframes immediately.
  */
 export async function extractVideoMultiHash(
   videoPath: string,
@@ -164,7 +250,33 @@ export async function extractVideoMultiHash(
   duration?: number
 ): Promise<Result<string>> {
   try {
-    // Generate or fetch the lightweight 480p poster frame
+    const keyframesRes = await generateVideoKeyframes(videoPath, mediaId)
+
+    if (keyframesRes.ok && keyframesRes.data.length > 0) {
+      const framePaths = keyframesRes.data
+      let compositeHash = ""
+
+      for (const framePath of framePaths) {
+        try {
+          if (existsSync(framePath)) {
+            const analysisRes = await analyzeImage(framePath)
+            if (analysisRes.ok && analysisRes.data.hash) {
+              compositeHash += analysisRes.data.hash
+            }
+          }
+        } catch {
+          // ignore single frame failure
+        } finally {
+          unlink(framePath).catch(() => {})
+        }
+      }
+
+      if (compositeHash.length >= 64) {
+        return ok(compositeHash)
+      }
+    }
+
+    // Fallback: derive single-frame hash from the cached poster frame if keyframe extraction yielded empty
     const thumbRes = await generateVideoThumbnail(videoPath, mediaId, duration)
     if (!thumbRes.ok) {
       return fail(thumbRes.error)
@@ -182,7 +294,7 @@ export async function extractVideoMultiHash(
     return fail({
       code: "THUMBNAIL_FAILED",
       path: videoPath,
-      reason: err.message || "Video hash extraction failed",
+      reason: err.message || "Video multi-hash extraction failed",
     })
   }
 }

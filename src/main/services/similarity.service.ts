@@ -1,25 +1,52 @@
 import { MediaRepository } from "../repositories/media.repository"
 import type { MediaItem } from "../../shared/types/media"
-import { hammingDistance } from "../core/duplicate-logic"
+// Pre-computed lookup table for set bits in a nibble (4 bits, 0-15)
+const NIBBLE_BIT_COUNT = new Uint8Array([
+  0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4,
+])
 
 /**
  * Fast perceptual similarity sort: re-orders items so visually similar items
- * are consecutive. Uses BigInt hash pre-sorting + windowed local refinement
- * to run in O(N log N + N*W) time instead of O(N^2), preventing main-thread freezing.
+ * are consecutive. Uses BigInt hash pre-sorting + pre-parsed nibble lookups
+ * to run in O(N log N + N*W) time without string/parseInt overhead.
  */
 export async function sortBySimilarity(items: MediaItem[]): Promise<MediaItem[]> {
   const hashed = items.filter((i) => !!i.hash)
   const unhashed = items.filter((i) => !i.hash)
   if (hashed.length === 0) return items
 
-  // Pre-parse items with valid BigInt hashes and primary hex strings
-  // For 192-char multi-frame video hashes, extract primary mid-frame (chars 64..128) for uniform BigInt sorting
-  const parsed: { item: MediaItem; big: bigint; fullHash: string; primaryHex: string }[] = []
+  // Pre-parse items with valid BigInt hashes, primary hex strings, and nibble arrays
+  const parsed: {
+    item: MediaItem
+    big: bigint
+    primaryNibbles: Uint8Array
+    fullNibbles: Uint8Array
+    primaryHex: string
+    fullHex: string
+  }[] = []
+
   for (const item of hashed) {
     try {
       const hex = item.hash!
-      const primaryHex = hex.length >= 128 ? hex.slice(64, 128) : hex
-      parsed.push({ item, big: BigInt("0x" + primaryHex), fullHash: hex, primaryHex })
+      const primaryHex = hex.length >= 128 ? hex.slice(64, 128) : hex.slice(0, 64)
+
+      const fullNibbles = new Uint8Array(hex.length)
+      for (let k = 0; k < hex.length; k++) {
+        fullNibbles[k] = parseInt(hex[k], 16)
+      }
+
+      const primaryStart = hex.length >= 128 ? 64 : 0
+      const primaryEnd = hex.length >= 128 ? 128 : Math.min(64, hex.length)
+      const primaryNibbles = fullNibbles.subarray(primaryStart, primaryEnd)
+
+      parsed.push({
+        item,
+        big: BigInt("0x" + primaryHex),
+        primaryNibbles,
+        fullNibbles,
+        primaryHex,
+        fullHex: hex,
+      })
     } catch {
       unhashed.push(item)
     }
@@ -57,19 +84,22 @@ export async function sortBySimilarity(items: MediaItem[]): Promise<MediaItem[]>
       if (visited[j]) continue
       const targetItem = parsed[j].item
 
-      let dist: number
-      if (
-        parsed[currentIdx].fullHash.length === parsed[j].fullHash.length &&
-        parsed[currentIdx].fullHash.length > 64
-      ) {
-        dist = hammingDistance(parsed[currentIdx].fullHash, parsed[j].fullHash)
-        if (dist === -1) {
-          dist = hammingDistance(parsed[currentIdx].primaryHex, parsed[j].primaryHex)
+      let dist = 0
+      const n1 = parsed[currentIdx].fullNibbles
+      const n2 = parsed[j].fullNibbles
+
+      if (n1.length === n2.length && n1.length > 64) {
+        for (let k = 0; k < n1.length; k++) {
+          dist += NIBBLE_BIT_COUNT[n1[k] ^ n2[k]]
         }
       } else {
-        dist = hammingDistance(parsed[currentIdx].primaryHex, parsed[j].primaryHex)
+        const p1 = parsed[currentIdx].primaryNibbles
+        const p2 = parsed[j].primaryNibbles
+        const len = Math.min(p1.length, p2.length)
+        for (let k = 0; k < len; k++) {
+          dist += NIBBLE_BIT_COUNT[p1[k] ^ p2[k]]
+        }
       }
-      if (dist === -1) dist = 999
 
       // Add distance penalty if both are videos but durations differ significantly (> 10%)
       if (

@@ -178,7 +178,7 @@ export const QualityScoreHoverCard: React.FC<QualityScoreHoverCardProps> = ({
             label="Sharpness"
             value={item.quality.blurScore}
             threshold={blurThreshold}
-            isWarning={item.quality.blurScore < blurThreshold}
+            isWarning={item.quality.isBlurry}
             warningText="Blurry"
           />
           <MetricRow
@@ -186,7 +186,7 @@ export const QualityScoreHoverCard: React.FC<QualityScoreHoverCardProps> = ({
             label="Exposure"
             value={Math.round(item.quality.brightness)}
             threshold={darknessThreshold}
-            isWarning={item.quality.brightness < darknessThreshold}
+            isWarning={item.quality.isDark}
             warningText="Dark"
           />
           <MetricRow

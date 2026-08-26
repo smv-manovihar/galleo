@@ -21,7 +21,8 @@ export class QualityService {
     filename: string,
     width: number | undefined,
     height: number | undefined,
-    thresholds: QualityThresholds
+    thresholds: QualityThresholds,
+    posterPath?: string
   ): Promise<Result<{ quality: QualityMetrics; hash?: string }>> {
     try {
       if (mediaType === "photo") {
@@ -46,18 +47,37 @@ export class QualityService {
 
         return ok({ quality, hash })
       } else {
-        // Video Quality fallback: Videos aren't checked for blur/brightness by default
-        // but we analyze screenshots and dimensions.
+        let blurScore = 100
+        let brightness = 128
+        let peakBrightness: number | undefined
+        let contrast: number | undefined
+
+        if (posterPath) {
+          try {
+            const posterRes = await analyzeImage(posterPath)
+            if (posterRes.ok) {
+              blurScore = posterRes.data.blurScore
+              brightness = posterRes.data.brightness
+              peakBrightness = posterRes.data.peakBrightness
+              contrast = posterRes.data.contrast
+            }
+          } catch {
+            // fallback to default quality on poster read error
+          }
+        }
+
         const quality = evaluateQuality({
-          blurScore: 100, // sharp fallback
-          brightness: 128, // mid brightness fallback
+          blurScore,
+          brightness,
+          peakBrightness,
+          contrast,
           width,
           height,
           size,
           filename,
           thresholds: {
             ...thresholds,
-            screenshotDetection: false, // screenshots are only photos
+            screenshotDetection: false,
           },
         })
 

@@ -95,6 +95,11 @@ export function registerIpcHandlers(window: BrowserWindow): void {
     return wasInterrupted
   })
 
+  ipcMain.handle(IPC_CHANNELS.SCAN_CHECK_COMPATIBILITY, async () => {
+    return await scannerService.checkLibraryCompatibility()
+  })
+
+
   // Media queries
   ipcMain.handle(IPC_CHANNELS.MEDIA_GET, (_, folderPath: string) => {
     return mediaRepository.getByFolderPath(folderPath)

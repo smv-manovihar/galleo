@@ -130,8 +130,6 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
     const localTransformRef = useRef<HTMLDivElement>(null)
     const timeSubscribersRef = useRef<Set<(cur: number, dur: number) => void>>(new Set())
     const hideTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const clickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const lastClickTimeRef = useRef<number>(0)
     const onPlayStateChangeRef = useRef(onPlayStateChange)
     const onRotationChangeRef = useRef(onRotationChange)
     const onFullscreenToggleRef = useRef(onFullscreenToggle)
@@ -306,6 +304,35 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
         isRot90,
       }
     }, [rotation, videoDimensions, containerSize, isFullscreen, fillContainer])
+
+    const isRotated = rotation % 360 !== 0
+
+    const containerBoxStyle = useMemo(() => {
+      if (isFullscreen || fillContainer) {
+        return { width: "100%", height: "100%" }
+      }
+      return {
+        width: `${visualDimensions.visualW}px`,
+        height: `${visualDimensions.visualH}px`,
+      }
+    }, [isFullscreen, fillContainer, visualDimensions.visualW, visualDimensions.visualH])
+
+    const videoElementStyle = useMemo(() => {
+      if (isRotated) {
+        return {
+          width: `${visualDimensions.videoDomW}px`,
+          height: `${visualDimensions.videoDomH}px`,
+          transform: `rotate(${rotation}deg)`,
+          transition: "transform 300ms cubic-bezier(0.4, 0, 0.2, 1)",
+          touchAction: "manipulation" as const,
+        }
+      }
+      return {
+        width: "100%",
+        height: "100%",
+        touchAction: "manipulation" as const,
+      }
+    }, [isRotated, rotation, visualDimensions.videoDomW, visualDimensions.videoDomH])
 
     // 5. Container ResizeObserver
     useEffect(() => {
@@ -579,29 +606,17 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
           return
         }
         containerRef.current?.focus()
-
-        const now = Date.now()
-        const DOUBLE_CLICK_THRESHOLD = 300
-
-        if (now - lastClickTimeRef.current < DOUBLE_CLICK_THRESHOLD) {
-          if (clickTimeoutRef.current) {
-            clearTimeout(clickTimeoutRef.current)
-            clickTimeoutRef.current = null
-          }
-          lastClickTimeRef.current = 0
-          void toggleFullscreen()
-        } else {
-          lastClickTimeRef.current = now
-          if (clickTimeoutRef.current) {
-            clearTimeout(clickTimeoutRef.current)
-          }
-          clickTimeoutRef.current = setTimeout(() => {
-            clickTimeoutRef.current = null
-            togglePlay()
-          }, DOUBLE_CLICK_THRESHOLD)
-        }
+        togglePlay()
       },
-      [toggleFullscreen, togglePlay]
+      [togglePlay]
+    )
+
+    const handleDoubleClick = useCallback(
+      (e: React.MouseEvent) => {
+        e.stopPropagation()
+        void toggleFullscreen()
+      },
+      [toggleFullscreen]
     )
 
     // Pointer Events for Dragging / Panning
@@ -804,11 +819,6 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       setFeedback(null)
       seekAccumulatorRef.current = 0
       if (seekAccTimerRef.current) clearTimeout(seekAccTimerRef.current)
-      if (clickTimeoutRef.current) {
-        clearTimeout(clickTimeoutRef.current)
-        clickTimeoutRef.current = null
-      }
-      lastClickTimeRef.current = 0
       if (videoRef.current) {
         videoRef.current.currentTime = 0
         videoRef.current.playbackRate = 1
@@ -988,7 +998,6 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
     useEffect(() => {
       return () => {
         if (hideTimeout.current) clearTimeout(hideTimeout.current)
-        if (clickTimeoutRef.current) clearTimeout(clickTimeoutRef.current)
         if (seekAccTimerRef.current) clearTimeout(seekAccTimerRef.current)
       }
     }, [])
@@ -1030,30 +1039,23 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       >
         <div
           ref={localTransformRef}
-          className="pointer-events-none flex h-full w-full items-center justify-center transition-transform ease-out"
+          className="pointer-events-none flex h-full w-full items-center justify-center"
         >
           <div
-            style={{
-              width: `${visualDimensions.visualW}px`,
-              height: `${visualDimensions.visualH}px`,
-            }}
+            style={containerBoxStyle}
             className="pointer-events-auto relative flex shrink-0 items-center justify-center"
           >
             <video
               ref={videoRef}
               src={safeSrc}
               poster={safePoster}
-              style={{
-                width: `${visualDimensions.videoDomW}px`,
-                height: `${visualDimensions.videoDomH}px`,
-                transform: `rotate(${rotation}deg)`,
-                transition: "transform 300ms cubic-bezier(0.4, 0, 0.2, 1)",
-                touchAction: "manipulation",
-              }}
-              className={`max-h-none max-w-none shadow-lg select-none ${
-                internalZoomScale > 1 ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
-              }`}
+              preload="auto"
+              style={videoElementStyle}
+              className={`object-contain select-none ${
+                isRotated ? "max-h-none max-w-none" : "h-full w-full"
+              } ${internalZoomScale > 1 ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`}
               onClick={handleVideoClick}
+              onDoubleClick={handleDoubleClick}
               playsInline
               onTimeUpdate={() => {
                 if (videoRef.current) {
@@ -1097,7 +1099,10 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
         <VideoCenterPlayButton
           isPlaying={isPlaying}
           showControls={showControls}
-          onClick={handleVideoClick}
+          onClick={(e) => {
+            e.stopPropagation()
+            togglePlay()
+          }}
         />
 
         {/* Controls bar */}

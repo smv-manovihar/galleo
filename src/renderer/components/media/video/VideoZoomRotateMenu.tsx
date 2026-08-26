@@ -115,7 +115,7 @@ export const VideoZoomRotateMenu: React.FC<VideoZoomRotateMenuProps> = React.mem
           sideOffset={12}
           container={containerElement}
           onOpenAutoFocus={(e) => e.preventDefault()}
-          className="w-60 space-y-3 rounded-xl border border-white/15 bg-black/95 p-3 text-white shadow-2xl backdrop-blur-md"
+          className="w-60 space-y-3 rounded-xl border border-white/15 bg-neutral-950 p-3 text-white shadow-2xl"
         >
           {/* Zoom Section */}
           <div className="space-y-2">

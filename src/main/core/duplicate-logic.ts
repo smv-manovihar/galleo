@@ -106,8 +106,35 @@ export async function findDuplicates(
     const n1 = p1.nibbles
     const n2 = p2.nibbles
 
-    if (n1.length === 0 || n2.length === 0 || n1.length !== n2.length) {
+    if (n1.length === 0 || n2.length === 0) {
       return -1
+    }
+
+    // Mixed-length comparison for videos (e.g. multi-frame vs legacy single-frame)
+    let isMixedLength = false
+    let primaryDist = -1
+    if (n1.length !== n2.length) {
+      if (
+        p1.item.mediaType === "video" &&
+        p2.item.mediaType === "video" &&
+        ((n1.length >= 128 && n2.length === 64) || (n2.length >= 128 && n1.length === 64))
+      ) {
+        isMixedLength = true
+        const longer = n1.length > n2.length ? n1 : n2
+        const shorter = n1.length > n2.length ? n2 : n1
+        const primaryStart = longer.length >= 128 ? 64 : 0
+        let dist = 0
+        for (let k = 0; k < 64; k++) {
+          dist += NIBBLE_BIT_COUNT[longer[primaryStart + k] ^ shorter[k]]
+          if (dist > maxDistance) {
+            dist = -1
+            break
+          }
+        }
+        primaryDist = dist
+      } else {
+        return -1
+      }
     }
 
     // Do not match degenerate/flat hashes (e.g. all 0s or all Fs) via perceptual comparison
@@ -129,6 +156,10 @@ export async function findDuplicates(
           return -1
         }
       }
+    }
+
+    if (isMixedLength) {
+      return primaryDist
     }
 
     const numFrames = Math.max(1, Math.floor(n1.length / 64))

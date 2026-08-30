@@ -10,7 +10,7 @@ interface ScannerWithRepo {
 
 vi.mock("electron", () => ({
   app: {
-    getVersion: vi.fn(() => "1.2.1"),
+    getVersion: vi.fn(() => "1.2.2"),
     getPath: vi.fn(() => "/mock/temp"),
   },
   BrowserWindow: vi.fn(),

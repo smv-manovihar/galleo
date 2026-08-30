@@ -132,6 +132,45 @@ describe("findDuplicates", () => {
     expect(best?.id).toBe("item2")
   })
 
+  it("selects higher resolution item as best in group when compositeScores are equal and lower-res has higher blurScore", async () => {
+    const item4k: MediaItem = {
+      ...createMockItem("item_4k", "ffff", 100, 4_000_000, "exact_copy"),
+      exactHash: "hash_shared_exact_group",
+      width: 3840,
+      height: 2160,
+      quality: {
+        blurScore: 65,
+        brightness: 120,
+        isDark: false,
+        isBlurry: false,
+        isScreenshot: false,
+        isSmall: false,
+        compositeScore: 100,
+      },
+    }
+
+    const item1080p: MediaItem = {
+      ...createMockItem("item_1080p", "ffff", 100, 1_000_000, "exact_copy"),
+      exactHash: "hash_shared_exact_group",
+      width: 1920,
+      height: 1080,
+      quality: {
+        blurScore: 90,
+        brightness: 120,
+        isDark: false,
+        isBlurry: false,
+        isScreenshot: false,
+        isSmall: false,
+        compositeScore: 100,
+      },
+    }
+
+    const groups = await findDuplicates([item1080p, item4k], 4)
+    expect(groups.length).toBe(1)
+    const best = groups[0].items.find((i) => i.isBestInDuplicateGroup)
+    expect(best?.id).toBe("item_4k")
+  })
+
   it("does not group videos with significant duration mismatch despite intro pHash match", async () => {
     const video1: MediaItem = {
       ...createMockItem("video1", "ffff", 80, 500, "short_clip"),

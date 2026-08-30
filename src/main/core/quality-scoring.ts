@@ -76,13 +76,6 @@ export function evaluateQuality(params: ScoreParams): QualityMetrics {
       Math.max(0, (thresholds.blurThreshold - blurScore) / thresholds.blurThreshold)
     const penalty = 20 + Math.round(severityFactor * 35) // 20 - 55 penalty
     compositeScore -= penalty
-  } else if (!isBlurry && thresholds.blurThreshold > 0) {
-    // Slight penalty if it's near the blur threshold, reward extreme sharpness
-    // score 30-100. If blurScore is 100, no penalty. If it's near 30, tiny penalty.
-    const margin = blurScore - thresholds.blurThreshold
-    if (margin < 20) {
-      compositeScore -= Math.round((20 - margin) * 0.5) // 0 - 10 penalty
-    }
   }
 
   if (isDark && thresholds.darknessThreshold > 0) {

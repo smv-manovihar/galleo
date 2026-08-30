@@ -172,15 +172,15 @@ export function filterAndSortItems(
       if (scoreB !== scoreA) {
         return scoreB - scoreA
       }
-      const blurA = a.quality?.blurScore ?? 0
-      const blurB = b.quality?.blurScore ?? 0
-      if (blurB !== blurA) {
-        return blurB - blurA
-      }
       const resA = (a.width ?? 0) * (a.height ?? 0)
       const resB = (b.width ?? 0) * (b.height ?? 0)
       if (resB !== resA) {
         return resB - resA
+      }
+      const blurA = a.quality?.blurScore ?? 0
+      const blurB = b.quality?.blurScore ?? 0
+      if (blurB !== blurA) {
+        return blurB - blurA
       }
       if (b.size !== a.size) {
         return b.size - a.size
@@ -196,15 +196,15 @@ export function filterAndSortItems(
       if (scoreA !== scoreB) {
         return scoreA - scoreB
       }
-      const blurA = a.quality?.blurScore ?? 100
-      const blurB = b.quality?.blurScore ?? 100
-      if (blurA !== blurB) {
-        return blurA - blurB
-      }
       const resA = (a.width ?? 0) * (a.height ?? 0)
       const resB = (b.width ?? 0) * (b.height ?? 0)
       if (resA !== resB) {
         return resA - resB
+      }
+      const blurA = a.quality?.blurScore ?? 100
+      const blurB = b.quality?.blurScore ?? 100
+      if (blurA !== blurB) {
+        return blurA - blurB
       }
       if (a.size !== b.size) {
         return a.size - b.size

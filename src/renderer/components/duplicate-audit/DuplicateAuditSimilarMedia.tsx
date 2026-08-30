@@ -34,6 +34,7 @@ import {
 } from "./DuplicateAuditHistoryDialog"
 import { DuplicateAuditCard } from "./DuplicateAuditCard"
 import { DuplicateAuditProgressSeeker } from "./DuplicateAuditProgressSeeker"
+import { compareMediaQuality } from "../../lib/media-quality"
 
 interface DuplicateAuditSimilarMediaProps {
   groups?: MediaItem[][]
@@ -68,32 +69,6 @@ function getItemAspectRatioClass(item: MediaItem): string {
     return "aspect-4/3"
   }
   return "aspect-3/4"
-}
-
-function compareMediaQuality(a: MediaItem, b: MediaItem): number {
-  const scoreA = a.quality?.compositeScore ?? 0
-  const scoreB = b.quality?.compositeScore ?? 0
-  if (scoreB !== scoreA) {
-    return scoreB - scoreA
-  }
-
-  const blurA = a.quality?.blurScore ?? 0
-  const blurB = b.quality?.blurScore ?? 0
-  if (blurB !== blurA) {
-    return blurB - blurA
-  }
-
-  const resA = (a.width ?? 0) * (a.height ?? 0)
-  const resB = (b.width ?? 0) * (b.height ?? 0)
-  if (resB !== resA) {
-    return resB - resA
-  }
-
-  if (b.size !== a.size) {
-    return b.size - a.size
-  }
-
-  return (b.dateTarget || b.dateAdded || "").localeCompare(a.dateTarget || a.dateAdded || "")
 }
 
 export const DuplicateAuditSimilarMedia = React.memo<

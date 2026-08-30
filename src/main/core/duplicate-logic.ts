@@ -225,12 +225,12 @@ export async function findDuplicates(
       const scoreA = itemA.quality?.compositeScore ?? 0
       const scoreB = itemB.quality?.compositeScore ?? 0
       if (scoreB !== scoreA) return scoreB - scoreA
-      const blurA = itemA.quality?.blurScore ?? 0
-      const blurB = itemB.quality?.blurScore ?? 0
-      if (blurB !== blurA) return blurB - blurA
       const resA = (itemA.width ?? 0) * (itemA.height ?? 0)
       const resB = (itemB.width ?? 0) * (itemB.height ?? 0)
       if (resB !== resA) return resB - resA
+      const blurA = itemA.quality?.blurScore ?? 0
+      const blurB = itemB.quality?.blurScore ?? 0
+      if (blurB !== blurA) return blurB - blurA
       return itemB.size - itemA.size
     })
 
@@ -284,7 +284,7 @@ export async function findDuplicates(
     const groupId = `group_${anchorItem.id}`
 
     // Determine the "best" item in the group
-    // Best = Highest quality compositeScore, fallback to highest sharpness, fallback to largest resolution, fallback to largest file size
+    // Best = Highest quality compositeScore, fallback to largest resolution, fallback to highest sharpness, fallback to largest file size
     let bestItem = groupItems[0]
     for (let k = 1; k < groupItems.length; k++) {
       const item = groupItems[k]
@@ -294,17 +294,17 @@ export async function findDuplicates(
       if (itemScore > bestScore) {
         bestItem = item
       } else if (itemScore === bestScore) {
-        const itemBlur = item.quality?.blurScore ?? 0
-        const bestBlur = bestItem.quality?.blurScore ?? 0
-        if (itemBlur > bestBlur) {
-          bestItem = item
-        } else if (itemBlur === bestBlur) {
-          const itemRes = (item.width ?? 0) * (item.height ?? 0)
-          const bestRes = (bestItem.width ?? 0) * (bestItem.height ?? 0)
+        const itemRes = (item.width ?? 0) * (item.height ?? 0)
+        const bestRes = (bestItem.width ?? 0) * (bestItem.height ?? 0)
 
-          if (itemRes > bestRes) {
+        if (itemRes > bestRes) {
+          bestItem = item
+        } else if (itemRes === bestRes) {
+          const itemBlur = item.quality?.blurScore ?? 0
+          const bestBlur = bestItem.quality?.blurScore ?? 0
+          if (itemBlur > bestBlur) {
             bestItem = item
-          } else if (itemRes === bestRes) {
+          } else if (itemBlur === bestBlur) {
             if (item.size > bestItem.size) {
               bestItem = item
             }

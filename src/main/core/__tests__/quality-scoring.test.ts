@@ -39,6 +39,20 @@ describe("evaluateQuality", () => {
     expect(res.isSmall).toBe(false)
   })
 
+  it("does not penalize images that pass the blur threshold", () => {
+    const res = evaluateQuality({
+      blurScore: 35, // threshold is 30 -> passes blur check
+      brightness: 120,
+      width: 3840,
+      height: 2160,
+      size: 5000000,
+      filename: "crisp_4k.jpg",
+      thresholds,
+    })
+    expect(res.isBlurry).toBe(false)
+    expect(res.compositeScore).toBe(100)
+  })
+
   it("penalizes blurriness below threshold", () => {
     const res = evaluateQuality({
       blurScore: 15, // threshold is 30

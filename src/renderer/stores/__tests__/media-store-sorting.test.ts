@@ -121,6 +121,47 @@ describe("filterAndSortItems sorting logic", () => {
     expect(qualitySorted[1].id).toBe("item_1080p")
   })
 
+  it("prioritizes higher resolution over higher blurScore when compositeScores are equal", () => {
+    // 4K image with slightly lower blurScore (e.g. 70)
+    const item4k = createMockItem("item_4k_softer", {
+      width: 3840,
+      height: 2160,
+      size: 4_000_000,
+      quality: {
+        compositeScore: 100,
+        blurScore: 70,
+        brightness: 120,
+        isDark: false,
+        isBlurry: false,
+        isScreenshot: false,
+        isSmall: false,
+      },
+    })
+
+    // 1080p downscaled image with inflated Laplacian sharpness (e.g. 92)
+    const item1080p = createMockItem("item_1080p_sharp", {
+      width: 1920,
+      height: 1080,
+      size: 800_000,
+      quality: {
+        compositeScore: 100,
+        blurScore: 92,
+        brightness: 120,
+        isDark: false,
+        isBlurry: false,
+        isScreenshot: false,
+        isSmall: false,
+      },
+    })
+
+    const qualitySorted = filterAndSortItems([item1080p, item4k], {
+      ...baseOptions,
+      sortBy: "score-desc",
+    })
+    expect(qualitySorted[0].id).toBe("item_4k_softer")
+    expect(qualitySorted[1].id).toBe("item_1080p_sharp")
+  })
+
   it("sorts 'Lowest Quality' (score-asc) putting lowest compositeScore, lowest blurScore, and smallest resolution first", () => {
     const itemLowScore = createMockItem("item_low_score", {
       quality: {

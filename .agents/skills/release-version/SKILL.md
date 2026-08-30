@@ -13,6 +13,11 @@ depends_on: caveman-commit
 
 Automated and safe release workflow for Galleo. Generates accurate release notes from Git diffs, enforces quality verification, creates conventional commit messages, and triggers CI/CD builds via ephemeral release branches.
 
+> [!IMPORTANT]
+> **Cross-Platform Shell Syntax (Windows PowerShell):**
+> * **Never use `&&` to chain commands in Windows PowerShell** — `&&` causes a PowerShell parser syntax error (`The token '&&' is not a valid statement separator`).
+> * Execute commands sequentially as individual steps, or use `;` as the statement separator in PowerShell (e.g. `git add . ; git commit -m "..."`).
+
 ---
 
 ## Release Pipeline Overview
@@ -22,7 +27,7 @@ Automated and safe release workflow for Galleo. Generates accurate release notes
 2. [Generate Notes]       → Write RELEASE_NOTES.md ("What's New", "Improvements", "Bug Fixes")
 3. [Update Version]       → Bump version in package.json
 4. [Draft Commit Message] → Generate terse Conventional Commit via caveman-commit
-5. [Verify Codebase]      → Run pnpm run typecheck && pnpm test
+5. [Verify Codebase]      → Run pnpm run typecheck, then pnpm test
 6. [User Confirmation]   → Present release details and obtain explicit user approval
 7. [Commit to main]       → Stage changes and commit on main
 8. [Trigger CI Release]   → Create and push release/v<version> branch to origin

@@ -91,6 +91,11 @@ export const DEFAULT_EXCLUDE_PATTERNS = [
   "tmp",
 ]
 
+export const DEFAULT_SIMILARITY_RADIUS = 18
+export const MIN_SIMILARITY_RADIUS = 8
+export const MAX_SIMILARITY_RADIUS = 40
+export const SIMILARITY_RADIUS_STEP = 4
+
 export const DEFAULT_SETTINGS: AppSettings = {
   folders: {
     roots: [],
@@ -109,8 +114,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   quality: {
     blurThreshold: 30, // Below 30 is considered blurry
     darknessThreshold: 40, // Average brightness below 40 is considered dark
-    duplicateHashDistance: 10, // Hamming distance threshold
-    similarityRadius: 18, // Default visual similarity search radius
+    duplicateHashDistance: DEFAULT_SIMILARITY_RADIUS, // Hamming distance threshold (aligned with visual similarity)
+    similarityRadius: DEFAULT_SIMILARITY_RADIUS, // Default visual similarity search radius
     screenshotDetection: true,
     minResolution: 300 * 300, // below 90,000 pixels is considered small
   },
@@ -136,3 +141,4 @@ export const DEFAULT_SETTINGS: AppSettings = {
     aiEmbeddingConcurrency: 1,
   },
 }
+

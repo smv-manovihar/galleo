@@ -1,5 +1,18 @@
 import type { MediaItem } from "../../shared/types/media"
 import { getNormalizedFilenameBase } from "../../shared/filename-utils"
+import {
+  DEFAULT_SIMILARITY_RADIUS,
+  MIN_SIMILARITY_RADIUS,
+  MAX_SIMILARITY_RADIUS,
+  SIMILARITY_RADIUS_STEP,
+} from "../../shared/constants"
+
+export {
+  DEFAULT_SIMILARITY_RADIUS,
+  MIN_SIMILARITY_RADIUS,
+  MAX_SIMILARITY_RADIUS,
+  SIMILARITY_RADIUS_STEP,
+}
 
 // Pre-computed lookup table for set bits in a nibble (4 bits, 0-15)
 const NIBBLE_BIT_COUNT = new Uint8Array([
@@ -422,10 +435,6 @@ export function getSimilaritySortedItems(items: MediaItem[]): MediaItem[] {
   return result
 }
 
-export const DEFAULT_SIMILARITY_RADIUS = 18
-export const MIN_SIMILARITY_RADIUS = 8
-export const MAX_SIMILARITY_RADIUS = 40
-export const SIMILARITY_RADIUS_STEP = 4
 
 /**
  * Finds all media items visually or structurally similar to targetItem.

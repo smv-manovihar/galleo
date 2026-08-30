@@ -20,7 +20,11 @@ import {
   type FileChangeEvent,
   type LibraryCompatibilityStatus,
 } from "../../shared/types/ipc"
-import { ENABLE_AI_FEATURES, CURRENT_INDEX_VERSION } from "../../shared/constants"
+import {
+  ENABLE_AI_FEATURES,
+  CURRENT_INDEX_VERSION,
+  DEFAULT_SIMILARITY_RADIUS,
+} from "../../shared/constants"
 import { initDatabase } from "../infrastructure/database"
 import {
   isThumbnailCurrent,
@@ -865,9 +869,14 @@ export class ScannerService {
 
       this.activePostProcessingPromise = (async () => {
         try {
+          const effectiveRadius =
+            settings.quality.similarityRadius ??
+            settings.quality.duplicateHashDistance ??
+            DEFAULT_SIMILARITY_RADIUS
+
           await this.duplicateService.resolveDuplicatesInFolders(
             foldersToAnalyze,
-            settings.quality.duplicateHashDistance
+            effectiveRadius
           )
 
           await this.similarityService.resolveSimilarityInFolders(foldersToAnalyze)

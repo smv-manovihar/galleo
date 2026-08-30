@@ -1,5 +1,6 @@
 import type { MediaItem } from "../../shared/types/media"
 import { getNormalizedFilenameBase } from "../../shared/filename-utils"
+import { DEFAULT_SIMILARITY_RADIUS } from "../../shared/constants"
 
 // Pre-computed lookup table for set bits in a nibble (4 bits, 0-15)
 const NIBBLE_BIT_COUNT = new Uint8Array([
@@ -59,7 +60,7 @@ export interface DuplicateGroup {
  */
 export async function findDuplicates(
   items: MediaItem[],
-  maxDistance: number
+  maxDistance: number = DEFAULT_SIMILARITY_RADIUS
 ): Promise<DuplicateGroup[]> {
   // Filter items that have either perceptual hash or byte-to-byte exactHash
   const candidateItems = items.filter(

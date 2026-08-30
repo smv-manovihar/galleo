@@ -64,10 +64,11 @@ export const QualityConfig: React.FC = () => {
       quality: {
         ...settings.quality,
         similarityRadius: newVal,
+        duplicateHashDistance: newVal,
       },
     })
     toast.success("Default similarity radius updated", {
-      description: `Default visual search radius set to ${newVal}.`,
+      description: `Default visual search and duplicate grouping radius set to ${newVal}.`,
     })
   }
 
@@ -159,7 +160,7 @@ export const QualityConfig: React.FC = () => {
               className="py-1"
             />
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Default perceptual distance for finding similar photos in Browse Media. Lower values find strict visual matches; higher values discover broader scene compositions.
+              Default perceptual distance for finding similar photos in Browse Media and grouping bursts in Duplicate Audit. Lower values find strict identical matches; higher values group broader variations and full burst sequences together.
             </p>
           </div>
         </CardContent>

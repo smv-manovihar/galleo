@@ -4,6 +4,7 @@ import type {
   MediaType,
   QualityMetrics,
 } from "../../shared/types/media"
+import type { LibraryFolderItem } from "../../shared/types/ipc"
 import { initDatabase } from "../infrastructure/database"
 import { purgeMediaThumbnailFiles } from "../infrastructure/image-processor"
 
@@ -265,6 +266,91 @@ export class MediaRepository {
 
     const rows = stmt.all(forwardPath, backPath, forwardSub, backSub)
     return rows.map((row) => this.rowToMediaItem(row))
+  }
+
+  /**
+   * Retrieves all MediaItems residing in any of the specified folder paths.
+   */
+  public getByFolderPaths(folderPaths: string[] | string): MediaItem[] {
+    const paths = Array.isArray(folderPaths) ? folderPaths : [folderPaths]
+    if (paths.includes("all") || paths.length === 0) {
+      return this.getAll()
+    }
+    const itemMap = new Map<string, MediaItem>()
+    for (const p of paths) {
+      const items = this.getByFolderPath(p)
+      for (const item of items) {
+        itemMap.set(item.id, item)
+      }
+    }
+    return Array.from(itemMap.values())
+  }
+
+  /**
+   * Retrieves a hierarchy of indexed folders and subfolders under the specified root paths,
+   * along with the media item counts inside each folder and its subdirectories.
+   */
+  public getFolderTree(rootPaths: string[]): LibraryFolderItem[] {
+    const db = this.getDb()
+    const stmt = db.prepare(`SELECT path FROM media_items`)
+    const rows = stmt.all() as Array<{ path: string }>
+
+    const dirCountMap = new Map<string, number>()
+    const allDirs = new Set<string>()
+
+    for (const root of rootPaths) {
+      const normRoot = root.replace(/\\/g, "/").replace(/\/+$/, "")
+      allDirs.add(normRoot)
+    }
+
+    for (const row of rows) {
+      const normPath = row.path.replace(/\\/g, "/")
+      const lastSlash = normPath.lastIndexOf("/")
+      if (lastSlash === -1) continue
+      let dir = normPath.substring(0, lastSlash)
+
+      while (dir.length > 0) {
+        const lower = dir.toLowerCase()
+        dirCountMap.set(lower, (dirCountMap.get(lower) || 0) + 1)
+        allDirs.add(dir)
+        const nextSlash = dir.lastIndexOf("/")
+        if (nextSlash === -1) break
+        dir = dir.substring(0, nextSlash)
+      }
+    }
+
+    const result: LibraryFolderItem[] = []
+
+    for (const root of rootPaths) {
+      const normRoot = root.replace(/\\/g, "/").replace(/\/+$/, "")
+      const rootDirs = Array.from(allDirs)
+        .filter((d) => {
+          const dl = d.toLowerCase()
+          const rl = normRoot.toLowerCase()
+          return dl === rl || dl.startsWith(rl + "/")
+        })
+        .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
+
+      for (const dir of rootDirs) {
+        const isRoot = dir.toLowerCase() === normRoot.toLowerCase()
+        const relPath = isRoot ? "" : dir.substring(normRoot.length + 1)
+        const depth = isRoot ? 0 : relPath.split("/").length
+        const name = isRoot
+          ? root.split(/[\\/]/).pop() || root
+          : dir.split("/").pop() || dir
+
+        result.push({
+          path: dir.replace(/\//g, "\\"),
+          name,
+          rootPath: root,
+          depth,
+          itemCount: dirCountMap.get(dir.toLowerCase()) || 0,
+          isRoot,
+        })
+      }
+    }
+
+    return result
   }
 
   /**

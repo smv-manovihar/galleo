@@ -10,7 +10,7 @@ interface OrganizeState {
   isExecuting: boolean
   progress: OrganizeProgressPayload | null
   startOrganization: (
-    activeRootPath: string,
+    activeRootPath: string | string[],
     previewItems: OrganizePreviewItem[],
     preserveOriginals: boolean
   ) => Promise<void>
@@ -23,7 +23,7 @@ export const useOrganizeStore = create<OrganizeState>((set) => ({
   progress: null,
 
   startOrganization: async (
-    activeRootPath: string,
+    activeRootPath: string | string[],
     previewItems: OrganizePreviewItem[],
     preserveOriginals: boolean
   ) => {
@@ -63,7 +63,13 @@ export const useOrganizeStore = create<OrganizeState>((set) => ({
         description: `Relocated ${count} media items to destination.`,
       })
       if (activeRootPath) {
-        await useMediaStore.getState().fetchMediaItems(activeRootPath)
+        const fetchTarget =
+          typeof activeRootPath === "string"
+            ? activeRootPath
+            : activeRootPath.length === 1
+            ? activeRootPath[0]
+            : "all"
+        await useMediaStore.getState().fetchMediaItems(fetchTarget)
       }
     } catch (e: unknown) {
       const err = e as Error

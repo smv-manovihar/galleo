@@ -55,6 +55,26 @@ vi.mock("../../infrastructure/database", () => ({
         }
       }
 
+      if (normalizedSql.includes("SELECT * FROM media_items")) {
+        return {
+          all: (...args: string[]) => {
+            if (args.length === 0) {
+              return Array.from(mockMediaItems.values())
+            }
+            const matched: MockMediaRow[] = []
+            for (const item of mockMediaItems.values()) {
+              const itemNorm = item.path.toLowerCase().replace(/\\/g, "/")
+              const matches = args.some((arg) => {
+                const clean = arg.toLowerCase().replace(/[%!]/g, "").replace(/\\/g, "/").replace(/\/+$/, "")
+                return itemNorm === clean || itemNorm.startsWith(clean + "/")
+              })
+              if (matches) matched.push(item)
+            }
+            return matched
+          },
+        }
+      }
+
       if (normalizedSql.includes("SELECT id, thumbnail_path as thumbnailPath FROM media_items")) {
         return {
           all: (...args: string[]) => {
@@ -68,6 +88,14 @@ vi.mock("../../infrastructure/database", () => ({
               return matched
             }
             return Array.from(mockMediaItems.values()).map((i) => ({ id: i.id, thumbnailPath: i.thumbnail_path }))
+          },
+        }
+      }
+
+      if (normalizedSql.includes("SELECT path FROM media_items")) {
+        return {
+          all: () => {
+            return Array.from(mockMediaItems.values()).map((i) => ({ path: i.path }))
           },
         }
       }
@@ -202,5 +230,41 @@ describe("MediaRepository orientation updates", () => {
     const item = mediaRepo.getById("media-123")
     expect(item?.quality?.isDark).toBe(false)
     expect(item?.quality?.compositeScore).toBe(100)
+  })
+
+  it("builds folder hierarchy and counts subfolders with getFolderTree", () => {
+    mockMediaItems.set("item-2", {
+      id: "item-2",
+      path: "C:/photos/summer/beach.jpg",
+      name: "beach.jpg",
+      size: 2048,
+      extension: "jpg",
+      media_type: "photo",
+      date_added: "2026-08-01T00:00:00.000Z",
+      date_filesystem: "2026-08-01T00:00:00.000Z",
+      date_target: "2026-08-01T00:00:00.000Z",
+      date_target_source: "filesystem",
+      review_state: "pending",
+    })
+
+    const tree = mediaRepo.getFolderTree(["C:/photos"])
+    expect(tree.length).toBe(2)
+    // Root folder
+    const root = tree.find((t) => t.isRoot)
+    expect(root).toBeDefined()
+    expect(root?.itemCount).toBe(2)
+    expect(root?.depth).toBe(0)
+
+    // Child folder
+    const child = tree.find((t) => !t.isRoot)
+    expect(child).toBeDefined()
+    expect(child?.name).toBe("summer")
+    expect(child?.depth).toBe(1)
+    expect(child?.itemCount).toBe(1)
+  })
+
+  it("retrieves items across multiple specified folder paths with getByFolderPaths", () => {
+    const items = mediaRepo.getByFolderPaths(["C:/photos/summer", "C:/photos"])
+    expect(items.length).toBeGreaterThan(0)
   })
 })

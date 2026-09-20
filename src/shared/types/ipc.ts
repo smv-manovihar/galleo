@@ -18,6 +18,7 @@ export const IPC_CHANNELS = {
   SCAN_INTERRUPTED_CHECK: "scan:interrupted-check",
   SCAN_CHECK_COMPATIBILITY: "scan:check-compatibility",
   MEDIA_GET: "media:get",
+  MEDIA_GET_FOLDERS: "media:get-folders",
   MEDIA_UPDATE_REVIEWS: "media:update-reviews",
   MEDIA_UPDATE_ORIENTATION: "media:update-orientation",
   SESSION_GET_CHECKPOINT: "session:get-checkpoint",
@@ -108,6 +109,11 @@ export interface OrganizePreviewItem {
   relativePath: string
   conflict: boolean
   conflictReason?: "already_exists" | "duplicate_target" | "duplicate_source"
+  dateTarget?: string
+  dateTargetSource?: "exif" | "filename" | "filesystem" | "inferred"
+  size?: number
+  mediaType?: "photo" | "video"
+  thumbnailPath?: string
 }
 
 import type { SearchQuery, SearchResultItem } from "../../main/services/search-engine.service"
@@ -153,6 +159,16 @@ export interface LibraryCompatibilityStatus {
 
 
 
+export interface LibraryFolderItem {
+  path: string
+  name: string
+  parentPath?: string
+  rootPath: string
+  depth: number
+  itemCount: number
+  isRoot: boolean
+}
+
 export interface AppStorageUsage {
   databaseBytes: number
   thumbnailBytes: number
@@ -183,6 +199,7 @@ export interface GalleoAPI {
   checkScanInterrupted: () => Promise<boolean>
   getScanStatus: () => Promise<boolean>
   getMediaItems: (folderPath: string) => Promise<MediaItem[]>
+  getLibraryFolders: () => Promise<LibraryFolderItem[]>
   updateReviews: (
     sessionId: string,
     updates: {
@@ -203,12 +220,12 @@ export interface GalleoAPI {
   ) => Promise<Result<void>>
   clearSession: (folderPath: string) => Promise<Result<void>>
   previewOrganization: (
-    folderPath: string,
+    folderPath: string | string[],
     destination: string,
     pattern: string
   ) => Promise<Result<OrganizePreviewItem[]>>
   executeOrganization: (
-    folderPath: string,
+    folderPath: string | string[],
     previewItems: OrganizePreviewItem[],
     preserveOriginals: boolean
   ) => Promise<Result<void>>

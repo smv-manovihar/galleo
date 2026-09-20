@@ -170,6 +170,11 @@ export function planOrganization(params: {
       relativePath: relativePath.replace(/\//g, "\\"),
       conflict: isConflict,
       conflictReason: isConflict ? "already_exists" : undefined,
+      dateTarget: item.dateTarget,
+      dateTargetSource: item.dateTargetSource,
+      size: item.size,
+      mediaType: item.mediaType,
+      thumbnailPath: item.thumbnailPath,
     })
   }
 

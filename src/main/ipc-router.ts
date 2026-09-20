@@ -105,6 +105,14 @@ export function registerIpcHandlers(window: BrowserWindow): void {
     return mediaRepository.getByFolderPath(folderPath)
   })
 
+  ipcMain.handle(IPC_CHANNELS.MEDIA_GET_FOLDERS, () => {
+    const settings = settingsService.getSettings()
+    const rootPaths = settings.folders.roots
+      .filter((r) => r.enabled)
+      .map((r) => r.path)
+    return mediaRepository.getFolderTree(rootPaths)
+  })
+
   ipcMain.handle(IPC_CHANNELS.MEDIA_CLEAR_INDEX, (_, folderPath: string) => {
     try {
       mediaRepository.clearByFolder(folderPath)
@@ -165,7 +173,7 @@ export function registerIpcHandlers(window: BrowserWindow): void {
       { folderPath, destination, pattern }
     ): Promise<Result<OrganizePreviewItem[]>> => {
       try {
-        const items = mediaRepository.getByFolderPath(folderPath)
+        const items = mediaRepository.getByFolderPaths(folderPath)
 
         // Find existing files in destination directory to avoid collisions
         const existing = new Set<string>()

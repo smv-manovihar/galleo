@@ -65,6 +65,9 @@ const api: GalleoAPI = {
   getMediaItems: (folderPath) =>
     ipcRenderer.invoke(IPC_CHANNELS.MEDIA_GET, folderPath),
 
+  getLibraryFolders: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.MEDIA_GET_FOLDERS),
+
   updateReviews: (sessionId, updates, undoAction) =>
     ipcRenderer.invoke(IPC_CHANNELS.MEDIA_UPDATE_REVIEWS, {
       sessionId,

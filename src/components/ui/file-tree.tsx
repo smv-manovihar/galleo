@@ -4,6 +4,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
 } from "react"
 import { Accordion as AccordionPrimitive } from "radix-ui"
@@ -241,24 +242,37 @@ const Tree = forwardRef<HTMLDivElement, TreeViewProps>(
       }
     }, [initialSelectedId, elements, expandSpecificTargetedElements])
 
-    const direction = dir === "rtl" ? "rtl" : "ltr"
+    const direction: "rtl" | "ltr" = dir === "rtl" ? "rtl" : "ltr"
     const treeChildren =
       children ?? (elements ? renderTreeElements(elements, sort) : null)
 
+    const contextValue = useMemo(
+      () => ({
+        selectedId,
+        expandedItems,
+        handleExpand,
+        selectItem,
+        setExpandedItems,
+        indicator,
+        openIcon,
+        closeIcon,
+        direction,
+      }),
+      [
+        selectedId,
+        expandedItems,
+        handleExpand,
+        selectItem,
+        setExpandedItems,
+        indicator,
+        openIcon,
+        closeIcon,
+        direction,
+      ]
+    )
+
     return (
-      <TreeContext.Provider
-        value={{
-          selectedId,
-          expandedItems,
-          handleExpand,
-          selectItem,
-          setExpandedItems,
-          indicator,
-          openIcon,
-          closeIcon,
-          direction,
-        }}
-      >
+      <TreeContext.Provider value={contextValue}>
         <div className={cn("size-full", className)}>
           <ScrollArea
             ref={ref}
@@ -306,9 +320,11 @@ TreeIndicator.displayName = "TreeIndicator"
 
 type FolderProps = {
   expandedItems?: string[]
-  element: string
+  element: React.ReactNode | string
   isSelectable?: boolean
   isSelect?: boolean
+  handleSelect?: (id: string) => void
+  actions?: React.ReactNode
 } & React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Item>
 
 const Folder = forwardRef<
@@ -322,6 +338,8 @@ const Folder = forwardRef<
       value,
       isSelectable = true,
       isSelect,
+      handleSelect,
+      actions,
       children,
       ...props
     },
@@ -339,6 +357,9 @@ const Folder = forwardRef<
     } = useTree()
     const isSelected = isSelect ?? selectedId === value
     const isExpanded = expandedItems?.includes(value)
+    const hasChildren = Boolean(
+      children && (Array.isArray(children) ? children.length > 0 : true)
+    )
 
     return (
       <AccordionPrimitive.Item
@@ -347,51 +368,61 @@ const Folder = forwardRef<
         value={value}
         className="relative h-full overflow-hidden"
       >
-        <AccordionPrimitive.Trigger
-          className={cn(
-            `flex w-full min-w-0 items-center gap-1 rounded-md px-1.5 py-1 text-left text-xs transition-colors select-none hover:bg-accent/40`,
-            className,
-            {
-              "bg-accent font-medium text-accent-foreground":
-                isSelected && isSelectable,
-              "cursor-pointer": isSelectable,
-              "cursor-not-allowed opacity-50": !isSelectable,
-            }
-          )}
-          disabled={!isSelectable}
-          onClick={() => {
-            selectItem(value)
-            handleExpand(value)
-          }}
-        >
-          <ChevronRight
+        <div className="flex w-full min-w-0 items-center justify-between gap-1 group/tree-folder">
+          <AccordionPrimitive.Trigger
             className={cn(
-              "size-3 shrink-0 text-muted-foreground/75 transition-transform duration-200",
-              isExpanded && "rotate-90"
+              `flex flex-1 min-w-0 items-center gap-1 rounded-md px-1.5 py-1 text-left text-xs transition-colors select-none hover:bg-accent/40`,
+              className,
+              {
+                "bg-accent font-medium text-accent-foreground":
+                  isSelected && isSelectable,
+                "cursor-pointer": isSelectable,
+                "cursor-not-allowed opacity-50": !isSelectable,
+              }
             )}
-          />
-          {isExpanded
-            ? (openIcon ?? (
-                <FolderOpenIcon className="size-3.5 fill-amber-500/10 text-amber-500" />
-              ))
-            : (closeIcon ?? (
-                <FolderIcon className="size-3.5 fill-amber-500/5 text-amber-500" />
-              ))}
-          <span className="truncate">{element}</span>
-        </AccordionPrimitive.Trigger>
-        <AccordionPrimitive.Content className="relative h-full overflow-hidden text-xs data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
-          {element && indicator && <TreeIndicator aria-hidden="true" />}
-          {isExpanded && (
-            <AccordionPrimitive.Root
-              dir={direction}
-              type="multiple"
-              className="ml-4 flex flex-col gap-0.5 py-0.5 rtl:mr-4"
-              value={expandedItems}
-            >
-              {children}
-            </AccordionPrimitive.Root>
-          )}
-        </AccordionPrimitive.Content>
+            disabled={!isSelectable}
+            onClick={() => {
+              selectItem(value)
+              if (hasChildren) {
+                handleExpand(value)
+              }
+              handleSelect?.(value)
+            }}
+          >
+            {hasChildren ? (
+              <ChevronRight
+                className={cn(
+                  "size-3 shrink-0 text-muted-foreground/75 transition-transform duration-150",
+                  isExpanded && "rotate-90"
+                )}
+              />
+            ) : (
+              <span className="size-3 shrink-0" aria-hidden="true" />
+            )}
+            {isExpanded && hasChildren
+              ? (openIcon ?? (
+                  <FolderOpenIcon className="size-3.5 fill-amber-500/10 text-amber-500" />
+                ))
+              : (closeIcon ?? (
+                  <FolderIcon className="size-3.5 fill-amber-500/5 text-amber-500" />
+                ))}
+            <span className="truncate">{element}</span>
+          </AccordionPrimitive.Trigger>
+          {actions && <div className="shrink-0">{actions}</div>}
+        </div>
+        {hasChildren && (
+          <AccordionPrimitive.Content className="relative h-full overflow-hidden text-xs">
+            {element && indicator && <TreeIndicator aria-hidden="true" />}
+            {isExpanded && (
+              <div
+                dir={direction}
+                className="ml-4 flex flex-col gap-0.5 py-0.5 rtl:mr-4"
+              >
+                {children}
+              </div>
+            )}
+          </AccordionPrimitive.Content>
+        )}
       </AccordionPrimitive.Item>
     )
   }
@@ -399,15 +430,18 @@ const Folder = forwardRef<
 
 Folder.displayName = "Folder"
 
+type FileProps = {
+  value: string
+  handleSelect?: (id: string) => void
+  isSelectable?: boolean
+  isSelect?: boolean
+  fileIcon?: React.ReactNode
+  actions?: React.ReactNode
+} & React.ButtonHTMLAttributes<HTMLButtonElement>
+
 const File = forwardRef<
-  HTMLButtonElement,
-  {
-    value: string
-    handleSelect?: (id: string) => void
-    isSelectable?: boolean
-    isSelect?: boolean
-    fileIcon?: React.ReactNode
-  } & React.ButtonHTMLAttributes<HTMLButtonElement>
+  HTMLDivElement,
+  FileProps & React.HTMLAttributes<HTMLDivElement>
 >(
   (
     {
@@ -418,6 +452,7 @@ const File = forwardRef<
       isSelectable = true,
       isSelect,
       fileIcon,
+      actions,
       children,
       ...props
     },
@@ -426,30 +461,40 @@ const File = forwardRef<
     const { direction, selectedId, selectItem } = useTree()
     const isSelected = isSelect ?? selectedId === value
     return (
-      <button
+      <div
         ref={ref}
-        type="button"
-        disabled={!isSelectable}
-        className={cn(
-          "flex w-full min-w-0 items-center gap-1 rounded-md px-1.5 py-1 pl-4 text-left text-xs transition-colors select-none hover:bg-accent/40",
-          {
-            "bg-accent font-medium text-accent-foreground":
-              isSelected && isSelectable,
-          },
-          isSelectable ? "cursor-pointer" : "cursor-not-allowed opacity-50",
-          direction === "rtl" ? "rtl" : "ltr",
-          className
-        )}
-        onClick={(event) => {
-          selectItem(value)
-          handleSelect?.(value)
-          onClick?.(event)
-        }}
-        {...props}
+        className="flex w-full min-w-0 items-center justify-between gap-1 group/tree-file"
       >
-        {fileIcon ?? <FileIcon className="size-3.5 text-muted-foreground" />}
-        {children}
-      </button>
+        <button
+          type="button"
+          disabled={!isSelectable}
+          className={cn(
+            "flex flex-1 min-w-0 items-center gap-1 rounded-md px-1.5 py-1 text-left text-xs transition-colors select-none hover:bg-accent/40",
+            {
+              "bg-accent font-medium text-accent-foreground":
+                isSelected && isSelectable,
+            },
+            isSelectable ? "cursor-pointer" : "cursor-not-allowed opacity-50",
+            direction === "rtl" ? "rtl" : "ltr",
+            className
+          )}
+          onClick={(event) => {
+            selectItem(value)
+            handleSelect?.(value)
+            onClick?.(event)
+          }}
+          {...props}
+        >
+          <span className="size-3 shrink-0" aria-hidden="true" />
+          {fileIcon === undefined ? (
+            <FileIcon className="size-3.5 text-muted-foreground" />
+          ) : (
+            fileIcon
+          )}
+          {children}
+        </button>
+        {actions && <div className="shrink-0">{actions}</div>}
+      </div>
     )
   }
 )

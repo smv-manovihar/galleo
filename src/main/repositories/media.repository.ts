@@ -347,7 +347,7 @@ export class MediaRepository {
     for (const p of paths) {
       const forwardSlash = p.replace(/\\/g, "/")
       const backSlash = p.replace(/\//g, "\\")
-      const rows = findStmt.all(p, forwardSlash, forwardSlash, backSlash) as Array<{
+      const rows = findStmt.all(p, forwardSlash, backSlash, forwardSlash) as Array<{
         id: string
         thumbnailPath?: string | null
       }>
@@ -368,7 +368,7 @@ export class MediaRepository {
       for (const p of pathList) {
         const forwardSlash = p.replace(/\\/g, "/")
         const backSlash = p.replace(/\//g, "\\")
-        stmt.run(p, forwardSlash, forwardSlash, backSlash)
+        stmt.run(p, forwardSlash, backSlash, forwardSlash)
       }
       try {
         db.prepare("DELETE FROM session_decisions WHERE media_id NOT IN (SELECT id FROM media_items)").run()

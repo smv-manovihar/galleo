@@ -1,3 +1,4 @@
+import { shell } from "electron"
 import fs from "fs/promises"
 import { existsSync, statSync } from "fs"
 import path from "path"
@@ -76,7 +77,7 @@ export async function checkAvailableDiskSpace(
 }
 
 /**
- * Safe wrapper to move a file to the OS Recycle Bin/Trash using the trash library.
+ * Safe wrapper to move a file to the OS Recycle Bin/Trash using Electron native API (or trash fallback).
  */
 export async function moveToTrash(filePath: string): Promise<Result<void>> {
   try {
@@ -85,8 +86,11 @@ export async function moveToTrash(filePath: string): Promise<Result<void>> {
       return fail({ code: "FILE_NOT_FOUND", path: normalized })
     }
 
-    // trash takes absolute paths
-    await trash([normalized])
+    if (shell && typeof shell.trashItem === "function") {
+      await shell.trashItem(normalized)
+    } else {
+      await trash([normalized])
+    }
     return ok(undefined)
   } catch (e: unknown) {
     const err = e as { code?: string; message?: string }

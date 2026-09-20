@@ -549,18 +549,21 @@ export const useSessionStore: UseBoundStore<StoreApi<SessionState>> = create<Ses
 
   commitDeletions: async (specificMediaIds?: string[]) => {
     const { checkpoint, decisions } = get()
-    if (!checkpoint) return { successCount: 0, failedPaths: null }
-
     set({ isCommitting: true })
 
     // Retrieve full media objects from browser store to locate file paths
-    const mediaStoreItems = useMediaStore.getState().items
+    const mediaStore = useMediaStore.getState()
+    const mediaStoreItems = mediaStore.items
     const itemMap = new Map(mediaStoreItems.map((i: MediaItem) => [i.id, i]))
+
+    const targets =
+      specificMediaIds ||
+      mediaStoreItems
+        .filter((i) => (decisions[i.id] ?? i.reviewState) === "delete")
+        .map((i) => i.id)
 
     const pathsToDelete: string[] = []
     const idsToTrash: string[] = []
-
-    const targets = specificMediaIds || Object.keys(decisions)
 
     for (const mediaId of targets) {
       const item = itemMap.get(mediaId)
@@ -582,71 +585,93 @@ export const useSessionStore: UseBoundStore<StoreApi<SessionState>> = create<Ses
       if (res.ok) {
         successCount = pathsToDelete.length
       } else {
-        // Handle partial deletes if we have failed paths
-        failedPaths = pathsToDelete
+        const data = (res as { error?: { data?: { successfulPaths?: string[] } } })?.error?.data
+        const successful = data?.successfulPaths || []
+        successCount = successful.length
+        const successSet = new Set(successful)
+        failedPaths = pathsToDelete.filter((p) => !successSet.has(p))
       }
     }
 
-    if (specificMediaIds) {
-      // Flush queued reviews before committing so DB is consistent
-      flushPendingReviews(checkpoint.sessionId)
-      // Partial commit (e.g. for exact duplicates)
-      const updatedDecisions = { ...decisions }
-      for (const mediaId of specificMediaIds) {
-        delete updatedDecisions[mediaId]
+    // Synchronously purge trashed items from media store memory
+    if (idsToTrash.length > 0) {
+      mediaStore.removeItems(idsToTrash)
+    }
+
+    if (checkpoint) {
+      if (specificMediaIds) {
+        // Flush queued reviews before committing so DB is consistent
+        flushPendingReviews(checkpoint.sessionId)
+        // Partial commit (e.g. for exact duplicates)
+        const updatedDecisions = { ...decisions }
+        for (const mediaId of specificMediaIds) {
+          delete updatedDecisions[mediaId]
+        }
+
+        const targetSet = new Set(specificMediaIds)
+        const updatedUndoStack = checkpoint.undoStack.filter(
+          (action) => !targetSet.has(action.mediaId)
+        )
+
+        const newIndex = Math.max(0, checkpoint.currentIndex - idsToTrash.length)
+
+        const updatedCheckpoint: SessionCheckpoint = {
+          ...checkpoint,
+          currentIndex: newIndex,
+          decisions: updatedDecisions,
+          undoStack: updatedUndoStack,
+          savedAt: new Date().toISOString(),
+        }
+
+        cancelPendingCheckpointSave()
+        await window.api.saveSessionCheckpoint(updatedCheckpoint)
+        if (checkpoint.folderPath) {
+          await useMediaStore.getState().fetchMediaItems(checkpoint.folderPath)
+        }
+
+        set({
+          checkpoint: updatedCheckpoint,
+          currentIndex: newIndex,
+          decisions: updatedDecisions,
+          undoStack: updatedUndoStack,
+          isCommitting: false,
+        })
+      } else {
+        // Full commit: Flush queued reviews then clear session.
+        // Cancel any queued debounced save first so a stale timer cannot
+        // re-create the session row after it was deleted.
+        flushPendingReviews(checkpoint.sessionId)
+        cancelPendingCheckpointSave()
+        await window.api.clearSession(checkpoint.folderPath)
+
+        // Clear localStorage active tab and group index for this folder
+        if (typeof localStorage !== "undefined") {
+          localStorage.removeItem(`duplicates_active_tab_${checkpoint.folderPath}`)
+          localStorage.removeItem(
+            `duplicates_manual_group_index_${checkpoint.folderPath}`
+          )
+        }
+
+        // Re-fetch folders data to sync UI
+        if (checkpoint.folderPath) {
+          await useMediaStore.getState().fetchMediaItems(checkpoint.folderPath)
+        }
+
+        // Reset store states
+        set({
+          checkpoint: null,
+          currentIndex: 0,
+          decisions: {},
+          undoStack: [],
+          isCommitting: false,
+        })
       }
-
-      const targetSet = new Set(specificMediaIds)
-      const updatedUndoStack = checkpoint.undoStack.filter(
-        (action) => !targetSet.has(action.mediaId)
-      )
-
-      const newIndex = Math.max(0, checkpoint.currentIndex - idsToTrash.length)
-
-      const updatedCheckpoint: SessionCheckpoint = {
-        ...checkpoint,
-        currentIndex: newIndex,
-        decisions: updatedDecisions,
-        undoStack: updatedUndoStack,
-        savedAt: new Date().toISOString(),
-      }
-
-      cancelPendingCheckpointSave()
-      await window.api.saveSessionCheckpoint(updatedCheckpoint)
-      await useMediaStore.getState().fetchMediaItems(checkpoint.folderPath)
-
-      set({
-        checkpoint: updatedCheckpoint,
-        currentIndex: newIndex,
-        decisions: updatedDecisions,
-        undoStack: updatedUndoStack,
-        isCommitting: false,
-      })
     } else {
-      // Full commit: Flush queued reviews then clear session.
-      // Cancel any queued debounced save first so a stale timer cannot
-      // re-create the session row after it was deleted.
-      flushPendingReviews(checkpoint.sessionId)
-      cancelPendingCheckpointSave()
-      await window.api.clearSession(checkpoint.folderPath)
-
-      // Clear localStorage active tab and group index for this folder
-      localStorage.removeItem(`duplicates_active_tab_${checkpoint.folderPath}`)
-      localStorage.removeItem(
-        `duplicates_manual_group_index_${checkpoint.folderPath}`
-      )
-
-      // Re-fetch folders data to sync UI
-      await useMediaStore.getState().fetchMediaItems(checkpoint.folderPath)
-
-      // Reset store states
-      set({
-        checkpoint: null,
-        currentIndex: 0,
-        decisions: {},
-        undoStack: [],
-        isCommitting: false,
-      })
+      const activeRoot = mediaStore.activeRootPath
+      if (activeRoot) {
+        await mediaStore.fetchMediaItems(activeRoot)
+      }
+      set({ isCommitting: false })
     }
 
     return { successCount, failedPaths }
@@ -659,7 +684,11 @@ export const useSessionStore: UseBoundStore<StoreApi<SessionState>> = create<Ses
     const mediaStoreItems = useMediaStore.getState().items
     const itemMap = new Map(mediaStoreItems.map((i: MediaItem) => [i.id, i]))
     const decisions = get().decisions
-    const targets = specificMediaIds || Object.keys(decisions)
+    const targets =
+      specificMediaIds ||
+      mediaStoreItems
+        .filter((i) => (decisions[i.id] ?? i.reviewState) === "delete")
+        .map((i) => i.id)
 
     let totalCount = 0
     for (const id of targets) {

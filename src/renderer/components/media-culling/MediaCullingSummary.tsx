@@ -57,7 +57,7 @@ export const MediaCullingSummary: React.FC<MediaCullingSummaryProps> = ({
     const size = details.reclaimableSize
     const count = deleteIds.length
     if (count > 0) {
-      void startTrashingInBackground(undefined, "Trashing culled files...")
+      void startTrashingInBackground(deleteIds, "Trashing culled files...")
       toast.success("Trashing started", {
         id: "trashing-status-toast",
         description: `${count} file${count !== 1 ? "s" : ""} queued for trashing (${formatBytes(size)}).`,

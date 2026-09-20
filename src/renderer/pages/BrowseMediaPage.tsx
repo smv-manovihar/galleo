@@ -96,21 +96,46 @@ export const BrowseMediaPage: React.FC = () => {
     return () => observer.disconnect()
   }, [])
 
-  // Compute deletion count and byte size lazily only when relevant
+  // Compute deletion count, byte size, and affected directories lazily only when relevant
   const deleteDetails = useMemo(() => {
     if (filterReviewState !== "trash" && !showCommitConfirm) {
-      return { count: 0, size: 0 }
+      return { count: 0, size: 0, folderBreakdown: [] }
     }
     let count = 0
     let size = 0
+    const folderMap = new Map<string, { count: number; size: number }>()
+
     for (const item of items) {
       const state = decisions[item.id] || item.reviewState
       if (state === "delete") {
         count++
-        size += item.size || 0
+        const itemSize = item.size || 0
+        size += itemSize
+
+        const lastSep = Math.max(
+          item.path.lastIndexOf("/"),
+          item.path.lastIndexOf("\\")
+        )
+        const dirPath =
+          lastSep > 0 ? item.path.substring(0, lastSep) : item.path
+        const curr = folderMap.get(dirPath) || { count: 0, size: 0 }
+        folderMap.set(dirPath, {
+          count: curr.count + 1,
+          size: curr.size + itemSize,
+        })
       }
     }
-    return { count, size }
+
+    const folderBreakdown = Array.from(folderMap.entries())
+      .map(([path, data]) => ({
+        path,
+        folderName: path.split(/[\\/]/).pop() || path,
+        count: data.count,
+        size: data.size,
+      }))
+      .sort((a, b) => b.size - a.size)
+
+    return { count, size, folderBreakdown }
   }, [filterReviewState, showCommitConfirm, items, decisions])
 
   // Initialize review session when activeRootPath changes or is loaded
@@ -450,16 +475,20 @@ export const BrowseMediaPage: React.FC = () => {
   }, [])
   const handleConfirmCommit = useCallback(() => {
     const currentDecisions = useSessionStore.getState().decisions
-    const deleteIds = Object.entries(currentDecisions)
-      .filter(([, state]) => state === "delete")
-      .map(([entryMediaId]) => entryMediaId)
+    const deleteIds = items
+      .filter(
+        (item) =>
+          (currentDecisions[item.id] ?? item.reviewState) === "delete"
+      )
+      .map((item) => item.id)
+
     if (deleteIds.length > 0) {
       void useSessionStore
         .getState()
         .startTrashingInBackground(deleteIds, "Trashing files...")
     }
     setShowCommitConfirm(false)
-  }, [])
+  }, [items])
 
   const onFindSimilarProp = ENABLE_AI_FEATURES ? handleFindSimilar : undefined
 
@@ -611,6 +640,7 @@ export const BrowseMediaPage: React.FC = () => {
         isOpen={showCommitConfirm}
         count={deleteDetails.count}
         size={deleteDetails.size}
+        folderBreakdown={deleteDetails.folderBreakdown}
         isCommitting={isCommitting}
         onClose={handleCloseCommitConfirm}
         onConfirm={handleConfirmCommit}

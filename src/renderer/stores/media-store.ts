@@ -298,6 +298,7 @@ export interface MediaState {
       | Map<string, "keep" | "delete" | "skipped" | "pending">
       | Record<string, "keep" | "delete" | "skipped" | "pending">
   ) => void
+  removeItems: (ids: string[]) => void
   getFilteredItems: () => MediaItem[]
   getDashboardMetrics: () => CachedDashboardMetrics
 }
@@ -547,6 +548,21 @@ export const useMediaStore: UseBoundStore<StoreApi<MediaState>> = create<MediaSt
     const cachedMetrics = computeMetricsForItems(targetItems)
 
     set({ items: updatedItems, cachedMetrics })
+  },
+
+  removeItems: (ids: string[]) => {
+    if (ids.length === 0) return
+    const { items, activeRootPath } = get()
+    const idSet = new Set(ids)
+    const updatedItems = items.filter((item) => !idSet.has(item.id))
+    const { cachedMetrics, cachedDuplicateGroups, cachedRootItemCounts } =
+      computeCaches(updatedItems, activeRootPath)
+    set({
+      items: updatedItems,
+      cachedMetrics,
+      cachedDuplicateGroups,
+      cachedRootItemCounts,
+    })
   },
 
   fetchMediaItems: async (folderPath: string) => {

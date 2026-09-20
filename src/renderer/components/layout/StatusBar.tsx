@@ -5,10 +5,6 @@ import { useScanStore } from "../../stores/scan-store"
 import {
   HardDrive,
   ListX,
-  Folder,
-  Trash2,
-  ShieldCheck,
-  Loader2,
   Sparkles,
 } from "lucide-react"
 import { formatBytes } from "../../lib/format"
@@ -18,16 +14,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip"
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogCancel,
-  AlertDialogAction,
-} from "@/components/ui/alert-dialog"
+import { CommitConfirmDialog } from "../browse/CommitConfirmDialog"
 import { toast } from "sonner"
 
 export const StatusBar: React.FC = () => {
@@ -159,131 +146,15 @@ export const StatusBar: React.FC = () => {
       </footer>
 
       {/* Confirmation Dialog with Structured Breakdown */}
-      <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>
-        <AlertDialogContent className="rounded-2xl border border-border bg-card p-5 font-sans shadow-xl outline-none select-none data-[size=default]:max-w-md">
-          <AlertDialogHeader className="border-b border-border/60 pb-3">
-            <div className="flex items-center gap-3 text-left">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-destructive/20 bg-destructive/10 text-destructive">
-                <ListX className="size-5 text-destructive" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <AlertDialogTitle className="text-sm font-bold text-foreground">
-                  Commit Marked Deletions
-                </AlertDialogTitle>
-                <AlertDialogDescription className="mt-1 text-xs text-muted-foreground">
-                  Confirm moving marked files to system trash.
-                </AlertDialogDescription>
-              </div>
-            </div>
-          </AlertDialogHeader>
-
-          {/* Metric Summary Tiles */}
-          <div className="my-1 grid grid-cols-2 gap-3">
-            <div className="space-y-1 rounded-xl border border-destructive/15 bg-destructive/5 p-3">
-              <div className="flex items-center gap-2 text-xs font-semibold tracking-wider text-destructive/80 uppercase">
-                <Trash2 className="h-3 w-3 shrink-0 text-destructive" />
-                <span>Files to Delete</span>
-              </div>
-              <div className="font-heading text-xl font-bold text-destructive tabular-nums">
-                {deleteDetails.count}{" "}
-                <span className="text-xs font-normal text-muted-foreground font-sans">
-                  files
-                </span>
-              </div>
-            </div>
-
-            <div className="space-y-1 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
-              <div className="flex items-center gap-2 text-xs font-semibold tracking-wider text-emerald-700 uppercase dark:text-emerald-300">
-                <HardDrive className="h-3 w-3 shrink-0 text-emerald-500" />
-                <span>To be Freed</span>
-              </div>
-              <div className="font-heading text-xl font-bold text-emerald-600 tabular-nums dark:text-emerald-400">
-                {formatBytes(deleteDetails.size)}
-              </div>
-            </div>
-          </div>
-
-          {/* Folder Breakdown List */}
-          {deleteDetails.folderBreakdown.length > 0 && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between px-0.5">
-                <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-                  Affected Directories
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {deleteDetails.folderBreakdown.length} folder
-                  {deleteDetails.folderBreakdown.length !== 1 ? "s" : ""}
-                </span>
-              </div>
-
-              <div className="max-h-44 scrollbar-thin space-y-2 overflow-y-auto rounded-lg pr-1">
-                {deleteDetails.folderBreakdown.map((folder) => (
-                  <div
-                    key={folder.path}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/10 p-3 transition-colors hover:bg-muted/20"
-                  >
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <div className="flex items-center gap-2 truncate text-xs font-semibold text-foreground">
-                        <Folder className="size-4 shrink-0 text-muted-foreground" />
-                        <span className="truncate">{folder.folderName}</span>
-                      </div>
-                      <span
-                        className="block truncate text-xs text-muted-foreground"
-                        title={folder.path}
-                      >
-                        {folder.path}
-                      </span>
-                    </div>
-
-                    <div className="shrink-0 text-right">
-                      <span className="block text-xs font-semibold text-destructive tabular-nums">
-                        {folder.count} {folder.count === 1 ? "file" : "files"}
-                      </span>
-                      <span className="block text-xs text-muted-foreground tabular-nums">
-                        {formatBytes(folder.size)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Safety Notice */}
-          <div className="flex items-center gap-2 rounded-lg border border-border/40 bg-muted/20 p-3 text-xs text-muted-foreground">
-            <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-500" />
-            <span>Files move to system trash (recoverable).</span>
-          </div>
-
-          <AlertDialogFooter className="mt-2 gap-2 border-t border-border/60 pt-3">
-            <AlertDialogCancel
-              disabled={isCommitting}
-              onClick={() => setShowConfirm(false)}
-              className="h-8 cursor-pointer rounded-lg text-xs font-medium"
-            >
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              disabled={isCommitting}
-              onClick={handleCommit}
-              className="h-8 cursor-pointer gap-2 rounded-lg text-xs font-semibold"
-            >
-              {isCommitting ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" />
-                  Moving to Trash…
-                </>
-              ) : (
-                <>
-                  <ListX className="size-4" />
-                  Move {deleteDetails.count} Files to Trash
-                </>
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <CommitConfirmDialog
+        isOpen={showConfirm}
+        count={deleteDetails.count}
+        size={deleteDetails.size}
+        folderBreakdown={deleteDetails.folderBreakdown}
+        isCommitting={isCommitting}
+        onClose={() => setShowConfirm(false)}
+        onConfirm={handleCommit}
+      />
     </>
   )
 }

@@ -31,6 +31,8 @@ describe("useSessionStore", () => {
       updateReviews: vi.fn().mockResolvedValue(undefined),
       updateMediaOrientation: vi.fn().mockResolvedValue(undefined),
       getMediaItems: vi.fn().mockResolvedValue([]),
+      clearSession: vi.fn().mockResolvedValue(undefined),
+      trashFiles: vi.fn().mockResolvedValue({ ok: true, value: undefined }),
     }
 
     if (typeof globalThis.window === "undefined") {
@@ -175,5 +177,46 @@ describe("useSessionStore", () => {
     expect(stateAfterUndo.decisions["d2"]).toBeUndefined()
     expect(useMediaStore.getState().items[0].reviewState).toBe("pending")
     expect(useMediaStore.getState().items[1].reviewState).toBe("pending")
+  })
+
+  it("successfully commits deletions and purges items even when checkpoint is null", async () => {
+    const item1 = createMockItem("item1", { reviewState: "delete" })
+    const item2 = createMockItem("item2", { reviewState: "keep" })
+    useMediaStore.setState({ items: [item1, item2] })
+
+    const mockTrashFiles = vi.fn().mockResolvedValue({ ok: true, value: undefined })
+    window.api.trashFiles = mockTrashFiles
+
+    expect(useSessionStore.getState().checkpoint).toBeNull()
+
+    const result = await useSessionStore.getState().commitDeletions()
+
+    expect(mockTrashFiles).toHaveBeenCalledWith([item1.path])
+    expect(result.successCount).toBe(1)
+    expect(result.failedPaths).toBeNull()
+
+    // item1 should be synchronously removed from mediaStore
+    const remainingItems = useMediaStore.getState().items
+    expect(remainingItems).toHaveLength(1)
+    expect(remainingItems[0].id).toBe("item2")
+  })
+
+  it("discovers target deletions from media items when decisions map is empty", async () => {
+    const item1 = createMockItem("item1", { reviewState: "delete" })
+    const item2 = createMockItem("item2", { reviewState: "delete" })
+    useMediaStore.setState({ items: [item1, item2] })
+
+    const mockTrashFiles = vi.fn().mockResolvedValue({ ok: true, value: undefined })
+    window.api.trashFiles = mockTrashFiles
+
+    await useSessionStore.getState().initSession("C:/Photos", 2)
+    // Clear in-memory decisions to simulate DB flush / restart
+    useSessionStore.setState({ decisions: {} })
+
+    const result = await useSessionStore.getState().commitDeletions()
+
+    expect(mockTrashFiles).toHaveBeenCalledWith([item1.path, item2.path])
+    expect(result.successCount).toBe(2)
+    expect(useMediaStore.getState().items).toHaveLength(0)
   })
 })

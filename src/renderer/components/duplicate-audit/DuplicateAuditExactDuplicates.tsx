@@ -351,8 +351,13 @@ export const DuplicateAuditExactDuplicates = React.memo<
 
     try {
       const store = useSessionStore.getState()
-      const checkpoint = store.checkpoint
-      if (!checkpoint) return
+      let checkpoint = store.checkpoint
+      if (!checkpoint) {
+        const activeRoot =
+          useSessionStore.getState().checkpoint?.folderPath || "all"
+        await store.initSession(activeRoot, duplicateGroups.flat().length)
+        checkpoint = useSessionStore.getState().checkpoint
+      }
 
       const updatedDecisions = { ...store.decisions }
       const reviewsToUpdate: { mediaId: string; state: "keep" | "delete" }[] =
@@ -372,19 +377,27 @@ export const DuplicateAuditExactDuplicates = React.memo<
         reviewsToUpdate.push({ mediaId: id, state: "keep" })
       }
 
-      const updatedCheckpoint = {
-        ...checkpoint,
-        decisions: updatedDecisions,
-        savedAt: new Date().toISOString(),
+      if (checkpoint) {
+        const updatedCheckpoint = {
+          ...checkpoint,
+          decisions: updatedDecisions,
+          savedAt: new Date().toISOString(),
+        }
+
+        useSessionStore.setState({
+          decisions: updatedDecisions,
+          checkpoint: updatedCheckpoint,
+        })
+
+        await window.api.saveSessionCheckpoint(updatedCheckpoint)
+        if (checkpoint.sessionId) {
+          await window.api.updateReviews(checkpoint.sessionId, reviewsToUpdate)
+        }
+      } else {
+        useSessionStore.setState({
+          decisions: updatedDecisions,
+        })
       }
-
-      useSessionStore.setState({
-        decisions: updatedDecisions,
-        checkpoint: updatedCheckpoint,
-      })
-
-      await window.api.saveSessionCheckpoint(updatedCheckpoint)
-      await window.api.updateReviews(checkpoint.sessionId, reviewsToUpdate)
 
       const specificIds = [...resolvedDeleteIds, ...resolvedKeepIds]
       const reclaimedSize = resolvedGroups.reduce(
@@ -405,7 +418,7 @@ export const DuplicateAuditExactDuplicates = React.memo<
     } finally {
       setIsCleaning(false)
     }
-  }, [resolvedGroups, isCleaning, startTrashingInBackground])
+  }, [resolvedGroups, isCleaning, duplicateGroups, startTrashingInBackground])
 
   // Empty state when all duplicates are resolved or folder has no duplicates
   if (exactDupsToDelete.length === 0 || resolvedGroups.length === 0) {
